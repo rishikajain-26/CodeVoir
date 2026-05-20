@@ -1,0 +1,25 @@
+# ENV
+.env
+.env.local
+
+# PYTHON
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# NODE
+node_modules/
+dist/
+
+# LOCAL TOOLCHAINS / DOWNLOADS
+tools/w64devkit/
+tools/*.exe
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
