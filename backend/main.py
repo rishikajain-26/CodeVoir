@@ -38,10 +38,9 @@ except Exception:
 
 APP_VERSION = "1.1.0-mvp"
 SESSIONS: dict[str, dict[str, Any]] = {}
-SUPPORTED_LANGUAGES = {"python", "javascript", "cpp", "c", "java"}
+SUPPORTED_LANGUAGES = {"python", "cpp", "c", "java"}
 LANGUAGE_LABELS = {
     "python": "Python",
-    "javascript": "JavaScript",
     "cpp": "C++",
     "c": "C",
     "java": "Java",
@@ -49,11 +48,15 @@ LANGUAGE_LABELS = {
 DATA_DIR = Path(__file__).parent / "app" / "data"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PORTABLE_TOOLCHAIN_BIN = PROJECT_ROOT / "tools" / "w64devkit" / "bin"
-PROBLEM_DATA_PATH = DATA_DIR / "neenza_merged_problems.json"
+PROBLEM_DATA_PATH = DATA_DIR / "leetcode_dataset_balanced.json"
+COMPANY_PROBLEM_DATA_PATH = DATA_DIR / "company_dsa_dataset.json"
+COMPANY_META_PATH = DATA_DIR / "company_dsa_meta.json"
 FALLBACK_PROBLEM_DATA_PATH = DATA_DIR / "leetcode_problems.json"
+DATASET_SOURCE_LABEL = "liquidslr/interview-company-wise-problems"
+DATASET_DISPLAY_LABEL = "company-wise DSA interview problems"
 
 def _load_problem_dataset() -> list[dict[str, Any]]:
-    path = PROBLEM_DATA_PATH if PROBLEM_DATA_PATH.exists() else FALLBACK_PROBLEM_DATA_PATH
+    path = COMPANY_PROBLEM_DATA_PATH if COMPANY_PROBLEM_DATA_PATH.exists() else PROBLEM_DATA_PATH if PROBLEM_DATA_PATH.exists() else FALLBACK_PROBLEM_DATA_PATH
     raw = json.loads(path.read_text(encoding="utf-8"))
     problems = raw.get("questions", raw) if isinstance(raw, dict) else raw
     normalized = [_normalize_problem(p) for p in problems]
@@ -80,7 +83,6 @@ def _normalize_problem(problem: dict[str, Any]) -> dict[str, Any]:
     snippets = problem.get("code_snippets", {}) or {}
     starter_code = {
         "python": snippets.get("python3") or snippets.get("python") or "# Write a complete program or adapt this LeetCode method.\n",
-        "javascript": snippets.get("javascript") or "// Write a complete program or adapt this LeetCode function.\n",
         "cpp": snippets.get("cpp") or "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    return 0;\n}\n",
         "c": snippets.get("c") or "#include <stdio.h>\n\nint main(void) {\n    return 0;\n}\n",
         "java": snippets.get("java") or "class Main {\n    public static void main(String[] args) {\n    }\n}\n",
@@ -91,7 +93,7 @@ def _normalize_problem(problem: dict[str, Any]) -> dict[str, Any]:
         "title": problem.get("title", ""),
         "frontend_id": problem.get("frontend_id", ""),
         "difficulty": problem.get("difficulty", "Medium"),
-        "source": "neenza/leetcode-problems public dataset",
+        "source": DATASET_SOURCE_LABEL,
         "topics": problem.get("topics", []),
         "prompt": _clean_problem_text(problem.get("description", "")),
         "constraints": problem.get("constraints", []),
@@ -122,6 +124,8 @@ def _parse_example_text(text: str) -> dict[str, str]:
 
 
 DSA_PROBLEMS = _load_problem_dataset()
+COMPANY_META = json.loads(COMPANY_META_PATH.read_text(encoding="utf-8")) if COMPANY_META_PATH.exists() else {"companies": [], "company_stats": {}}
+COMPANY_LOOKUP = {re.sub(r"[^a-z0-9]+", "", company.lower()): company for company in COMPANY_META.get("companies", [])}
 
 
 def _load_local_env() -> None:
@@ -151,12 +155,13 @@ class MessageRequest(BaseModel):
     session_id: str
     user_text: str
     behavioral_metrics: dict[str, Any] = {}
+    code_context: dict[str, Any] = {}
 
 
 class CodeSubmitRequest(BaseModel):
     session_id: str
     code: str
-    language: str = Field(default="python", pattern="^(python|javascript|cpp|c|java)$")
+    language: str = Field(default="python", pattern="^(python|cpp|c|java)$")
     problem_id: str | None = None
 
 
@@ -199,7 +204,24 @@ async def problems_meta():
     counts: dict[str, int] = {}
     for problem in DSA_PROBLEMS:
         counts[problem.get("difficulty", "Unknown")] = counts.get(problem.get("difficulty", "Unknown"), 0) + 1
-    return {"count": len(DSA_PROBLEMS), "difficulty_counts": counts, "source": "neenza/leetcode-problems", "languages": LANGUAGE_LABELS}
+    return {
+        "count": len(DSA_PROBLEMS),
+        "difficulty_counts": counts,
+        "source": DATASET_SOURCE_LABEL,
+        "label": DATASET_DISPLAY_LABEL,
+        "languages": LANGUAGE_LABELS,
+        "companies": COMPANY_META.get("companies", []),
+        "company_stats": COMPANY_META.get("company_stats", {}),
+    }
+
+
+@app.get("/api/problems/companies")
+async def problem_companies():
+    return {
+        "companies": COMPANY_META.get("companies", []),
+        "company_stats": COMPANY_META.get("company_stats", {}),
+        "source": DATASET_SOURCE_LABEL,
+    }
 
 
 @app.get("/api/llm/status")
@@ -216,13 +238,14 @@ async def llm_status():
 @app.post("/api/session/start")
 async def start_session(payload: StartSessionRequest):
     session_id = str(uuid.uuid4())
-    problem = _select_problem(payload.difficulty)
+    target_company = _resolve_company(payload.target_company)
+    problem = _select_problem(payload.difficulty, target_company)
     SESSIONS[session_id] = {
         "session_id": session_id,
         "created_at": _now(),
         "job_role": payload.job_role,
         "experience_level": payload.experience_level,
-        "target_company": payload.target_company,
+        "target_company": target_company or payload.target_company,
         "round_type": payload.round_type,
         "difficulty": payload.difficulty,
         "timer_minutes": payload.timer_minutes,
@@ -250,6 +273,8 @@ async def start_session(payload: StartSessionRequest):
         "status": "created",
         "problem": problem,
         "dataset_size": len(DSA_PROBLEMS),
+        "dataset_label": DATASET_DISPLAY_LABEL,
+        "target_company": target_company,
         "languages": LANGUAGE_LABELS,
         "ai_text": _opening_prompt(SESSIONS[session_id]),
     }
@@ -284,6 +309,7 @@ async def interview_message(payload: MessageRequest):
         raise HTTPException(status_code=400, detail="user_text is required")
     session["messages"].append({"role": "candidate", "content": user_text, "ts": _now()})
     session["question_count"] += 1
+    _ingest_code_context(session, payload.code_context, source="message")
     _update_behavior(session, user_text, payload.behavioral_metrics)
     ai_text = _next_interview_turn(session, user_text)
     session["messages"].append({"role": "interviewer", "content": ai_text, "ts": _now()})
@@ -304,6 +330,7 @@ async def submit_code(payload: CodeSubmitRequest):
         raise HTTPException(status_code=400, detail=f"Unsupported language. Choose one of: {', '.join(sorted(SUPPORTED_LANGUAGES))}.")
     problem = session["problem"]
     session["code_snapshots"].append({"language": payload.language, "code": payload.code[-8000:], "ts": _now()})
+    session["latest_code_analysis"] = _code_insights(payload.code, payload.language, problem)
     result = _run_code_tests(payload.code, problem["testcases"], payload.language, problem)
     session["code_runs"].append(result)
     review = _code_review(payload.code, result, problem, payload.language)
@@ -330,6 +357,7 @@ async def log_violation(payload: ViolationRequest):
         signals["idle_gaps"] = max(signals.get("idle_gaps", 0), int(detail.get("idleGaps", 0) or 0))
         signals["delete_events"] = max(signals.get("delete_events", 0), int(detail.get("deletions", 0) or 0))
         session["behavior_log"].append({"ts": _now(), "type": "code_telemetry", "detail": detail})
+        _ingest_code_context(session, detail, source="telemetry")
     return {"logged": True, "violations_count": len(session["violations"])}
 
 
@@ -358,16 +386,38 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _select_problem(difficulty: str) -> dict[str, Any]:
+def _resolve_company(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    key = re.sub(r"[^a-z0-9]+", "", raw.lower())
+    if key in COMPANY_LOOKUP:
+        return COMPANY_LOOKUP[key]
+    for lookup_key, company in COMPANY_LOOKUP.items():
+        if key and (key in lookup_key or lookup_key in key):
+            return company
+    return raw
+
+
+def _select_problem(difficulty: str, target_company: str = "") -> dict[str, Any]:
     wanted = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}.get(difficulty.lower(), "Medium")
-    candidates = [p for p in DSA_PROBLEMS if p.get("difficulty") == wanted]
-    return random.choice(candidates or DSA_PROBLEMS)
+    pool = DSA_PROBLEMS
+    if target_company:
+        company_pool = [p for p in DSA_PROBLEMS if target_company in p.get("companies", [])]
+        if company_pool:
+            pool = company_pool
+    candidates = [p for p in pool if p.get("difficulty") == wanted] or pool or DSA_PROBLEMS
+    if target_company:
+        weights = [max(1.0, float(problem.get("company_frequency", {}).get(target_company, 1))) for problem in candidates]
+        return random.choices(candidates, weights=weights, k=1)[0]
+    return random.choice(candidates)
 
 
 def _opening_prompt(session: dict[str, Any]) -> str:
     if session["round_type"] == "dsa":
         p = session["problem"]
-        return f"Hi, I am your AI interviewer. We will begin with a quick intro, then discuss the coding problem visible on the left: {p['title']}. Please introduce yourself briefly and tell me your first approach. I will ask clarifying questions and offer hints only if you request them."
+        company_text = f" for {session['target_company']}" if session.get("target_company") else ""
+        return f"Hi, I am your AI interviewer. We will begin with a quick intro, then discuss a company-tagged coding problem{company_text} visible on the left: {p['title']}. Please introduce yourself briefly and tell me your first approach. I will ask clarifying questions and offer hints only if you request them."
     return "We will start with your background. Walk me through your resume, then I will challenge the project claims and move into behavioral scenarios."
 
 
@@ -431,6 +481,26 @@ def _update_behavior(session: dict[str, Any], text: str, metrics: dict[str, Any]
     session["scores"]["confidence"].append(max(1, 4 - min(3, filler_count)))
 
 
+def _ingest_code_context(session: dict[str, Any], context: dict[str, Any], source: str) -> None:
+    if not context:
+        return
+    code_text = str(context.get("code") or context.get("code_excerpt") or "")
+    language = str(context.get("language") or context.get("selected_language") or "python")
+    if not code_text.strip():
+        return
+    snapshot = {
+        "language": language,
+        "code": code_text[-12000:],
+        "source": source,
+        "ts": _now(),
+        "cursor": context.get("cursor"),
+        "telemetry": {k: v for k, v in context.items() if k not in {"code", "code_excerpt"}},
+    }
+    session["code_snapshots"].append(snapshot)
+    session["code_snapshots"] = session["code_snapshots"][-12:]
+    session["latest_code_analysis"] = _code_insights(code_text, language, session["problem"])
+
+
 def _next_interview_turn(session: dict[str, Any], user_text: str) -> str:
     lower = user_text.lower()
     if session["round_type"] == "dsa":
@@ -474,8 +544,8 @@ def _answer_dsa_question(problem: dict[str, Any], lower_text: str) -> str:
         visible = [tc for tc in problem["testcases"] if tc.get("visible", True)]
         cases = " | ".join(f"Input: {tc['input'].strip()} => Expected: {tc['expected_output']}" for tc in visible)
         return f"Yes. The visible test cases are: {cases}. I will also run hidden edge cases after submission, so your solution should handle the full constraints."
-    if any(term in lower_text for term in ["language", "python", "javascript", "java", "c++", "cpp", " c ", "change the language", "choose language"]):
-        return "Use the language selector above the editor. This build supports Python, JavaScript, C++, C, and Java. If your machine is missing gcc or g++, C/C++ submissions will show a clear compiler-missing message instead of silently failing."
+    if any(term in lower_text for term in ["language", "python", "java", "c++", "cpp", " c ", "change the language", "choose language"]):
+        return "Use the language selector above the editor. This build supports Python, C++, C, and Java. If your machine is missing gcc, g++, or a JDK, submissions will show a clear compiler-missing message instead of silently failing."
     if any(term in lower_text for term in ["constraint", "constraints", "limit"]):
         return "Constraints: " + "; ".join(problem.get("constraints", []))
     if any(term in lower_text for term in ["what is the problem", "problem statement", "question incomplete"]):
@@ -532,6 +602,9 @@ def _hint_for_problem(problem: dict[str, Any], hint_count: int) -> str:
 
 
 def _code_probe(code: str, problem: dict[str, Any]) -> str:
+    insights = _code_insights(code, "unknown", problem)
+    if insights["optimization_prompts"]:
+        return insights["optimization_prompts"][0]
     code_lower = code.lower()
     topics = [t.lower() for t in problem.get("topics", [])]
     if "stack" in topics and "stack" not in code_lower and ".append" not in code_lower and "push" not in code_lower:
@@ -541,6 +614,66 @@ def _code_probe(code: str, problem: dict[str, Any]) -> str:
     if "sliding window" in topics and not any(x in code_lower for x in ["left", "right", "window", "start"]):
         return "I do not see a clear moving-window boundary. What invariant tells you when to advance the left side?"
     return "Based on the code you have typed, explain the main invariant and one edge case that could break it. I will challenge that before accepting the submission."
+
+
+def _code_insights(code: str, language: str, problem: dict[str, Any]) -> dict[str, Any]:
+    code_lower = code.lower()
+    lines = [line for line in code.splitlines() if line.strip()]
+    topics = [str(t).lower() for t in problem.get("topics", [])]
+    signals = []
+    prompts = []
+
+    loop_count = len(re.findall(r"\b(for|while)\b", code_lower))
+    nested_loop = bool(re.search(r"\b(for|while)\b[\s\S]{0,350}\b(for|while)\b", code_lower))
+    recursion = bool(re.search(r"\b(\w+)\s*\([^;{}]*\)\s*\{[\s\S]*\b\1\s*\(", code))
+    uses_memo = any(term in code_lower for term in ["memo", "cache", "dp", "unordered_map", "map<", "dict", "lru_cache"])
+    uses_hash = any(term in code_lower for term in ["unordered_map", "unordered_set", "hashmap", "hashset", "dict", "set("])
+    uses_sort = "sort(" in code_lower or ".sort(" in code_lower
+    uses_binary_search = any(term in code_lower for term in ["binary_search", "lower_bound", "upper_bound", "left", "right", "mid"])
+    mutates_input = any(term in code_lower for term in ["sort(", ".sort(", "reverse(", ".reverse("])
+    pass_vector_by_value = bool(re.search(r"vector\s*<[^>]+>\s+\w+\s*(?:,|\))", code)) and "&" not in code[: max(1, code.find("{"))]
+    large_method = len(lines) > 70
+
+    if nested_loop:
+        signals.append("nested loops present")
+    if recursion:
+        signals.append("recursive/helper style")
+    if uses_memo:
+        signals.append("memoization or DP-like state present")
+    if uses_hash:
+        signals.append("hash lookup structure present")
+    if uses_sort:
+        signals.append("sorting/mutation present")
+    if pass_vector_by_value:
+        signals.append("possible vector pass-by-value copy")
+    if large_method:
+        signals.append("large method; harder to explain/debug live")
+
+    if ("dynamic programming" in topics or "dp" in topics) and not uses_memo:
+        prompts.append("Your current code does not show an obvious DP or memo table yet. What repeated state are you avoiding, and where is it stored?")
+    if ("hash table" in topics or "hash" in topics) and not uses_hash:
+        prompts.append("This problem is tagged with hash-style lookup, but your code does not show a hash structure. Are you intentionally trading time for simpler scanning?")
+    if ("binary search" in topics) and not uses_binary_search:
+        prompts.append("I do not see a clear binary-search boundary. What monotonic condition would let you cut the search space?")
+    if nested_loop and any(term in topics for term in ["array", "string", "hash table", "two pointers", "sliding window"]):
+        prompts.append("I see nested iteration. Under the stated constraints, can this be reduced with a lookup, two pointers, prefix state, or a sliding window?")
+    if recursion and not uses_memo and any(term in topics for term in ["dynamic programming", "backtracking", "dfs"]):
+        prompts.append("Your recursion does not show memoization. Which subproblems can repeat, and what key would you cache?")
+    if pass_vector_by_value and language in {"cpp", "unknown"}:
+        prompts.append("Your C++ signature or helper may copy vectors by value. Which parameters should be passed by reference to avoid unnecessary O(n) copies?")
+    if mutates_input:
+        prompts.append("You mutate or sort input data. Is the original order important for this problem, and can sorting change the meaning of the answer?")
+    if not prompts:
+        prompts.append("Based on your current code, explain the invariant, the main edge case, and the exact time and space complexity before you continue.")
+
+    return {
+        "language": language,
+        "line_count": len(lines),
+        "loop_count": loop_count,
+        "signals": signals,
+        "optimization_prompts": prompts[:4],
+        "code_excerpt": code[-3000:],
+    }
 
 
 def _active_llm_provider() -> str:
@@ -569,7 +702,8 @@ def _build_interviewer_prompt(session: dict[str, Any], user_text: str) -> dict[s
         "You are a strict but helpful live DSA interviewer. "
         "Do not solve the problem outright and do not reveal final code. "
         "Answer clarification questions directly, offer progressive hints only when asked or when the candidate is stuck, "
-        "cross-question based on candidate code and behavior, and keep replies under 120 words. "
+        "cross-question based on the candidate's current editor code, coding habits, and behavior, and keep replies under 120 words. "
+        "When code is present, refer to concrete patterns in it: missing memoization, nested loops, mutation, pass-by-value copies, weak invariants, edge cases, or optimization opportunities. "
         "If asked for the full answer, refuse and ask a probing question instead."
     )
     return {
@@ -585,6 +719,7 @@ def _build_interviewer_prompt(session: dict[str, Any], user_text: str) -> dict[s
         "candidate_latest": user_text,
         "recent_conversation": recent_messages,
         "latest_code": latest_code,
+        "latest_code_analysis": session.get("latest_code_analysis", {}),
         "behavioral_signals": session.get("behavioral_signals", {}),
         "hint_count": session.get("hint_count", 0),
     }
@@ -663,11 +798,19 @@ def _guard_interviewer_text(text: str) -> str:
 
 
 def _run_code_tests(code: str, testcases: list[dict[str, str]], language: str, problem: dict[str, Any] | None = None) -> dict[str, Any]:
+    visible_testcases = [testcase for testcase in testcases if testcase.get("visible", True)]
+    testcases = visible_testcases or testcases
     results = []
     passed = 0
     with tempfile.TemporaryDirectory() as tmp:
+        if language == "python" and problem and problem.get("execution_mode") == "leetcode" and "class Solution" in code:
+            return _run_python_visible_leetcode_tests(code, testcases, Path(tmp), problem)
         if language == "cpp" and "class Solution" in code and not re.search(r"\bmain\s*\(", code):
             return _run_cpp_leetcode_tests(code, testcases, Path(tmp), problem)
+        if language == "java" and problem and problem.get("execution_mode") == "leetcode" and not re.search(r"\bmain\s*\(", code):
+            return _run_java_leetcode_tests(code, testcases, Path(tmp), problem)
+        if language == "c" and problem and problem.get("execution_mode") == "leetcode" and not re.search(r"\bmain\s*\(", code):
+            return _run_c_leetcode_tests(code, testcases, Path(tmp), problem)
 
         setup = _prepare_language_command(code, language, Path(tmp))
         if setup.get("error"):
@@ -693,11 +836,14 @@ def _run_code_tests(code: str, testcases: list[dict[str, str]], language: str, p
         path = setup["path"]
         path.write_text(code, encoding="utf-8")
         for testcase in testcases:
+            stdin = testcase["input"]
+            if re.search(r"\bmain\s*\(", code):
+                stdin = _coerce_named_input_for_stdin(testcase["input"])
             start = time.perf_counter()
             try:
                 completed = subprocess.run(
                     command,
-                    input=testcase["input"],
+                    input=stdin,
                     text=True,
                     capture_output=True,
                     timeout=2,
@@ -710,8 +856,250 @@ def _run_code_tests(code: str, testcases: list[dict[str, str]], language: str, p
             elapsed = round((time.perf_counter() - start) * 1000, 2)
             ok = (not timed_out) and _outputs_equal(actual, testcase["expected_output"])
             passed += int(ok)
-            results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": actual, "stderr": stderr, "passed": ok, "visible": testcase.get("visible", True), "execution_time_ms": elapsed})
+            results.append({"input": testcase["input"], "stdin_used": stdin, "expected_output": testcase["expected_output"], "actual_output": actual, "stderr": stderr, "passed": ok, "visible": testcase.get("visible", True), "execution_time_ms": elapsed})
     return {"language": language, "passed_testcases": passed, "total_testcases": len(testcases), "overall_score": round((passed / len(testcases)) * 100, 1), "testcase_results": results}
+
+
+def _run_python_visible_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Path, problem: dict[str, Any]) -> dict[str, Any]:
+    signature = _parse_python_solution_signature(code, problem)
+    if not signature:
+        return _runner_error("python", "Could not find a LeetCode-style Solution method in the Python code.", testcases)
+    results = []
+    passed = 0
+    for index, testcase in enumerate(testcases):
+        try:
+            harness = _build_python_leetcode_harness(code, signature, testcase["input"])
+            source = tmp / f"solution_{index}.py"
+            source.write_text(harness, encoding="utf-8")
+            start = time.perf_counter()
+            completed = subprocess.run([sys.executable, str(source)], text=True, capture_output=True, timeout=4)
+            elapsed = round((time.perf_counter() - start) * 1000, 2)
+            actual = completed.stdout.strip()
+            stderr = completed.stderr.strip()
+            ok = completed.returncode == 0 and _outputs_equal(actual, testcase["expected_output"])
+        except subprocess.TimeoutExpired:
+            elapsed = 4000
+            actual = ""
+            stderr = "Execution timed out after 4 seconds."
+            ok = False
+        except Exception as exc:
+            elapsed = 0
+            actual = ""
+            stderr = str(exc)
+            ok = False
+        passed += int(ok)
+        results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": actual, "stderr": stderr, "passed": ok, "visible": testcase.get("visible", True), "execution_time_ms": elapsed})
+    return {"language": "python", "passed_testcases": passed, "total_testcases": len(testcases), "overall_score": round((passed / len(testcases)) * 100, 1), "testcase_results": results}
+
+
+def _parse_python_solution_signature(code: str, problem: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    wanted = str((problem or {}).get("entry_point") or "")
+    search_area = code
+    solution_match = re.search(r"class\s+Solution\s*:\s*([\s\S]*)", code)
+    if solution_match:
+        search_area = solution_match.group(1)
+    candidates = []
+    for match in re.finditer(r"def\s+(\w+)\s*\(\s*self\s*(?:,\s*(.*?))?\)\s*(?:->\s*([^:]+))?:", search_area, re.S):
+        method = match.group(1)
+        raw_params = match.group(2) or ""
+        params = []
+        for part in _split_top_level(raw_params):
+            part = part.strip()
+            if not part:
+                continue
+            if ":" in part:
+                name, annotation = part.split(":", 1)
+                params.append({"name": name.strip(), "type": annotation.strip().strip("'\"")})
+            else:
+                params.append({"name": part.strip(), "type": "Any"})
+        return_type = (match.group(3) or "Any").strip().strip("'\"")
+        score = 100 if wanted and method == wanted else 0
+        if re.search(r"\b(helper|dfs|solve|backtrack|rec)\b", method, re.I):
+            score -= 20
+        candidates.append((score, match.start(), {"method": method, "params": params, "return_type": return_type}))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    return candidates[0][2]
+
+
+def _build_python_leetcode_harness(code: str, signature: dict[str, Any], raw_input: str) -> str:
+    assignments = _parse_leetcode_assignments(raw_input)
+    declarations = []
+    arg_names = []
+    for index, param in enumerate(signature["params"]):
+        value = assignments.get(param["name"])
+        if value is None and len(assignments) == 1 and len(signature["params"]) == 1:
+            value = next(iter(assignments.values()))
+        if value is None:
+            raise ValueError(f"Could not find testcase value for Python parameter '{param['name']}' in: {raw_input.strip()}")
+        parsed = _parse_literal_value(value)
+        arg_name = f"arg{index}"
+        declarations.append(f"{arg_name} = {_python_literal(parsed, param.get('type', 'Any'))}")
+        arg_names.append(arg_name)
+    return f"""{_python_leetcode_support()}
+
+{code}
+
+{chr(10).join(declarations)}
+result = Solution().{signature['method']}({', '.join(arg_names)})
+print_value(result)
+"""
+
+
+def _python_literal(value: Any, annotation: str) -> str:
+    cleaned = annotation.replace("typing.", "").replace(" ", "").strip("'\"")
+    if cleaned in {"TreeNode", "Optional[TreeNode]"}:
+        return f"tree_node({repr(value)})"
+    if cleaned in {"ListNode", "Optional[ListNode]"}:
+        return f"list_node({repr(value)})"
+    return repr(value)
+
+
+def _run_python_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Path, problem: dict[str, Any]) -> dict[str, Any]:
+    check_code = str(problem.get("python_check") or "")
+    entry_point = str(problem.get("entry_point") or "")
+    if not check_code or not entry_point:
+        return _runner_error("python", "This LeetCode problem is missing its Python test harness.", testcases)
+    source = tmp / "solution.py"
+    harness = f"""{_python_leetcode_support()}
+
+{code}
+
+{check_code}
+
+if __name__ == "__main__":
+    candidate = {entry_point}
+    check(candidate)
+"""
+    source.write_text(harness, encoding="utf-8")
+    start = time.perf_counter()
+    try:
+        completed = subprocess.run([sys.executable, str(source)], text=True, capture_output=True, timeout=4)
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        ok = completed.returncode == 0
+        stderr = completed.stderr.strip()
+    except subprocess.TimeoutExpired:
+        elapsed = 4000
+        ok = False
+        stderr = "Execution timed out after 4 seconds."
+    if ok:
+        return {
+            "language": "python",
+            "passed_testcases": len(testcases),
+            "total_testcases": len(testcases),
+            "overall_score": 100,
+            "testcase_results": [
+                {"input": tc["input"], "expected_output": tc["expected_output"], "actual_output": tc["expected_output"], "stderr": "", "passed": True, "visible": tc.get("visible", True), "execution_time_ms": elapsed}
+                for tc in testcases
+            ],
+        }
+    results = []
+    for index, tc in enumerate(testcases):
+        results.append({
+            "input": tc["input"],
+            "expected_output": tc["expected_output"],
+            "actual_output": "",
+            "stderr": stderr or "LeetCode assertion failed.",
+            "passed": False,
+            "visible": tc.get("visible", True),
+            "execution_time_ms": elapsed if index == 0 else 0,
+        })
+    return {"language": "python", "passed_testcases": 0, "total_testcases": len(testcases), "overall_score": 0, "testcase_results": results}
+
+
+def _python_leetcode_support() -> str:
+    return r'''
+from typing import *
+from collections import *
+from functools import *
+from itertools import *
+from heapq import *
+from bisect import *
+import math
+import random
+import json
+
+class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+def list_node(values):
+    dummy = ListNode()
+    cur = dummy
+    for value in values:
+        cur.next = ListNode(value)
+        cur = cur.next
+    return dummy.next
+
+def is_same_list(a, b):
+    while a and b:
+        if a.val != b.val:
+            return False
+        a = a.next
+        b = b.next
+    return a is None and b is None
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+def tree_node(values):
+    if not values:
+        return None
+    nodes = [None if value is None else TreeNode(value) for value in values]
+    kids = nodes[::-1]
+    root = kids.pop()
+    for node in nodes:
+        if node:
+            if kids:
+                node.left = kids.pop()
+            if kids:
+                node.right = kids.pop()
+    return root
+
+def is_same_tree(a, b):
+    if not a or not b:
+        return a is b
+    return a.val == b.val and is_same_tree(a.left, b.left) and is_same_tree(a.right, b.right)
+
+def list_values(node):
+    out = []
+    while node:
+        out.append(node.val)
+        node = node.next
+    return out
+
+def tree_values(root):
+    if root is None:
+        return []
+    out = []
+    queue = deque([root])
+    while queue:
+        node = queue.popleft()
+        if node is None:
+            out.append(None)
+            continue
+        out.append(node.val)
+        queue.append(node.left)
+        queue.append(node.right)
+    while out and out[-1] is None:
+        out.pop()
+    return out
+
+def print_value(value):
+    if isinstance(value, ListNode):
+        value = list_values(value)
+    elif isinstance(value, TreeNode):
+        value = tree_values(value)
+    if isinstance(value, bool):
+        print("true" if value else "false")
+    else:
+        print(json.dumps(value, separators=(",", ":")))
+'''
 
 
 def _run_cpp_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Path, problem: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -762,6 +1150,87 @@ def _run_cpp_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Pat
     return {"language": "cpp", "passed_testcases": passed, "total_testcases": len(testcases), "overall_score": round((passed / len(testcases)) * 100, 1), "testcase_results": results}
 
 
+def _run_java_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Path, problem: dict[str, Any] | None = None) -> dict[str, Any]:
+    javac = shutil.which("javac")
+    java = shutil.which("java")
+    if not javac or not java:
+        return _runner_error("java", "Java JDK was not found on PATH. Install a JDK to run Java LeetCode harnesses locally.", testcases)
+    official_java = ((problem or {}).get("starter_code") or {}).get("java", "")
+    signature = _parse_java_solution_signature(code) or _parse_java_solution_signature(official_java)
+    if not signature:
+        return _runner_error("java", "Could not detect a Java Solution method signature.", testcases)
+    if not testcases:
+        testcases = [{"input": "", "expected_output": "", "visible": True}]
+
+    results = []
+    passed = 0
+    for index, testcase in enumerate(testcases):
+        source = tmp / "Main.java"
+        try:
+            harness = _build_java_leetcode_harness(code, signature, testcase["input"])
+        except ValueError as exc:
+            results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": "", "stderr": str(exc), "passed": False, "visible": testcase.get("visible", True), "execution_time_ms": 0})
+            continue
+        source.write_text(harness, encoding="utf-8")
+        compiled = subprocess.run([javac, str(source)], capture_output=True, text=True, timeout=20)
+        if compiled.returncode != 0:
+            results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": "", "stderr": compiled.stderr.strip() or "Java compilation failed.", "passed": False, "visible": testcase.get("visible", True), "execution_time_ms": 0})
+            continue
+        start = time.perf_counter()
+        try:
+            completed = subprocess.run([java, "-cp", str(tmp), "Main"], capture_output=True, text=True, timeout=3)
+            actual = completed.stdout.strip()
+            stderr = completed.stderr.strip()
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            actual, stderr, timed_out = "", "Execution timed out after 3 seconds.", True
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        ok = (not timed_out) and _outputs_equal(actual, testcase["expected_output"])
+        passed += int(ok)
+        results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": actual, "stderr": stderr, "passed": ok, "visible": testcase.get("visible", True), "execution_time_ms": elapsed})
+    return {"language": "java", "passed_testcases": passed, "total_testcases": len(testcases), "overall_score": round((passed / len(testcases)) * 100, 1), "testcase_results": results}
+
+
+def _run_c_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Path, problem: dict[str, Any] | None = None) -> dict[str, Any]:
+    compiler = _find_tool("gcc")
+    if not compiler:
+        return _runner_error("c", "gcc was not found on PATH. Install MinGW-w64, MSYS2, or LLVM to run C locally.", testcases)
+    signature = _parse_c_solution_signature(code)
+    if not signature:
+        return _runner_error("c", "Could not detect a C function signature for this LeetCode-style problem.", testcases)
+    if not testcases:
+        testcases = [{"input": "", "expected_output": "", "visible": True}]
+
+    results = []
+    passed = 0
+    for index, testcase in enumerate(testcases):
+        source = tmp / f"solution_{index}.c"
+        exe = tmp / f"solution_{index}.exe"
+        try:
+            harness = _build_c_leetcode_harness(code, signature, testcase["input"])
+        except ValueError as exc:
+            results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": "", "stderr": str(exc), "passed": False, "visible": testcase.get("visible", True), "execution_time_ms": 0})
+            continue
+        source.write_text(harness, encoding="utf-8")
+        compiled = subprocess.run([compiler, str(source), "-std=c11", "-O2", "-o", str(exe)], capture_output=True, text=True, timeout=20, env=_tool_env())
+        if compiled.returncode != 0:
+            results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": "", "stderr": compiled.stderr.strip() or "C compilation failed.", "passed": False, "visible": testcase.get("visible", True), "execution_time_ms": 0})
+            continue
+        start = time.perf_counter()
+        try:
+            completed = subprocess.run([str(exe)], capture_output=True, text=True, timeout=3, env=_tool_env())
+            actual = completed.stdout.strip()
+            stderr = completed.stderr.strip()
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            actual, stderr, timed_out = "", "Execution timed out after 3 seconds.", True
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        ok = (not timed_out) and _outputs_equal(actual, testcase["expected_output"])
+        passed += int(ok)
+        results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": actual, "stderr": stderr, "passed": ok, "visible": testcase.get("visible", True), "execution_time_ms": elapsed})
+    return {"language": "c", "passed_testcases": passed, "total_testcases": len(testcases), "overall_score": round((passed / len(testcases)) * 100, 1), "testcase_results": results}
+
+
 def _runner_error(language: str, message: str, testcases: list[dict[str, str]]) -> dict[str, Any]:
     return {
         "language": language,
@@ -775,10 +1244,6 @@ def _runner_error(language: str, message: str, testcases: list[dict[str, str]]) 
 def _prepare_language_command(code: str, language: str, tmp: Path) -> dict[str, Any]:
     if language == "python":
         return {"path": tmp / "solution.py", "command": [sys.executable, str(tmp / "solution.py")]}
-    if language == "javascript":
-        if not shutil.which("node"):
-            return {"error": "Node.js is not installed or not on PATH, so JavaScript submissions cannot run."}
-        return {"path": tmp / "solution.js", "command": ["node", str(tmp / "solution.js")]}
     if language == "cpp":
         compiler = _find_tool("g++")
         if not compiler:
@@ -816,6 +1281,427 @@ def _prepare_language_command(code: str, language: str, tmp: Path) -> dict[str, 
             return {"error": compiled.stderr.strip() or "Java compilation failed. Use class Main for full-program submissions."}
         return {"path": source, "command": [java, "-cp", str(tmp), "Main"]}
     return {"error": f"Unsupported language: {language}"}
+
+
+def _parse_java_solution_signature(code: str) -> dict[str, Any] | None:
+    for match in re.finditer(r"public\s+([\w\[\]<>]+)\s+(\w+)\s*\(([^)]*)\)\s*\{", code):
+        method = match.group(2)
+        if method == "main":
+            continue
+        params = []
+        raw_params = match.group(3).strip()
+        if raw_params:
+            for item in _split_top_level(raw_params):
+                parts = item.strip().split()
+                if len(parts) < 2:
+                    return None
+                params.append({"type": " ".join(parts[:-1]), "name": parts[-1]})
+        return {"return_type": match.group(1), "method": method, "params": params}
+    return None
+
+
+def _build_java_leetcode_harness(code: str, signature: dict[str, Any], raw_input: str) -> str:
+    assignments = _parse_leetcode_assignments(raw_input)
+    declarations = []
+    arg_names = []
+    for index, param in enumerate(signature["params"]):
+        value = assignments.get(param["name"])
+        if value is None and len(assignments) == 1 and len(signature["params"]) == 1:
+            value = next(iter(assignments.values()))
+        if value is None:
+            raise ValueError(f"Could not find testcase value for Java parameter '{param['name']}' in: {raw_input.strip()}")
+        arg_name = f"arg{index}"
+        declarations.append(f"{param['type']} {arg_name} = {_java_literal(value, param['type'])};")
+        arg_names.append(arg_name)
+    result_line = f"{signature['return_type']} result = new Solution().{signature['method']}({', '.join(arg_names)});"
+    return f"""{_java_leetcode_support()}
+
+{_ensure_java_solution_class(code)}
+
+public class Main {{
+    public static void main(String[] args) {{
+        {' '.join(declarations)}
+        {result_line}
+        HarnessSupport.printValue(result);
+    }}
+}}
+"""
+
+
+def _ensure_java_solution_class(code: str) -> str:
+    code = code.strip()
+    if re.search(r"\bclass\s+Solution\b", code):
+        return code.replace("public class Solution", "class Solution")
+    return f"class Solution {{\n{code}\n}}\n"
+
+
+def _java_literal(value: str, java_type: str) -> str:
+    parsed = _parse_literal_value(value)
+    cleaned = java_type.replace(" ", "")
+    if cleaned == "int":
+        return str(int(parsed))
+    if cleaned == "long":
+        return f"{int(parsed)}L"
+    if cleaned in {"double", "float"}:
+        return str(parsed)
+    if cleaned == "boolean":
+        return "true" if bool(parsed) else "false"
+    if cleaned == "String":
+        return json.dumps(str(parsed))
+    if cleaned == "int[]":
+        return "new int[]{" + ",".join(str(int(x)) for x in parsed) + "}"
+    if cleaned == "String[]":
+        return "new String[]{" + ",".join(json.dumps(str(x)) for x in parsed) + "}"
+    if cleaned == "boolean[]":
+        return "new boolean[]{" + ",".join("true" if x else "false" for x in parsed) + "}"
+    if cleaned == "int[][]":
+        return "new int[][]{" + ",".join("new int[]{" + ",".join(str(int(x)) for x in row) + "}" for row in parsed) + "}"
+    if cleaned == "String[][]":
+        return "new String[][]{" + ",".join("new String[]{" + ",".join(json.dumps(str(x)) for x in row) + "}" for row in parsed) + "}"
+    if cleaned == "ListNode":
+        return "HarnessSupport.buildList(new int[]{" + ",".join(str(int(x)) for x in parsed) + "})"
+    if cleaned == "TreeNode":
+        return "HarnessSupport.buildTree(new Integer[]{" + ",".join("null" if x is None else str(int(x)) for x in parsed) + "})"
+    raise ValueError(f"Unsupported Java harness type: {java_type}")
+
+
+def _java_leetcode_support() -> str:
+    return r'''
+import java.util.*;
+
+class ListNode {
+    int val;
+    ListNode next;
+    ListNode() {}
+    ListNode(int val) { this.val = val; }
+    ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+}
+
+class TreeNode {
+    int val;
+    TreeNode left;
+    TreeNode right;
+    TreeNode() {}
+    TreeNode(int val) { this.val = val; }
+    TreeNode(int val, TreeNode left, TreeNode right) { this.val = val; this.left = left; this.right = right; }
+}
+
+class HarnessSupport {
+    static ListNode buildList(int[] values) {
+        ListNode dummy = new ListNode();
+        ListNode tail = dummy;
+        for (int value : values) {
+            tail.next = new ListNode(value);
+            tail = tail.next;
+        }
+        return dummy.next;
+    }
+
+    static TreeNode buildTree(Integer[] values) {
+        if (values.length == 0 || values[0] == null) return null;
+        TreeNode root = new TreeNode(values[0]);
+        Queue<TreeNode> queue = new ArrayDeque<>();
+        queue.add(root);
+        int i = 1;
+        while (!queue.isEmpty() && i < values.length) {
+            TreeNode current = queue.remove();
+            if (i < values.length && values[i] != null) {
+                current.left = new TreeNode(values[i]);
+                queue.add(current.left);
+            }
+            i++;
+            if (i < values.length && values[i] != null) {
+                current.right = new TreeNode(values[i]);
+                queue.add(current.right);
+            }
+            i++;
+        }
+        return root;
+    }
+
+    static void printValue(Object value) {
+        if (value == null) { System.out.print("null"); return; }
+        if (value instanceof int[]) { System.out.print(Arrays.toString((int[]) value).replace(" ", "")); return; }
+        if (value instanceof long[]) { System.out.print(Arrays.toString((long[]) value).replace(" ", "")); return; }
+        if (value instanceof double[]) { System.out.print(Arrays.toString((double[]) value).replace(" ", "")); return; }
+        if (value instanceof boolean[]) { System.out.print(Arrays.toString((boolean[]) value).replace(" ", "")); return; }
+        if (value instanceof Object[]) { System.out.print(Arrays.deepToString((Object[]) value).replace(" ", "")); return; }
+        if (value instanceof ListNode) { printList((ListNode) value); return; }
+        if (value instanceof TreeNode) { printTree((TreeNode) value); return; }
+        System.out.print(String.valueOf(value));
+    }
+
+    static void printList(ListNode node) {
+        System.out.print("[");
+        boolean first = true;
+        while (node != null) {
+            if (!first) System.out.print(",");
+            first = false;
+            System.out.print(node.val);
+            node = node.next;
+        }
+        System.out.print("]");
+    }
+
+    static void printTree(TreeNode root) {
+        if (root == null) { System.out.print("[]"); return; }
+        ArrayList<String> out = new ArrayList<>();
+        Queue<TreeNode> queue = new LinkedList<>();
+        queue.add(root);
+        while (!queue.isEmpty()) {
+            TreeNode cur = queue.remove();
+            if (cur == null) {
+                out.add("null");
+            } else {
+                out.add(String.valueOf(cur.val));
+                queue.add(cur.left);
+                queue.add(cur.right);
+            }
+        }
+        while (!out.isEmpty() && out.get(out.size() - 1).equals("null")) out.remove(out.size() - 1);
+        System.out.print("[" + String.join(",", out) + "]");
+    }
+}
+
+'''
+
+
+def _parse_c_solution_signature(code: str) -> dict[str, Any] | None:
+    pattern = r"((?:struct\s+TreeNode\s*\*|struct\s+ListNode\s*\*|int\s*\*\*|int\s*\*|char\s*\*\*|char\s*\*|bool|int)\s*)\s+(\w+)\s*\(([^)]*)\)\s*\{"
+    for match in re.finditer(pattern, code):
+        method = match.group(2)
+        if method == "main":
+            continue
+        params = []
+        raw_params = match.group(3).strip()
+        if raw_params and raw_params != "void":
+            for item in _split_top_level(raw_params):
+                cleaned = " ".join(item.strip().replace("*", " * ").split())
+                param_match = re.match(r"(.+?)\s+([A-Za-z_]\w*)$", cleaned)
+                if not param_match:
+                    return None
+                params.append({"type": _normalize_c_type(param_match.group(1)), "name": param_match.group(2)})
+        return {"return_type": _normalize_c_type(match.group(1)), "method": method, "params": params}
+    return None
+
+
+def _normalize_c_type(value: str) -> str:
+    cleaned = " ".join(value.replace("*", " * ").split())
+    cleaned = cleaned.replace(" * *", "**").replace(" *", "*")
+    return cleaned
+
+
+def _build_c_leetcode_harness(code: str, signature: dict[str, Any], raw_input: str) -> str:
+    assignments = _parse_leetcode_assignments(raw_input)
+    declarations = []
+    call_args = []
+    skip_next_size = set()
+    return_size_name = ""
+    for index, param in enumerate(signature["params"]):
+        if index in skip_next_size:
+            continue
+        name = param["name"]
+        ctype = param["type"].replace(" ", "")
+        if ctype == "int*" and name == "returnSize":
+            declarations.append("int returnSize = 0;")
+            call_args.append("&returnSize")
+            return_size_name = "returnSize"
+            continue
+        value = assignments.get(name)
+        if value is None and (name.endswith("Size") or name.endswith("ColSize")):
+            continue
+        if ctype == "int*" and value is not None:
+            parsed = _parse_literal_value(value)
+            declarations.append(f"int {name}[] = {{{','.join(str(int(x)) for x in parsed)}}};")
+            size_name = f"{name}Size"
+            declarations.append(f"int {size_name} = {len(parsed)};")
+            call_args.extend([name, size_name])
+            if index + 1 < len(signature["params"]) and signature["params"][index + 1]["name"] == size_name:
+                skip_next_size.add(index + 1)
+            continue
+        if ctype == "int**" and value is not None:
+            parsed = _parse_literal_value(value)
+            rows = [list(row) for row in parsed]
+            declarations.append(f"int {name}Size = {len(rows)};")
+            col_name = f"{name}ColSize"
+            declarations.append(f"int {col_name}[] = {{{','.join(str(len(row)) for row in rows)}}};")
+            for row_index, row in enumerate(rows):
+                declarations.append(f"int {name}_row{row_index}[] = {{{','.join(str(int(x)) for x in row)}}};")
+            declarations.append(f"int* {name}[] = {{{','.join(f'{name}_row{row_index}' for row_index in range(len(rows)))}}};")
+            call_args.extend([name, f"{name}Size", col_name])
+            for offset in (1, 2):
+                if index + offset < len(signature["params"]):
+                    next_name = signature["params"][index + offset]["name"]
+                    if next_name in {f"{name}Size", col_name}:
+                        skip_next_size.add(index + offset)
+            continue
+        if ctype == "char**" and value is not None:
+            parsed = _parse_literal_value(value)
+            declarations.append(f"char* {name}[] = {{{','.join(json.dumps(str(x)) for x in parsed)}}};")
+            size_name = f"{name}Size"
+            declarations.append(f"int {size_name} = {len(parsed)};")
+            call_args.extend([name, size_name])
+            if index + 1 < len(signature["params"]) and signature["params"][index + 1]["name"] == size_name:
+                skip_next_size.add(index + 1)
+            continue
+        if ctype == "structTreeNode*" and value is not None:
+            parsed = _parse_literal_value(value)
+            declarations.append(f"int {name}Values[] = {{{','.join('INT_MIN' if x is None else str(int(x)) for x in parsed)}}};")
+            declarations.append(f"struct TreeNode* {name} = buildTree({name}Values, {len(parsed)});")
+            call_args.append(name)
+            continue
+        if ctype == "structListNode*" and value is not None:
+            parsed = _parse_literal_value(value)
+            declarations.append(f"int {name}Values[] = {{{','.join(str(int(x)) for x in parsed)}}};")
+            declarations.append(f"struct ListNode* {name} = buildList({name}Values, {len(parsed)});")
+            call_args.append(name)
+            continue
+        if value is None:
+            raise ValueError(f"Could not find testcase value for C parameter '{name}' in: {raw_input.strip()}")
+        if ctype == "int":
+            declarations.append(f"int {name} = {int(_parse_literal_value(value))};")
+        elif ctype == "bool":
+            declarations.append(f"bool {name} = {'true' if _parse_literal_value(value) else 'false'};")
+        elif ctype == "char*":
+            declarations.append(f"char* {name} = {json.dumps(str(_parse_literal_value(value)))};")
+        else:
+            raise ValueError(f"Unsupported C harness type: {param['type']}")
+        call_args.append(name)
+
+    return_type = signature["return_type"].replace(" ", "")
+    if return_type == "int*":
+        if not return_size_name:
+            declarations.append("int returnSize = 0;")
+            call_args.append("&returnSize")
+            return_size_name = "returnSize"
+        result_line = f"int* result = {signature['method']}({', '.join(call_args)}); printIntArray(result, {return_size_name});"
+    elif return_type == "bool":
+        result_line = f"bool result = {signature['method']}({', '.join(call_args)}); printf(result ? \"true\" : \"false\");"
+    elif return_type == "char*":
+        result_line = f"char* result = {signature['method']}({', '.join(call_args)}); printf(\"\\\"%s\\\"\", result);"
+    elif return_type == "structTreeNode*":
+        result_line = f"struct TreeNode* result = {signature['method']}({', '.join(call_args)}); printTree(result);"
+    elif return_type == "structListNode*":
+        result_line = f"struct ListNode* result = {signature['method']}({', '.join(call_args)}); printList(result);"
+    else:
+        result_line = f"int result = {signature['method']}({', '.join(call_args)}); printf(\"%d\", result);"
+
+    return f"""{_c_leetcode_support()}
+
+{code}
+
+int main(void) {{
+    {' '.join(declarations)}
+    {result_line}
+    return 0;
+}}
+"""
+
+
+def _c_leetcode_support() -> str:
+    return r'''
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+
+struct ListNode {
+    int val;
+    struct ListNode *next;
+};
+
+struct TreeNode {
+    int val;
+    struct TreeNode *left;
+    struct TreeNode *right;
+};
+
+struct ListNode* buildList(int* values, int size) {
+    struct ListNode dummy;
+    struct ListNode* tail = &dummy;
+    dummy.next = NULL;
+    for (int i = 0; i < size; ++i) {
+        tail->next = malloc(sizeof(struct ListNode));
+        tail = tail->next;
+        tail->val = values[i];
+        tail->next = NULL;
+    }
+    return dummy.next;
+}
+
+struct TreeNode* buildTree(int* values, int size) {
+    if (size == 0 || values[0] == INT_MIN) return NULL;
+    struct TreeNode** nodes = calloc(size, sizeof(struct TreeNode*));
+    for (int i = 0; i < size; ++i) {
+        if (values[i] != INT_MIN) {
+            nodes[i] = malloc(sizeof(struct TreeNode));
+            nodes[i]->val = values[i];
+            nodes[i]->left = NULL;
+            nodes[i]->right = NULL;
+        }
+    }
+    int child = 1;
+    for (int i = 0; i < size && child < size; ++i) {
+        if (!nodes[i]) continue;
+        if (child < size) nodes[i]->left = nodes[child++];
+        if (child < size) nodes[i]->right = nodes[child++];
+    }
+    struct TreeNode* root = nodes[0];
+    free(nodes);
+    return root;
+}
+
+void printIntArray(int* values, int size) {
+    printf("[");
+    for (int i = 0; i < size; ++i) {
+        if (i) printf(",");
+        printf("%d", values[i]);
+    }
+    printf("]");
+}
+
+void printList(struct ListNode* node) {
+    printf("[");
+    int first = 1;
+    while (node) {
+        if (!first) printf(",");
+        first = 0;
+        printf("%d", node->val);
+        node = node->next;
+    }
+    printf("]");
+}
+
+void printTree(struct TreeNode* root) {
+    if (!root) {
+        printf("[]");
+        return;
+    }
+    struct TreeNode** queue = calloc(10000, sizeof(struct TreeNode*));
+    char** out = calloc(10000, sizeof(char*));
+    int head = 0, tail = 0, count = 0;
+    queue[tail++] = root;
+    while (head < tail && tail < 9990) {
+        struct TreeNode* cur = queue[head++];
+        out[count] = calloc(24, sizeof(char));
+        if (!cur) {
+            sprintf(out[count++], "null");
+            continue;
+        }
+        sprintf(out[count++], "%d", cur->val);
+        queue[tail++] = cur->left;
+        queue[tail++] = cur->right;
+    }
+    while (count > 0 && strcmp(out[count - 1], "null") == 0) count--;
+    printf("[");
+    for (int i = 0; i < count; ++i) {
+        if (i) printf(",");
+        printf("%s", out[i]);
+    }
+    printf("]");
+}
+'''
 
 
 def _parse_cpp_solution_signature(code: str, raw_input: str = "") -> dict[str, Any] | None:
@@ -905,11 +1791,7 @@ int main() {{
 
 
 def _ensure_cpp_preamble(code: str) -> str:
-    preamble = ""
-    if "#include" not in code:
-        preamble += "#include <bits/stdc++.h>\n"
-    if "using namespace std" not in code:
-        preamble += "using namespace std;\n"
+    preamble = "#include <bits/stdc++.h>\nusing namespace std;\n"
     preamble += """
 struct ListNode {
     int val;
@@ -1042,6 +1924,54 @@ def _parse_leetcode_assignments(raw_input: str) -> dict[str, str]:
     return assignments
 
 
+def _coerce_named_input_for_stdin(raw_input: str) -> str:
+    assignments = _parse_leetcode_assignments(raw_input)
+    if not assignments:
+        return raw_input
+    chunks = []
+    for _name, value in assignments.items():
+        parsed = _parse_literal_value(value)
+        chunks.extend(_stdin_tokens(parsed))
+    return "\n".join(chunks).strip() + "\n"
+
+
+def _parse_literal_value(value: str) -> Any:
+    text = value.strip()
+    try:
+        jsonish = re.sub(r"\bNone\b", "null", text.replace("'", '"'))
+        jsonish = re.sub(r"\bTrue\b", "true", jsonish)
+        jsonish = re.sub(r"\bFalse\b", "false", jsonish)
+        return json.loads(jsonish)
+    except Exception:
+        lowered = text.lower()
+        if lowered in {"none", "null"}:
+            return None
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+        if re.fullmatch(r"-?\d+", text):
+            return int(text)
+        if re.fullmatch(r"-?\d+\.\d+", text):
+            return float(text)
+        return text.strip('"')
+
+
+def _stdin_tokens(value: Any) -> list[str]:
+    if isinstance(value, list):
+        if value and all(isinstance(row, list) for row in value):
+            rows = len(value)
+            cols = len(value[0]) if value[0] else 0
+            tokens = [str(rows), str(cols)]
+            for row in value:
+                tokens.extend(str(item).lower() if isinstance(item, bool) else str(item) for item in row)
+            return tokens
+        return [str(len(value)), *[str(item).lower() if isinstance(item, bool) else str(item) for item in value]]
+    if isinstance(value, bool):
+        return ["true" if value else "false"]
+    return [str(value)]
+
+
 def _split_top_level(text: str) -> list[str]:
     parts = []
     start = 0
@@ -1141,8 +2071,8 @@ def _coerce_java_main(code: str) -> str:
 
 
 def _outputs_equal(actual: str, expected: str) -> bool:
-    actual_clean = actual.strip()
-    expected_clean = expected.strip()
+    actual_clean = _normalize_output_text(actual)
+    expected_clean = _normalize_output_text(expected)
     if actual_clean == expected_clean:
         return True
     if actual_clean.lower() == expected_clean.lower():
@@ -1153,12 +2083,22 @@ def _outputs_equal(actual: str, expected: str) -> bool:
         return False
 
 
+def _normalize_output_text(value: str) -> str:
+    text = str(value).strip()
+    text = re.sub(r"\bNone\b", "null", text)
+    text = re.sub(r"\bTrue\b", "true", text)
+    text = re.sub(r"\bFalse\b", "false", text)
+    return text
+
+
 def _code_review(code: str, result: dict[str, Any], problem: dict[str, Any], language: str) -> str:
+    insights = _code_insights(code, language, problem)
+    probe = insights["optimization_prompts"][0] if insights["optimization_prompts"] else "Explain your main invariant and one edge case."
     if result["passed_testcases"] == result["total_testcases"]:
-        return f"Your {LANGUAGE_LABELS.get(language, language)} code passed the runnable tests. I am not done yet: explain the invariant, time and space complexity, and one hidden edge case that could still break a weaker solution."
+        return f"Your {LANGUAGE_LABELS.get(language, language)} code passed the runnable tests. I am not done yet: {probe} Then state the exact time and space complexity."
     first_fail = next((tc for tc in result["testcase_results"] if not tc["passed"]), {})
     detail = first_fail.get("stderr") or f"expected {first_fail.get('expected_output')}, got {first_fail.get('actual_output')}"
-    return f"{result['passed_testcases']} of {result['total_testcases']} tests passed. The first issue is: {detail}. Before changing code, tell me what condition your current logic failed to handle."
+    return f"{result['passed_testcases']} of {result['total_testcases']} tests passed. The first issue is: {detail}. Before changing code, {probe}"
 
 
 def _resume_review(text: str, data: dict[str, Any]) -> dict[str, Any]:

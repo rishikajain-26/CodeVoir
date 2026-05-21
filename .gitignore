@@ -15,6 +15,8 @@ dist/
 # LOCAL TOOLCHAINS / DOWNLOADS
 tools/w64devkit/
 tools/*.exe
+backend/tmp_company_wise_problems/
+backend/backend-server.log
 
 # OS
 .DS_Store

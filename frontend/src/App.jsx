@@ -7,7 +7,6 @@ const API_BASES = [...new Set(["", API, "http://127.0.0.1:8010", "http://localho
 
 const languageLabels = {
   python: "Python",
-  javascript: "JavaScript",
   cpp: "C++",
   c: "C",
   java: "Java",
@@ -37,6 +36,7 @@ export default function App() {
   const [voiceState, setVoiceState] = useState("idle")
   const [autoVoice, setAutoVoice] = useState(false)
   const [liveTranscript, setLiveTranscript] = useState("")
+  const [companies, setCompanies] = useState([])
   const [isBusy, setIsBusy] = useState(false)
   const videoRef = useRef(null)
   const recognitionRef = useRef(null)
@@ -50,15 +50,34 @@ export default function App() {
   const lastAiSpokenRef = useRef("")
   const dragRef = useRef(null)
   const editorTelemetryRef = useRef({ lastChangeAt: Date.now(), edits: 0, pasteEvents: 0, largePastes: 0, deletions: 0, idleGaps: 0, maxLines: 0 })
+  const codeRef = useRef(defaultCode)
+  const languageRef = useRef("python")
 
   const currentProblem = session?.problem
   const lastAiMessage = useMemo(() => [...messages].reverse().find((m) => m.role === "interviewer")?.content || "", [messages])
 
   useEffect(() => {
+    apiFetch("/api/problems/companies")
+      .then((res) => res.ok ? res.json() : null)
+      .then((meta) => setCompanies(meta?.companies || []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (!currentProblem) return
-    setCode(getStarterCode(currentProblem, language))
+    const nextCode = getStarterCode(currentProblem, language)
+    setCode(nextCode)
+    codeRef.current = nextCode
     setCodeResult(null)
   }, [language, currentProblem?.id])
+
+  useEffect(() => {
+    codeRef.current = code
+  }, [code])
+
+  useEffect(() => {
+    languageRef.current = language
+  }, [language])
 
   useEffect(() => {
     if (screen !== "interview" || !session) return
@@ -141,7 +160,7 @@ export default function App() {
     setMessages((prev) => [...prev, { role: "candidate", content: clean }])
     setIsBusy(true)
     try {
-      const reply = await postJson("/api/interview/message", { session_id: session.session_id, user_text: clean, behavioral_metrics: behavioralMetrics })
+      const reply = await postJson("/api/interview/message", { session_id: session.session_id, user_text: clean, behavioral_metrics: behavioralMetrics, code_context: currentCodeContext("message") })
       setMessages((prev) => [...prev, { role: "interviewer", content: reply.ai_text }])
       speak(reply.ai_text)
     } catch (err) {
@@ -185,7 +204,20 @@ export default function App() {
       window.setTimeout(() => setWarning(""), 5000)
     }
     if (!session) return
-    await postJson("/api/interview/violation", { session_id: session.session_id, event_type, detail }).catch(() => {})
+    await postJson("/api/interview/violation", { session_id: session.session_id, event_type, detail: { ...detail, ...(event_type === "code_telemetry" ? currentCodeContext("telemetry") : {}) } }).catch(() => {})
+  }
+
+  function currentCodeContext(source) {
+    return {
+      source,
+      language: languageRef.current,
+      code: codeRef.current,
+      problem_id: currentProblem?.id,
+      problem_title: currentProblem?.title,
+      code_length: codeRef.current.length,
+      line_count: codeRef.current.split("\n").length,
+      ts: Date.now(),
+    }
   }
 
   function speak(text) {
@@ -364,7 +396,7 @@ export default function App() {
       telemetry.idleGaps += idleMs > 30000 ? 1 : 0
       telemetry.maxLines = Math.max(telemetry.maxLines, editor.getModel()?.getLineCount?.() || 0)
       telemetry.lastChangeAt = now
-      if (telemetry.edits % 12 === 0 || inserted > 160) {
+      if (telemetry.edits % 8 === 0 || inserted > 160) {
         reportViolation("code_telemetry", { ...telemetry, language, current_lines: editor.getModel()?.getLineCount?.() || 0, last_idle_ms: idleMs })
       }
     })
@@ -421,7 +453,7 @@ export default function App() {
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Job role"><input value={form.job_role} onChange={(e) => setForm({ ...form, job_role: e.target.value })} /></Field>
               <Field label="Experience"><select value={form.experience_level} onChange={(e) => setForm({ ...form, experience_level: e.target.value })}><option>fresher</option><option>mid</option><option>senior</option></select></Field>
-              <Field label="Target company"><input value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Optional" /></Field>
+              <Field label="Target company"><input list="company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Amazon, Google, Meta..." /><datalist id="company-options">{companies.map((company) => <option key={company} value={company} />)}</datalist></Field>
               <Field label="Difficulty"><select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}><option>easy</option><option>medium</option><option>hard</option></select></Field>
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -493,8 +525,8 @@ export default function App() {
               </div>
               {currentProblem && <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300">{currentProblem.difficulty}</span>}
             </div>
-            {currentProblem?.topics && <div className="mt-2 flex flex-wrap gap-2">{currentProblem.topics.slice(0, 8).map((topic) => <span key={topic} className="rounded bg-slate-950 px-2 py-1 text-xs text-slate-400">{topic}</span>)}</div>}
-            {session?.dataset_size && <div className="mt-2 text-xs text-slate-500">Dataset: {session.dataset_size.toLocaleString()} public LeetCode problems</div>}
+            {session?.dataset_size && <div className="mt-2 text-xs text-slate-500">Dataset: {session.dataset_size.toLocaleString()} {session.dataset_label || "public DSA problems"}{session.target_company ? ` - ${session.target_company}` : ""}</div>}
+            {currentProblem?.companies?.length > 0 && <div className="mt-2 text-xs text-cyan-300">Seen in: {currentProblem.companies.slice(0, 5).join(", ")}{currentProblem.companies.length > 5 ? "..." : ""}</div>}
           </div>
           {form.round_type === "dsa" ? (
             <div className="space-y-5 p-5 text-sm text-slate-300">
@@ -514,7 +546,6 @@ export default function App() {
               <div className="flex items-center gap-2 font-semibold"><Code2 size={18} /> Code</div>
               <select className="w-40 py-2 text-sm" value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Coding language">
                 <option value="python">Python</option>
-                <option value="javascript">JavaScript</option>
                 <option value="cpp">C++</option>
                 <option value="c">C</option>
                 <option value="java">Java</option>
@@ -619,7 +650,7 @@ function getStarterCode(problem, selectedLanguage) {
 }
 
 function monacoLanguage(selectedLanguage) {
-  return { cpp: "cpp", c: "c", java: "java", javascript: "javascript", python: "python" }[selectedLanguage] || "plaintext"
+  return { cpp: "cpp", c: "c", java: "java", python: "python" }[selectedLanguage] || "plaintext"
 }
 
 function friendlyError(err) {
