@@ -20,6 +20,16 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from app.services.interview_data_service import (
+    get_cs_fundamentals_config,
+    get_dsa_config,
+    get_project_behavioral_config,
+    interview_data_service,
+    list_companies_for_round,
+)
+from app.services.llm_service import llm_service
+from app.services.report_service import build_feedback_report
+
 try:
     import pdfplumber
 except Exception:
@@ -34,6 +44,16 @@ try:
     from app.realtime.websocket.routes import router as websocket_router
 except Exception:
     websocket_router = None
+
+try:
+    from app.orchestration.project_behavioral_graph import run_project_behavioral_turn
+except Exception:
+    run_project_behavioral_turn = None
+
+try:
+    from app.orchestration.cs_fundamentals_graph import run_cs_fundamentals_turn
+except Exception:
+    run_cs_fundamentals_turn = None
 
 
 APP_VERSION = "1.1.0-mvp"
@@ -146,7 +166,8 @@ class StartSessionRequest(BaseModel):
     job_role: str = "Software Engineer"
     experience_level: str = "fresher"
     target_company: str = ""
-    round_type: str = Field(default="dsa", pattern="^(dsa|combined)$")
+    job_description: str = ""
+    round_type: str = Field(default="dsa", pattern="^(dsa|combined|project_behavioral|cs_fundamentals)$")
     difficulty: str = "medium"
     timer_minutes: int = Field(default=35, ge=10, le=90)
 
@@ -156,6 +177,7 @@ class MessageRequest(BaseModel):
     user_text: str
     behavioral_metrics: dict[str, Any] = {}
     code_context: dict[str, Any] = {}
+    scratchpad: dict[str, Any] = {}
 
 
 class CodeSubmitRequest(BaseModel):
@@ -224,21 +246,72 @@ async def problem_companies():
     }
 
 
+@app.get("/api/interview/round-options")
+async def interview_round_options():
+    summary = interview_data_service.get_summary()
+    return {
+        "rounds": [
+            {
+                "id": "dsa",
+                "label": "DSA",
+                "company_count": len(list_companies_for_round("dsa")),
+                "requires_resume": False,
+                "requires_job_description": False,
+                "has_live_round": True,
+            },
+            {
+                "id": "project_behavioral",
+                "legacy_ids": ["combined"],
+                "label": "Project + Behavioural",
+                "company_count": len(list_companies_for_round("project_behavioral")),
+                "requires_resume": True,
+                "requires_job_description": True,
+                "has_live_round": True,
+            },
+            {
+                "id": "cs_fundamentals",
+                "label": "CS Fundamentals",
+                "company_count": len(list_companies_for_round("cs_fundamentals")),
+                "requires_resume": False,
+                "requires_job_description": False,
+                "has_live_round": True,
+            },
+        ],
+        "dataset": summary,
+    }
+
+
+@app.get("/api/interview/companies")
+async def interview_companies(round_type: str = "dsa"):
+    normalized_round = interview_data_service.normalize_round_type(round_type)
+    companies = list_companies_for_round(normalized_round)
+    return {
+        "round_type": normalized_round,
+        "companies": companies,
+        "company_count": len(companies),
+    }
+
+
+@app.get("/api/interview/company-config")
+async def interview_company_config(company: str, round_type: str = "dsa"):
+    normalized_round = interview_data_service.normalize_round_type(round_type)
+    return {
+        "round_type": normalized_round,
+        "company": interview_data_service.resolve_company(company) or company,
+        "config": interview_data_service.get_round_config(company, normalized_round),
+    }
+
+
 @app.get("/api/llm/status")
 async def llm_status():
-    provider = _active_llm_provider()
-    return {
-        "provider": provider,
-        "configured": bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY")),
-        "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile") if provider == "groq" else os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-        "fallback": "guarded_local_interviewer",
-    }
+    return llm_service.status()
 
 
 @app.post("/api/session/start")
 async def start_session(payload: StartSessionRequest):
     session_id = str(uuid.uuid4())
-    target_company = _resolve_company(payload.target_company)
+    normalized_round_type = interview_data_service.normalize_round_type(payload.round_type)
+    target_company = _resolve_company(payload.target_company) if normalized_round_type == "dsa" else (interview_data_service.resolve_company(payload.target_company) or payload.target_company)
     problem = _select_problem(payload.difficulty, target_company)
     SESSIONS[session_id] = {
         "session_id": session_id,
@@ -246,10 +319,13 @@ async def start_session(payload: StartSessionRequest):
         "job_role": payload.job_role,
         "experience_level": payload.experience_level,
         "target_company": target_company or payload.target_company,
-        "round_type": payload.round_type,
+        "job_description": payload.job_description,
+        "round_type": normalized_round_type,
+        "requested_round_type": payload.round_type,
+        "round_config": _round_config_for_session(normalized_round_type, target_company or payload.target_company),
         "difficulty": payload.difficulty,
         "timer_minutes": payload.timer_minutes,
-        "phase": "dsa" if payload.round_type == "dsa" else "warmup",
+        "phase": "dsa" if normalized_round_type == "dsa" else "warmup",
         "question_count": 0,
         "messages": [],
         "resume_text": "",
@@ -264,7 +340,9 @@ async def start_session(payload: StartSessionRequest):
         "code_snapshots": [],
         "hint_count": 0,
         "started_intro": False,
-        "llm_enabled": bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY")),
+        "llm_enabled": llm_service.is_configured(),
+        "project_behavioral": {},
+        "cs_fundamentals": {},
         "problem": problem,
         "code_runs": [],
     }
@@ -310,8 +388,9 @@ async def interview_message(payload: MessageRequest):
     session["messages"].append({"role": "candidate", "content": user_text, "ts": _now()})
     session["question_count"] += 1
     _ingest_code_context(session, payload.code_context, source="message")
+    _ingest_scratchpad(session, payload.scratchpad)
     _update_behavior(session, user_text, payload.behavioral_metrics)
-    ai_text = _next_interview_turn(session, user_text)
+    ai_text = _next_interview_turn(session, user_text, payload.scratchpad)
     session["messages"].append({"role": "interviewer", "content": ai_text, "ts": _now()})
     return {
         "ai_text": ai_text,
@@ -382,6 +461,16 @@ def _require_session(session_id: str) -> dict[str, Any]:
     return session
 
 
+def _round_config_for_session(round_type: str, company: str) -> dict[str, Any]:
+    if round_type == "dsa":
+        return get_dsa_config(company)
+    if round_type == "project_behavioral":
+        return get_project_behavioral_config(company)
+    if round_type == "cs_fundamentals":
+        return get_cs_fundamentals_config(company)
+    return interview_data_service.get_round_config(company, round_type)
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -418,7 +507,20 @@ def _opening_prompt(session: dict[str, Any]) -> str:
         p = session["problem"]
         company_text = f" for {session['target_company']}" if session.get("target_company") else ""
         return f"Hi, I am your AI interviewer. We will begin with a quick intro, then discuss a company-tagged coding problem{company_text} visible on the left: {p['title']}. Please introduce yourself briefly and tell me your first approach. I will ask clarifying questions and offer hints only if you request them."
-    return "We will start with your background. Walk me through your resume, then I will challenge the project claims and move into behavioral scenarios."
+    if session["round_type"] == "cs_fundamentals":
+        company_text = f" for {session['target_company']}" if session.get("target_company") else ""
+        config = session.get("round_config", {})
+        raw_topics = config.get("topics", []) or []
+        topics = [
+            topic.get("topic", "") if isinstance(topic, dict) else str(topic)
+            for topic in raw_topics
+            if (topic.get("topic") if isinstance(topic, dict) else str(topic))
+        ] or config.get("fallback_topics", ["DBMS", "OOP", "Operating Systems", "Computer Networks"])
+        topic_text = ", ".join(topics[:4])
+        return f"We will start the CS Fundamentals round{company_text}. I will ask concept, comparison, and practical scenario questions across {topic_text}. You can answer verbally or use the scratchpad whenever it helps; I will evaluate it as text, not execute it."
+    company_text = f" for {session['target_company']}" if session.get("target_company") else ""
+    jd_text = " I will also use the pasted job description." if session.get("job_description", "").strip() else ""
+    return f"We will start the Project + Behavioural round{company_text}. Walk me through your resume and strongest project first.{jd_text} I will probe project ownership, tradeoffs, measurable impact, and realistic behavioral examples."
 
 
 def _extract_resume_text(contents: bytes, filename: str) -> str:
@@ -501,7 +603,22 @@ def _ingest_code_context(session: dict[str, Any], context: dict[str, Any], sourc
     session["latest_code_analysis"] = _code_insights(code_text, language, session["problem"])
 
 
-def _next_interview_turn(session: dict[str, Any], user_text: str) -> str:
+def _ingest_scratchpad(session: dict[str, Any], scratchpad: dict[str, Any]) -> None:
+    if not scratchpad:
+        return
+    content = str(scratchpad.get("content", "") or "").strip()
+    if not content:
+        return
+    mode = str(scratchpad.get("mode", "text") or "text").lower()
+    session.setdefault("scratchpad_history", []).append({
+        "mode": mode[:30],
+        "content": content[-4000:],
+        "ts": _now(),
+    })
+    session["scratchpad_history"] = session["scratchpad_history"][-20:]
+
+
+def _next_interview_turn(session: dict[str, Any], user_text: str, scratchpad: dict[str, Any] | None = None) -> str:
     lower = user_text.lower()
     if session["round_type"] == "dsa":
         direct = _answer_dsa_question(session["problem"], lower)
@@ -522,6 +639,17 @@ def _next_interview_turn(session: dict[str, Any], user_text: str) -> str:
         if latest_code:
             return _code_probe(latest_code, session["problem"])
         return "Now start coding. I will watch for edge cases, complexity, and whether your implementation matches the approach you described."
+
+    if session["round_type"] == "cs_fundamentals":
+        if run_cs_fundamentals_turn:
+            result = run_cs_fundamentals_turn(session, user_text, scratchpad or {})
+            return result.get("ai_text", "Explain the current CS concept with one practical example and one tradeoff.")
+        session["phase"] = "cs_fundamentals"
+        return "Explain one DBMS, OOP, OS, or networking concept clearly, then apply it to a real backend system."
+
+    if run_project_behavioral_turn:
+        result = run_project_behavioral_turn(session, user_text)
+        return result.get("ai_text", "Tell me more about your strongest project, your exact ownership, and one measurable result.")
 
     projects = session.get("resume_data", {}).get("projects", [])
     if session["question_count"] <= 2:
@@ -2113,23 +2241,4 @@ def _resume_review(text: str, data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _feedback_report(session: dict[str, Any]) -> dict[str, Any]:
-    def avg(values: list[int]) -> float:
-        return round(sum(values) / len(values), 1) if values else 0
-
-    scores = {key: avg(value) for key, value in session["scores"].items()}
-    integrity_penalty = min(30, len(session["violations"]) * 5)
-    overall = round((sum(scores.values()) / max(1, len(scores))) * 20 - integrity_penalty, 1)
-    return {
-        "session_id": session["session_id"],
-        "overall_score": max(0, overall),
-        "hiring_signal": "Strong hire" if overall >= 80 else "Leaning hire" if overall >= 65 else "Needs more preparation",
-        "scores": scores,
-        "weak_areas": session["weak_areas"] or ["Add more precise examples, complexity analysis, and measurable outcomes."],
-        "behavioral_signals": session["behavioral_signals"],
-        "behavior_log": session.get("behavior_log", []),
-        "hint_count": session.get("hint_count", 0),
-        "integrity": {"violations": session["violations"], "score": max(0, 100 - integrity_penalty)},
-        "code_runs": session["code_runs"],
-        "study_plan": ["Practice explaining tradeoffs aloud.", "Prepare STAR stories from real resume experiences.", "Solve 10 timed DSA problems and always state edge cases before coding."],
-        "conversation": session["messages"],
-    }
+    return build_feedback_report(session)

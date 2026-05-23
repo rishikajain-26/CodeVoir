@@ -18,12 +18,14 @@ const defaultCode = `# Select a language and start solving.
 export default function App() {
   const [screen, setScreen] = useState("setup")
   const [session, setSession] = useState(null)
-  const [form, setForm] = useState({ job_role: "Software Engineer", experience_level: "fresher", target_company: "", round_type: "dsa", difficulty: "medium", timer_minutes: 35 })
+  const [form, setForm] = useState({ job_role: "Software Engineer", experience_level: "fresher", target_company: "", job_description: "", round_type: "dsa", difficulty: "medium", timer_minutes: 35 })
   const [resume, setResume] = useState(null)
   const [resumeReviewFile, setResumeReviewFile] = useState(null)
   const [resumeReview, setResumeReview] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
+  const [scratchpadMode, setScratchpadMode] = useState("text")
+  const [scratchpad, setScratchpad] = useState("")
   const [language, setLanguage] = useState("python")
   const [code, setCode] = useState(defaultCode)
   const [codeResult, setCodeResult] = useState(null)
@@ -37,6 +39,7 @@ export default function App() {
   const [autoVoice, setAutoVoice] = useState(false)
   const [liveTranscript, setLiveTranscript] = useState("")
   const [companies, setCompanies] = useState([])
+  const [roundOptions, setRoundOptions] = useState([])
   const [isBusy, setIsBusy] = useState(false)
   const videoRef = useRef(null)
   const recognitionRef = useRef(null)
@@ -54,14 +57,32 @@ export default function App() {
   const languageRef = useRef("python")
 
   const currentProblem = session?.problem
+  const activeRound = session?.round_type || form.round_type
+  const isDsaRound = activeRound === "dsa"
+  const isCsRound = activeRound === "cs_fundamentals"
+  const isProjectRound = !isDsaRound && !isCsRound
+  const roundTitle = isDsaRound ? "DSA + Code Interview" : isCsRound ? "CS Fundamentals Interview" : "Project + Behavioural Interview"
+  const selectedRoundOption = roundOptions.find((round) => round.id === activeRound || round.legacy_ids?.includes(activeRound))
   const lastAiMessage = useMemo(() => [...messages].reverse().find((m) => m.role === "interviewer")?.content || "", [messages])
 
   useEffect(() => {
-    apiFetch("/api/problems/companies")
+    apiFetch("/api/interview/round-options")
       .then((res) => res.ok ? res.json() : null)
-      .then((meta) => setCompanies(meta?.companies || []))
+      .then((meta) => setRoundOptions(meta?.rounds || []))
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    apiFetch(`/api/interview/companies?round_type=${encodeURIComponent(form.round_type)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((meta) => setCompanies(meta?.companies || []))
+      .catch(() => {
+        apiFetch("/api/problems/companies")
+          .then((res) => res.ok ? res.json() : null)
+          .then((meta) => setCompanies(meta?.companies || []))
+          .catch(() => {})
+      })
+  }, [form.round_type])
 
   useEffect(() => {
     if (!currentProblem) return
@@ -160,7 +181,9 @@ export default function App() {
     setMessages((prev) => [...prev, { role: "candidate", content: clean }])
     setIsBusy(true)
     try {
-      const reply = await postJson("/api/interview/message", { session_id: session.session_id, user_text: clean, behavioral_metrics: behavioralMetrics, code_context: currentCodeContext("message") })
+      const payload = { session_id: session.session_id, user_text: clean, behavioral_metrics: behavioralMetrics, code_context: currentCodeContext("message") }
+      if (isCsRound && scratchpad.trim()) payload.scratchpad = { mode: scratchpadMode, content: scratchpad }
+      const reply = await postJson("/api/interview/message", payload)
       setMessages((prev) => [...prev, { role: "interviewer", content: reply.ai_text }])
       speak(reply.ai_text)
     } catch (err) {
@@ -451,20 +474,23 @@ export default function App() {
           <div className="rounded border border-slate-800 bg-slate-900 p-5">
             <h2 className="mb-4 text-lg font-semibold">Start Live Interview</h2>
             <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Round type"><select value={form.round_type} onChange={(e) => setForm({ ...form, round_type: e.target.value })}>{(roundOptions.length ? roundOptions : [{ id: "dsa", label: "DSA + Code" }, { id: "combined", label: "Projects + Behavioural" }, { id: "cs_fundamentals", label: "CS Fundamentals" }]).map((round) => <option key={round.id} value={round.id}>{round.label}</option>)}</select></Field>
+              <Field label="Target company"><input list="company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Amazon, Google, Meta..." /><datalist id="company-options">{companies.map((company) => <option key={company} value={company} />)}</datalist></Field>
               <Field label="Job role"><input value={form.job_role} onChange={(e) => setForm({ ...form, job_role: e.target.value })} /></Field>
               <Field label="Experience"><select value={form.experience_level} onChange={(e) => setForm({ ...form, experience_level: e.target.value })}><option>fresher</option><option>mid</option><option>senior</option></select></Field>
-              <Field label="Target company"><input list="company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Amazon, Google, Meta..." /><datalist id="company-options">{companies.map((company) => <option key={company} value={company} />)}</datalist></Field>
-              <Field label="Difficulty"><select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}><option>easy</option><option>medium</option><option>hard</option></select></Field>
-            </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Round type"><select value={form.round_type} onChange={(e) => setForm({ ...form, round_type: e.target.value })}><option value="dsa">DSA + Code</option><option value="combined">Projects + Behavioural</option></select></Field>
+              {form.round_type === "dsa" && <Field label="Difficulty"><select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}><option>easy</option><option>medium</option><option>hard</option></select></Field>}
               <Field label="Timer minutes"><input type="number" min="10" max="90" value={form.timer_minutes} onChange={(e) => setForm({ ...form, timer_minutes: Number(e.target.value) })} /></Field>
             </div>
-            <label className="mt-4 flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
+            {selectedRoundOption && <div className="mt-4 rounded bg-slate-950 p-3 text-xs text-slate-400">{selectedRoundOption.company_count?.toLocaleString?.() || selectedRoundOption.company_count || companies.length} companies available for {selectedRoundOption.label}. {selectedRoundOption.requires_resume ? "Resume recommended." : "Resume optional."} {selectedRoundOption.requires_job_description ? "Job description recommended." : ""}</div>}
+            {isProjectRound && <label className="mt-4 grid gap-2 text-sm text-slate-300">
+              <span>Job description</span>
+              <textarea value={form.job_description} onChange={(e) => setForm({ ...form, job_description: e.target.value })} placeholder="Paste the job description for Project + Behavioural interview personalization" className="h-28 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-cyan-400" />
+            </label>}
+            {isProjectRound && <label className="mt-4 flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
               <Upload size={18} />
               <span>{resume ? resume.name : "Upload resume for personalised project and behavioural questions"}</span>
               <input className="hidden" type="file" accept=".pdf,.txt" onChange={(e) => setResume(e.target.files?.[0] || null)} />
-            </label>
+            </label>}
             <button className="mt-5 inline-flex items-center gap-2 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50" onClick={startSession} disabled={isBusy}>
               <Play size={18} /> Start interview
             </button>
@@ -495,7 +521,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           <Bot className="text-cyan-300" />
           <div>
-            <div className="font-semibold">{form.round_type === "dsa" ? "DSA + Code Interview" : "Projects + Behavioural Interview"}</div>
+            <div className="font-semibold">{roundTitle}</div>
             <div className="text-xs text-slate-400">{voiceState.replace("_", " ")} - {form.difficulty}{liveTranscript ? ` - "${liveTranscript.slice(0, 70)}"` : ""}</div>
           </div>
         </div>
@@ -520,28 +546,30 @@ export default function App() {
           <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 px-5 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm text-slate-400">Problem {currentProblem?.frontend_id || currentProblem?.id}</div>
-                <h2 className="truncate text-xl font-semibold">{currentProblem?.title || "Project Discussion"}</h2>
+                <div className="text-sm text-slate-400">{isDsaRound ? `Problem ${currentProblem?.frontend_id || currentProblem?.id || ""}` : isCsRound ? "Concept interview" : "Project interview"}</div>
+                <h2 className="truncate text-xl font-semibold">{isDsaRound ? currentProblem?.title : isCsRound ? "CS Fundamentals" : "Project + Behavioural"}</h2>
               </div>
               {currentProblem && <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300">{currentProblem.difficulty}</span>}
             </div>
             {session?.dataset_size && <div className="mt-2 text-xs text-slate-500">Dataset: {session.dataset_size.toLocaleString()} {session.dataset_label || "public DSA problems"}{session.target_company ? ` - ${session.target_company}` : ""}</div>}
             {currentProblem?.companies?.length > 0 && <div className="mt-2 text-xs text-cyan-300">Seen in: {currentProblem.companies.slice(0, 5).join(", ")}{currentProblem.companies.length > 5 ? "..." : ""}</div>}
           </div>
-          {form.round_type === "dsa" ? (
+          {isDsaRound ? (
             <div className="space-y-5 p-5 text-sm text-slate-300">
               <p className="leading-7">{currentProblem?.prompt}</p>
               <ProblemBlock title="Examples" items={(currentProblem?.examples || []).map((ex) => `Input: ${ex.input}\nOutput: ${ex.output}\n${ex.explanation || ""}`)} />
               <ProblemBlock title="Visible Test Cases" items={(currentProblem?.testcases || []).filter((tc) => tc.visible !== false).slice(0, 4).map((tc) => `stdin:\n${tc.input.trim()}\nexpected:\n${tc.expected_output}`)} />
               {currentProblem?.constraints?.length > 0 && <div><div className="mb-2 font-semibold text-slate-100">Constraints</div><ul className="grid gap-2 text-xs text-slate-400">{currentProblem.constraints.map((x) => <li key={x} className="rounded bg-slate-950 p-2">{x}</li>)}</ul></div>}
             </div>
+          ) : isCsRound ? (
+            <RoundContext title="CS Fundamentals" items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Mode: verbal interview with optional scratchpad", "Topics: DBMS, OOP, Operating Systems, Computer Networks", "Scratchpad is evaluated as text only; nothing is executed."]} />
           ) : (
-            <div className="p-5 text-slate-300">Use the voice or text panel to answer. The interviewer will probe resume claims, project decisions, STAR stories, and contradictions.</div>
+            <RoundContext title="Project + Behavioural" items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Focus: resume projects, JD fit, ownership, tradeoffs, STAR examples", form.job_description ? "Job description was provided before the round." : "No job description was provided."]} />
           )}
         </aside>
 
         <section className="h-[calc(100vh-96px)] min-h-0">
-          <div className="h-full rounded border border-slate-800 bg-slate-900">
+          {isDsaRound ? <div className="h-full rounded border border-slate-800 bg-slate-900">
             <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
               <div className="flex items-center gap-2 font-semibold"><Code2 size={18} /> Code</div>
               <select className="w-40 py-2 text-sm" value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Coding language">
@@ -561,7 +589,7 @@ export default function App() {
                 {codeResult && <div className="grid max-h-28 gap-2 overflow-y-auto md:grid-cols-2">{codeResult.testcase_results.map((tc, index) => <div key={`${tc.input}-${index}`} className={`rounded p-2 text-xs ${tc.passed ? "bg-emerald-950 text-emerald-100" : "bg-red-950 text-red-100"}`}><b>{tc.visible ? `Case ${index + 1}` : `Hidden ${index + 1}`}:</b> {tc.passed ? "Passed" : `${tc.stderr || `Expected ${tc.expected_output}, got ${tc.actual_output || "no output"}`}`}</div>)}</div>}
               </div>
             </div>
-          </div>
+          </div> : <InterviewWorkspace input={input} setInput={setInput} isBusy={isBusy} sendMessage={sendMessage} toggleMic={toggleMic} autoVoice={autoVoice} voiceState={voiceState} liveTranscript={liveTranscript} lastAiMessage={lastAiMessage} isCsRound={isCsRound} scratchpad={scratchpad} setScratchpad={setScratchpad} scratchpadMode={scratchpadMode} setScratchpadMode={setScratchpadMode} />}
         </section>
 
         {transcriptOpen && <aside className="fixed bottom-0 right-0 top-0 z-30 flex w-[420px] max-w-[96vw] flex-col border-l border-slate-700 bg-slate-950 shadow-2xl">
@@ -612,12 +640,144 @@ function ProblemBlock({ title, items }) {
   return <div><div className="mb-2 font-semibold text-slate-100">{title}</div><div className="grid gap-2">{items.map((item) => <pre key={item} className="whitespace-pre-wrap rounded bg-slate-950 p-3 text-xs leading-5 text-slate-300">{item}</pre>)}</div></div>
 }
 
-function Feedback({ report, onRestart }) {
-  return <main className="min-h-screen bg-slate-950 p-6 text-slate-100"><section className="mx-auto max-w-5xl rounded border border-slate-800 bg-slate-900 p-6"><div className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-semibold">Interview Feedback Report</h1><p className="text-slate-400">{report.hiring_signal}</p></div><div className="text-right"><div className="text-4xl font-bold text-cyan-300">{report.overall_score}</div><div className="text-sm text-slate-400">overall</div></div></div><div className="mt-6 grid gap-4 md:grid-cols-5">{Object.entries(report.scores).map(([k, v]) => <div key={k} className="rounded bg-slate-950 p-3"><div className="text-xs uppercase text-slate-500">{k}</div><div className="text-xl font-semibold">{v}/4</div></div>)}</div><div className="mt-6 grid gap-5 md:grid-cols-2"><Block title="Weak Areas" items={report.weak_areas} /><Block title="Study Plan" items={report.study_plan} /><Block title="Integrity" items={[`${report.integrity.score}/100 integrity score`, `${report.integrity.violations.length} proctoring events logged`]} /><Block title="Behavioral Signals" items={Object.entries(report.behavioral_signals).map(([k, v]) => `${k}: ${v}`)} /></div><button onClick={onRestart} className="mt-6 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950">Start another interview</button></section></main>
+function RoundContext({ title, items }) {
+  return <div className="space-y-4 p-5 text-sm text-slate-300"><div><div className="text-xs uppercase text-slate-500">Round context</div><h3 className="mt-1 text-lg font-semibold text-slate-100">{title}</h3></div><div className="grid gap-2">{items.filter(Boolean).map((item) => <div key={item} className="rounded bg-slate-950 p-3">{item}</div>)}</div></div>
 }
 
-function Block({ title, items }) {
-  return <div><h2 className="mb-2 font-semibold">{title}</h2><div className="space-y-2">{items.map((x) => <p key={x} className="rounded bg-slate-950 p-3 text-sm text-slate-300">{x}</p>)}</div></div>
+function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, autoVoice, voiceState, liveTranscript, lastAiMessage, isCsRound, scratchpad, setScratchpad, scratchpadMode, setScratchpadMode }) {
+  return <div className="grid h-full grid-rows-[auto_1fr_auto] rounded border border-slate-800 bg-slate-900">
+    <div className="border-b border-slate-800 px-4 py-3">
+      <div className="text-sm text-slate-400">Current question</div>
+      <div className="mt-2 rounded bg-slate-950 p-3 text-sm leading-6 text-cyan-50">{lastAiMessage || "The interviewer question will appear here."}</div>
+    </div>
+    <div className={`grid min-h-0 gap-3 p-4 ${isCsRound ? "lg:grid-cols-2" : "grid-cols-1"}`}>
+      <div className="min-h-0 rounded border border-slate-800 bg-slate-950 p-3">
+        <label className="grid h-full gap-2 text-sm text-slate-300">
+          <span>Your answer</span>
+          <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Answer the interviewer here, or use voice." className="min-h-0 flex-1 resize-none rounded border border-slate-700 bg-slate-900 p-3 text-sm outline-none focus:border-cyan-400" />
+        </label>
+      </div>
+      {isCsRound && <div className="min-h-0 rounded border border-slate-800 bg-slate-950 p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <label className="text-sm text-slate-300">Scratchpad</label>
+          <select className="w-36 py-2 text-sm" value={scratchpadMode} onChange={(e) => setScratchpadMode(e.target.value)} aria-label="Scratchpad mode">
+            <option value="text">Text</option>
+            <option value="sql">SQL</option>
+            <option value="pseudocode">Pseudocode</option>
+            <option value="diagram">Diagram notes</option>
+          </select>
+        </div>
+        <textarea value={scratchpad} onChange={(e) => setScratchpad(e.target.value)} placeholder="Optional whiteboard notes. Use it for SQL, pseudocode, diagrams, or examples when helpful." className="h-[calc(100%-44px)] w-full resize-none rounded border border-slate-700 bg-slate-900 p-3 font-mono text-sm outline-none focus:border-cyan-400" />
+      </div>}
+    </div>
+    <div className="border-t border-slate-800 p-3">
+      <div className="flex gap-2">
+        <button onClick={() => sendMessage()} disabled={isBusy} className="flex-1 rounded bg-cyan-400 px-3 py-2 font-semibold text-slate-950 disabled:opacity-50">Send answer</button>
+        <button onClick={toggleMic} className={`rounded border px-3 py-2 ${autoVoice || voiceState === "listening" ? "border-red-400 text-red-200" : "border-slate-600"}`} title="Toggle microphone">{autoVoice || voiceState === "listening" ? <Square size={18} /> : <Mic size={18} />}</button>
+      </div>
+      {liveTranscript && <div className="mt-2 rounded bg-slate-950 p-2 text-xs text-cyan-100">Hearing: {liveTranscript}</div>}
+    </div>
+  </div>
+}
+
+function Feedback({ report, onRestart }) {
+  const breakdown = report.round_breakdown || {}
+  const roundItems = roundBreakdownItems(breakdown)
+  const integrity = report.integrity || {}
+
+  return <main className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <section className="mx-auto max-w-6xl rounded border border-slate-800 bg-slate-900 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-5">
+        <div>
+          <div className="text-sm uppercase text-cyan-300">{prettyRound(report.round_type)} Report</div>
+          <h1 className="mt-1 text-2xl font-semibold">{report.hiring_signal}</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{report.summary}</p>
+        </div>
+        <div className="text-right">
+          <div className="text-5xl font-bold text-cyan-300">{report.overall_score}</div>
+          <div className="text-sm text-slate-400">overall score</div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-5">
+        {Object.entries(report.scores || {}).map(([k, v]) => <ScoreCard key={k} label={k} value={v} suffix="/4" />)}
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <ScoreCard label="Round" value={breakdown.round_score || 0} suffix="/100" />
+        <ScoreCard label="Integrity" value={integrity.score ?? 100} suffix="/100" />
+        <ScoreCard label="Evidence" value={(breakdown.evidence || []).length} suffix=" items" />
+      </div>
+
+      <div className="mt-6 grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
+        <div className="space-y-5">
+          <ReportPanel title="Round Breakdown" items={roundItems} />
+          {breakdown.evidence?.length > 0 && <EvidencePanel evidence={breakdown.evidence} />}
+        </div>
+        <div className="space-y-5">
+          <ReportPanel title="Strengths" items={report.strengths || []} />
+          <ReportPanel title="Weak Areas" items={report.weak_areas || []} />
+          <ReportPanel title="Practice Plan" items={report.study_plan || []} />
+          <ReportPanel title="Integrity" items={[`${integrity.score ?? 100}/100 integrity score`, `${integrity.violations?.length || 0} proctoring events`, `focus loss: ${integrity.focus_loss || 0}`, `paste events: ${integrity.paste_events || 0}`, `voice turns: ${integrity.voice_turns || 0}`]} />
+        </div>
+      </div>
+
+      <button onClick={onRestart} className="mt-6 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950">Start another interview</button>
+    </section>
+  </main>
+}
+
+function ScoreCard({ label, value, suffix }) {
+  return <div className="rounded bg-slate-950 p-3"><div className="text-xs uppercase text-slate-500">{label.replaceAll("_", " ")}</div><div className="mt-1 text-xl font-semibold">{value}{suffix}</div></div>
+}
+
+function ReportPanel({ title, items }) {
+  const visible = (items || []).filter(Boolean)
+  return <div className="rounded border border-slate-800 bg-slate-950 p-4"><h2 className="mb-3 font-semibold">{title}</h2><div className="space-y-2">{(visible.length ? visible : ["No evidence recorded for this section."]).map((x, i) => <p key={`${x}-${i}`} className="rounded bg-slate-900 p-3 text-sm leading-6 text-slate-300">{x}</p>)}</div></div>
+}
+
+function EvidencePanel({ evidence }) {
+  return <div className="rounded border border-slate-800 bg-slate-950 p-4"><h2 className="mb-3 font-semibold">Evidence Used</h2><div className="space-y-2">{evidence.map((item, i) => <pre key={i} className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded bg-slate-900 p-3 text-xs leading-5 text-slate-300">{formatEvidence(item)}</pre>)}</div></div>
+}
+
+function roundBreakdownItems(section) {
+  if (!section?.type) return []
+  if (section.type === "dsa") return [
+    section.problem?.title && `Problem: ${section.problem.title} (${section.problem.difficulty || "difficulty unknown"})`,
+    section.submission?.total_testcases ? `Tests: ${section.submission.passed_testcases}/${section.submission.total_testcases} passed in ${section.submission.language || "selected language"}` : "No code submission evidence was recorded.",
+    section.problem?.topics?.length && `Topics: ${section.problem.topics.slice(0, 6).join(", ")}`,
+  ].filter(Boolean)
+  if (section.type === "project_behavioral") return [
+    section.company_profile && `Company profile: ${section.company_profile}`,
+    section.company_style && `Company style: ${section.company_style}`,
+    section.resume_focus?.selected_project && `Project focus: ${section.resume_focus.selected_project}`,
+    section.jd_signals?.skills?.length && `JD signals: ${section.jd_signals.skills.join(", ")}`,
+    `Turns evaluated: ${section.turn_count || 0}`,
+    ...(section.latest_flags || []),
+  ].filter(Boolean)
+  if (section.type === "cs_fundamentals") return [
+    section.current_topic && `Current topic: ${section.current_topic}`,
+    section.topic_plan?.length && `Topic plan: ${section.topic_plan.join(", ")}`,
+    section.topics_covered?.length && `Topics covered: ${section.topics_covered.join(", ")}`,
+    section.strong_topics?.length && `Strong topics: ${section.strong_topics.join(", ")}`,
+    section.weak_topics?.length && `Weak topics: ${section.weak_topics.join(", ")}`,
+    section.scratchpad_observations?.length && `Scratchpad turns: ${section.scratchpad_observations.length}`,
+    ...(section.latest_flags || []),
+  ].filter(Boolean)
+  return []
+}
+
+function formatEvidence(item) {
+  if (item.role && item.content) return `${item.role}: ${item.content}`
+  if (item.topic) return `${item.topic} | ${item.question_type || "question"}\nAnswer: ${item.answer_excerpt || ""}\nScratchpad: ${item.scratchpad_excerpt || ""}`
+  if (item.phase) return `${item.phase}\nAnswer: ${item.answer_excerpt || ""}\nFlags: ${(item.flags || []).join("; ")}`
+  return JSON.stringify(item, null, 2)
+}
+
+function prettyRound(roundType) {
+  if (roundType === "project_behavioral") return "Project + Behavioural"
+  if (roundType === "cs_fundamentals") return "CS Fundamentals"
+  return "DSA"
 }
 
 async function postJson(path, body) {
