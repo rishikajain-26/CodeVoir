@@ -1,9 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
-import { AlertTriangle, Bot, Camera, Code2, FileText, Mic, Play, Shield, Square, Upload } from "lucide-react"
+import { AlertTriangle, Bot, Camera, Code2, FileText, Mic, Play, Send, Shield, Square, Upload } from "lucide-react"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
-const API_BASES = [...new Set(["", API, "http://127.0.0.1:8010", "http://localhost:8010", "http://localhost:8000"])]
+// Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
+// Dead ports (8010) removed — they caused "session not found" errors to be swallowed.
+const API_BASES = [...new Set(["", API])]
+
+// ElevenLabs TTS — set VITE_ELEVENLABS_API_KEY in .env.local to enable.
+// Falls back to browser Web Speech API when key is absent.
+const EL_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || ""
+const EL_VOICE_ID = import.meta.env.VITE_ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"
+const EL_MODEL = "eleven_turbo_v2_5"   // lowest latency model
+
+// onAudioReady(audio) is called with the Audio element as soon as it exists,
+// allowing the caller to store it for interrupt support before playback starts.
+async function _elevenLabsTTS(text, onAudioReady) {
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE_ID}/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "xi-api-key": EL_API_KEY },
+    body: JSON.stringify({
+      text,
+      model_id: EL_MODEL,
+      voice_settings: { stability: 0.48, similarity_boost: 0.78, style: 0.0, use_speaker_boost: true },
+    }),
+  })
+  if (!res.ok) throw new Error(`ElevenLabs ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const audio = new Audio(url)
+  if (onAudioReady) onAudioReady(audio)
+  return new Promise((resolve, reject) => {
+    audio.onended = () => { URL.revokeObjectURL(url); resolve(null) }
+    audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error("audio error")) }
+    audio.play().catch(reject)
+  })
+}
 
 const languageLabels = {
   python: "Python",
@@ -14,6 +46,16 @@ const languageLabels = {
 
 const defaultCode = `# Select a language and start solving.
 `
+
+function testValue(value) {
+  if (value === undefined || value === null || value === "") return "—"
+  if (typeof value === "string") return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
 
 export default function App() {
   const [screen, setScreen] = useState("setup")
@@ -41,9 +83,11 @@ export default function App() {
   const [companies, setCompanies] = useState([])
   const [roundOptions, setRoundOptions] = useState([])
   const [isBusy, setIsBusy] = useState(false)
+  const [dsaProgress, setDsaProgress] = useState(null)
   const videoRef = useRef(null)
   const recognitionRef = useRef(null)
   const autoVoiceRef = useRef(false)
+  const liveTranscriptRef = useRef("")
   const speakingRef = useRef(false)
   const ttsTimeoutRef = useRef(null)
   const voiceRestartTimerRef = useRef(null)
@@ -51,10 +95,12 @@ export default function App() {
   const voiceRetryRef = useRef(0)
   const lastListenEndedAtRef = useRef(0)
   const lastAiSpokenRef = useRef("")
+  const ttsEndedAtRef = useRef(0)       // timestamp when TTS audio finished playing
   const dragRef = useRef(null)
   const editorTelemetryRef = useRef({ lastChangeAt: Date.now(), edits: 0, pasteEvents: 0, largePastes: 0, deletions: 0, idleGaps: 0, maxLines: 0 })
   const codeRef = useRef(defaultCode)
   const languageRef = useRef("python")
+  const currentAudioRef = useRef(null)   // tracks active ElevenLabs Audio element
 
   const currentProblem = session?.problem
   const activeRound = session?.round_type || form.round_type
@@ -63,7 +109,7 @@ export default function App() {
   const isProjectRound = !isDsaRound && !isCsRound
   const roundTitle = isDsaRound ? "DSA + Code Interview" : isCsRound ? "CS Fundamentals Interview" : "Project + Behavioural Interview"
   const selectedRoundOption = roundOptions.find((round) => round.id === activeRound || round.legacy_ids?.includes(activeRound))
-  const lastAiMessage = useMemo(() => [...messages].reverse().find((m) => m.role === "interviewer")?.content || "", [messages])
+  const lastAiMessage = useMemo(() => [...messages].reverse().find((m) => m.role === "interviewer")?.content ?? "", [messages])
 
   useEffect(() => {
     apiFetch("/api/interview/round-options")
@@ -101,6 +147,25 @@ export default function App() {
   }, [language])
 
   useEffect(() => {
+    if (!session?.session_id || !isDsaRound) return undefined
+    let stopped = false
+    const tick = () => {
+      apiFetch(`/api/interview/progress?session_id=${encodeURIComponent(session.session_id)}`)
+        .then((res) => {
+          if (res.status === 404) { stopped = true; clearInterval(timer); return null }
+          return res.ok ? res.json() : null
+        })
+        .then((payload) => {
+          if (payload?.dsa_progress) setDsaProgress(payload.dsa_progress)
+        })
+        .catch(() => {})
+    }
+    tick()
+    const timer = window.setInterval(() => { if (!stopped) tick() }, 1000)
+    return () => window.clearInterval(timer)
+  }, [session?.session_id, isDsaRound])
+
+  useEffect(() => {
     if (screen !== "interview" || !session) return
     const onVisibility = () => document.hidden && reportViolation("tab_hidden", { title: document.title })
     const onBlur = () => window.setTimeout(() => !document.hasFocus() && reportViolation("window_blur", {}), 1800)
@@ -131,6 +196,10 @@ export default function App() {
     autoVoiceRef.current = autoVoice
   }, [autoVoice])
 
+  useEffect(() => {
+    liveTranscriptRef.current = liveTranscript
+  }, [liveTranscript])
+
   async function startSession() {
     setIsBusy(true)
     setError("")
@@ -143,6 +212,7 @@ export default function App() {
         await apiFetch("/api/resume/upload", { method: "POST", body: fd })
       }
       setSession(created)
+      setDsaProgress(created.dsa_progress || null)
       setMessages([{ role: "interviewer", content: created.ai_text }])
       setCode(getStarterCode(created.problem, language))
       setScreen("interview")
@@ -171,7 +241,10 @@ export default function App() {
     const clean = text.trim()
     if (!clean || !session) return
     if (isBusy) return
-    if (isLikelyEcho(clean, lastAiSpokenRef.current)) {
+    // Only apply echo filter within 500ms of TTS ending or while TTS is playing.
+    // After that window, candidate speech is always genuine — no false positives.
+    const inEchoWindow = speakingRef.current || (Date.now() - ttsEndedAtRef.current < 500)
+    if (inEchoWindow && isLikelyEcho(clean, lastAiSpokenRef.current)) {
       setLiveTranscript("")
       if (autoVoiceRef.current && !speakingRef.current) scheduleListen(800)
       return
@@ -180,13 +253,35 @@ export default function App() {
     setLiveTranscript("")
     setMessages((prev) => [...prev, { role: "candidate", content: clean }])
     setIsBusy(true)
+    // Show "thinking" indicator while backend retries LLM
+    setMessages((prev) => [...prev, { role: "thinking", content: "" }])
     try {
       const payload = { session_id: session.session_id, user_text: clean, behavioral_metrics: behavioralMetrics, code_context: currentCodeContext("message") }
       if (isCsRound && scratchpad.trim()) payload.scratchpad = { mode: scratchpadMode, content: scratchpad }
       const reply = await postJson("/api/interview/message", payload)
-      setMessages((prev) => [...prev, { role: "interviewer", content: reply.ai_text }])
+      // Remove thinking indicator
+      setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
+      if (reply.dsa_progress) setDsaProgress(reply.dsa_progress)
+      if (reply.problem_changed && reply.problem) {
+        setSession((prev) => ({ ...prev, problem: reply.problem }))
+        const nextCode = getStarterCode(reply.problem, language)
+        setCode(nextCode)
+        codeRef.current = nextCode
+        setCodeResult(null)
+        setMessages((prev) => [
+          ...prev,
+          { role: "interviewer", content: reply.ai_text },
+          { role: "system", content: `Next problem loaded: ${reply.problem.title}` },
+        ])
+        speak(reply.ai_text)
+        return
+      }
+      const msgObj = { role: "interviewer", content: reply.ai_text }
+      if (reply.degraded) msgObj.degraded = true
+      setMessages((prev) => [...prev, msgObj])
       speak(reply.ai_text)
     } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
       const detail = friendlyError(err)
       setError(detail)
       setMessages((prev) => [...prev, { role: "interviewer", content: `I hit a connection issue while replying: ${detail}. Please try again or use manual text for this turn.` }])
@@ -201,14 +296,55 @@ export default function App() {
     setIsBusy(true)
     try {
       const reply = await postJson("/api/interview/submit-code", { session_id: session.session_id, code, language, problem_id: currentProblem?.id })
+      if (reply.dsa_progress) setDsaProgress(reply.dsa_progress)
+      if (reply.problem_changed && reply.problem) setSession((prev) => ({ ...prev, problem: reply.problem }))
       setCodeResult(reply.result)
       setMessages((prev) => [...prev, { role: "candidate", content: `Submitted ${languageLabels[language]} code.` }, { role: "interviewer", content: reply.ai_text }])
       speak(reply.ai_text)
     } catch (err) {
+      if (err.status === 404) {
+        setError("Session expired — the server was restarted. Please go back and start a new interview.")
+        return
+      }
+      const staleProblem = parseErrorDetail(err)?.current_problem
+      if (err.status === 409 && staleProblem) {
+        setSession((prev) => ({ ...prev, problem: staleProblem }))
+        const nextCode = getStarterCode(staleProblem, language)
+        setCode(nextCode)
+        codeRef.current = nextCode
+        setCodeResult(null)
+      }
       const detail = friendlyError(err)
       setError(detail)
       setMessages((prev) => [...prev, { role: "interviewer", content: `Code submission could not be evaluated: ${detail}` }])
-      window.setTimeout(() => setError(""), 6000)
+      window.setTimeout(() => setError(""), 8000)
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function runTests() {
+    if (!session || !currentProblem) return
+    setIsBusy(true)
+    try {
+      const reply = await postJson("/api/interview/run-tests", { session_id: session.session_id, code, language, problem_id: currentProblem?.id })
+      setCodeResult(reply.result)
+    } catch (err) {
+      if (err.status === 404) {
+        setError("Session expired — the server was restarted. Please go back and start a new interview.")
+        return
+      }
+      const staleProblem = parseErrorDetail(err)?.current_problem
+      if (err.status === 409 && staleProblem) {
+        setSession((prev) => ({ ...prev, problem: staleProblem }))
+        const nextCode = getStarterCode(staleProblem, language)
+        setCode(nextCode)
+        codeRef.current = nextCode
+        setCodeResult(null)
+      }
+      const detail = friendlyError(err)
+      setError(detail)
+      window.setTimeout(() => setError(""), 8000)
     } finally {
       setIsBusy(false)
     }
@@ -243,30 +379,64 @@ export default function App() {
     }
   }
 
-  function speak(text) {
-    if (!("speechSynthesis" in window)) return
-    if (voiceRestartTimerRef.current) window.clearTimeout(voiceRestartTimerRef.current)
-    if (recognitionRef.current) {
-      intentionalStopRef.current = true
-      recognitionRef.current.stop?.()
+  function _stopCurrentSpeech() {
+    if (currentAudioRef.current) {
+      try { currentAudioRef.current.pause() } catch {}
+      currentAudioRef.current = null
     }
-    window.speechSynthesis.cancel()
-    if (ttsTimeoutRef.current) window.clearTimeout(ttsTimeoutRef.current)
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+    }
+    if (ttsTimeoutRef.current) { window.clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null }
+  }
+
+  function speak(text) {
+    if (!text) return
+    if (voiceRestartTimerRef.current) window.clearTimeout(voiceRestartTimerRef.current)
+    _stopCurrentSpeech()
     lastAiSpokenRef.current = text
     speakingRef.current = true
     setVoiceState("ai_speaking")
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 1.02
+
     const finishSpeaking = () => {
       if (!speakingRef.current) return
       speakingRef.current = false
-      setVoiceState("user_turn")
-      if (autoVoiceRef.current) scheduleListen(900)
+      ttsEndedAtRef.current = Date.now()
+      currentAudioRef.current = null
+      setVoiceState(recognitionRef.current ? "listening" : "user_turn")
+      if (autoVoiceRef.current && !recognitionRef.current) scheduleListen(300)
     }
-    utterance.onend = finishSpeaking
-    utterance.onerror = finishSpeaking
+
+    if (EL_API_KEY) {
+      _elevenLabsTTS(text, (audio) => { currentAudioRef.current = audio })
+        .then(finishSpeaking)
+        .catch((err) => {
+          console.warn("ElevenLabs TTS failed, falling back to browser TTS:", err)
+          currentAudioRef.current = null
+          _speakBrowserTTS(text, finishSpeaking)
+        })
+    } else {
+      // Browser TTS conflicts with recognition on same audio channel — must pause mic
+      if (recognitionRef.current) {
+        intentionalStopRef.current = true
+        recognitionRef.current.stop?.()
+      }
+      _speakBrowserTTS(text, () => {
+        finishSpeaking()
+        if (autoVoiceRef.current && !recognitionRef.current) scheduleListen(600)
+      })
+    }
+  }
+
+  function _speakBrowserTTS(text, onDone) {
+    if (!("speechSynthesis" in window)) { onDone(); return }
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 1.02
+    utterance.onend = onDone
+    utterance.onerror = onDone
     window.speechSynthesis.speak(utterance)
-    ttsTimeoutRef.current = window.setTimeout(finishSpeaking, Math.min(12000, text.length * 60 + 500))
+    // Safety timeout: 60ms per char + 500ms buffer, capped at 30s
+    ttsTimeoutRef.current = window.setTimeout(onDone, Math.min(30000, text.length * 60 + 500))
   }
 
   function startListening() {
@@ -276,7 +446,10 @@ export default function App() {
       window.setTimeout(() => setWarning(""), 5000)
       return
     }
-    if (speakingRef.current || recognitionRef.current) return
+    if (recognitionRef.current) return
+    // Only block mic during browser TTS (same audio channel); ElevenLabs uses
+    // a separate Audio element and Chrome AEC handles echo suppression.
+    if (speakingRef.current && !EL_API_KEY) return
     const sinceLastEnd = Date.now() - lastListenEndedAtRef.current
     if (sinceLastEnd < 700) {
       scheduleListen(700 - sinceLastEnd)
@@ -293,9 +466,11 @@ export default function App() {
     let hadRecoverableError = false
     let finalSpeechTimer = null
     let silenceTimer = null
-    const stopAfterSpeech = (delayMs = 1100) => {
+    const stopAfterSpeech = (delayMs = 1800) => {
       if (silenceTimer) window.clearTimeout(silenceTimer)
       silenceTimer = window.setTimeout(() => {
+        // Don't auto-stop during AI speech — candidate might be waiting to interrupt
+        if (speakingRef.current) return
         intentionalStopRef.current = false
         recognition.stop()
       }, delayMs)
@@ -312,16 +487,25 @@ export default function App() {
         const chunk = event.results[i][0]?.transcript || ""
         if (event.results[i].isFinal) {
           finalText += `${chunk} `
+          // Candidate is actively speaking — if AI is still talking, interrupt it
+          if (speakingRef.current && !isLikelyEcho(finalText.trim(), lastAiSpokenRef.current)) {
+            _stopCurrentSpeech()
+            speakingRef.current = false
+            ttsEndedAtRef.current = Date.now()
+            currentAudioRef.current = null
+            setVoiceState("listening")
+          }
           if (finalSpeechTimer) window.clearTimeout(finalSpeechTimer)
           finalSpeechTimer = window.setTimeout(() => {
+            if (speakingRef.current) return
             intentionalStopRef.current = false
             recognition.stop()
-          }, 900)
+          }, 1800)
         } else interim += chunk
       }
       latestHeardText = `${finalText}${interim}`.trim()
       setLiveTranscript(latestHeardText)
-      if (latestHeardText) stopAfterSpeech(finalText.trim() ? 900 : 1600)
+      if (latestHeardText) stopAfterSpeech(finalText.trim() ? 1800 : 2500)
     }
     recognition.onerror = (event) => {
       hadRecoverableError = ["aborted", "interrupted", "network", "no-speech"].includes(event.error)
@@ -352,7 +536,8 @@ export default function App() {
       }
       const clean = (finalText.trim() || latestHeardText.trim())
       if (clean) {
-        if (isLikelyEcho(clean, lastAiSpokenRef.current)) {
+        const inEchoWindow = speakingRef.current || (Date.now() - ttsEndedAtRef.current < 500)
+        if (inEchoWindow && isLikelyEcho(clean, lastAiSpokenRef.current)) {
           setLiveTranscript("")
           if (autoVoiceRef.current && !speakingRef.current) scheduleListen(900)
           return
@@ -373,7 +558,10 @@ export default function App() {
   }
 
   function scheduleListen(delayMs) {
-    if (!autoVoiceRef.current || speakingRef.current) return
+    if (!autoVoiceRef.current) return
+    // Block during browser TTS only — ElevenLabs plays via Audio element,
+    // Chrome AEC handles echo, so mic can stay alive during playback
+    if (speakingRef.current && !EL_API_KEY) return
     if (voiceRestartTimerRef.current) window.clearTimeout(voiceRestartTimerRef.current)
     voiceRestartTimerRef.current = window.setTimeout(() => {
       voiceRestartTimerRef.current = null
@@ -383,12 +571,23 @@ export default function App() {
 
   function stopListening() {
     if (voiceRestartTimerRef.current) window.clearTimeout(voiceRestartTimerRef.current)
+    const clean = liveTranscriptRef.current.trim()
     autoVoiceRef.current = false
     setAutoVoice(false)
     intentionalStopRef.current = true
     recognitionRef.current?.stop?.()
     recognitionRef.current = null
     setVoiceState("user_turn")
+    if (clean && session && !isBusy) {
+      sendMessage(clean, { voice_turn: true, stopped_manually: true })
+    }
+  }
+
+  function sendCapturedTranscript() {
+    const clean = liveTranscriptRef.current.trim()
+    if (clean && session && !isBusy) {
+      sendMessage(clean, { voice_turn: true, sent_from_transcript: true })
+    }
   }
 
   function toggleMic() {
@@ -526,6 +725,15 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isDsaRound && dsaProgress && (
+            <div className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200">
+              <div className="font-semibold text-cyan-300">{dsaProgress.label || `Question ${dsaProgress.current_question_index} of ${dsaProgress.total_questions}`}</div>
+              <div className={dsaProgress.time_expired ? "text-red-300" : "text-slate-400"}>
+                {formatTimer(dsaProgress.remaining_seconds)} left · {dsaProgress.allocated_minutes}m round · ~{dsaProgress.per_question_minutes}m / q
+              </div>
+            </div>
+          )}
+          {liveTranscript && voiceState !== "listening" && <button onClick={sendCapturedTranscript} disabled={isBusy} className="rounded border border-emerald-500 bg-emerald-950 px-3 py-2 text-sm text-emerald-100 disabled:opacity-50" title="Send captured speech"><Send size={16} /></button>}
           <button onClick={toggleMic} className={`rounded border px-3 py-2 text-sm ${autoVoice || voiceState === "listening" ? "border-red-400 bg-red-950 text-red-100" : "border-cyan-600 bg-cyan-950 text-cyan-100"}`}>{autoVoice || voiceState === "listening" ? "Stop voice" : "Start voice"}</button>
           <button onClick={() => setChatOpen(true)} className="rounded border border-cyan-600 bg-cyan-950 px-3 py-2 text-sm text-cyan-100">AI chat</button>
           <button onClick={() => setTranscriptOpen(true)} className="rounded border border-slate-600 px-3 py-2 text-sm">Transcript</button>
@@ -546,7 +754,7 @@ export default function App() {
           <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 px-5 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm text-slate-400">{isDsaRound ? `Problem ${currentProblem?.frontend_id || currentProblem?.id || ""}` : isCsRound ? "Concept interview" : "Project interview"}</div>
+                <div className="text-sm text-slate-400">{isDsaRound ? (dsaProgress?.label || `Question ${dsaProgress?.current_question_index || 1} of ${dsaProgress?.total_questions || "?"}`) : isCsRound ? "Concept interview" : "Project interview"}</div>
                 <h2 className="truncate text-xl font-semibold">{isDsaRound ? currentProblem?.title : isCsRound ? "CS Fundamentals" : "Project + Behavioural"}</h2>
               </div>
               {currentProblem && <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300">{currentProblem.difficulty}</span>}
@@ -562,7 +770,7 @@ export default function App() {
               {currentProblem?.constraints?.length > 0 && <div><div className="mb-2 font-semibold text-slate-100">Constraints</div><ul className="grid gap-2 text-xs text-slate-400">{currentProblem.constraints.map((x) => <li key={x} className="rounded bg-slate-950 p-2">{x}</li>)}</ul></div>}
             </div>
           ) : isCsRound ? (
-            <RoundContext title="CS Fundamentals" items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Mode: verbal interview with optional scratchpad", "Topics: DBMS, OOP, Operating Systems, Computer Networks", "Scratchpad is evaluated as text only; nothing is executed."]} />
+            <CsRoundPanel messages={messages} lastAiMessage={lastAiMessage} session={session} form={form} />
           ) : (
             <RoundContext title="Project + Behavioural" items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Focus: resume projects, JD fit, ownership, tradeoffs, STAR examples", form.job_description ? "Job description was provided before the round." : "No job description was provided."]} />
           )}
@@ -582,11 +790,26 @@ export default function App() {
             <div className="grid h-[calc(100%-57px)] grid-rows-[1fr_auto]">
               <Editor language={monacoLanguage(language)} theme="vs-dark" value={code} onChange={(value) => setCode(value || "")} onMount={onEditorMount} options={{ minimap: { enabled: false }, fontSize: 14 }} />
               <div className="grid gap-2 border-t border-slate-800 p-3">
-                <div className="flex items-center justify-between">
-                  <button onClick={submitCode} disabled={isBusy} className="inline-flex items-center gap-2 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50"><Play size={17} /> Run tests & submit</button>
-                  {codeResult && <span className="text-sm text-slate-300">{codeResult.passed_testcases}/{codeResult.total_testcases} tests passed - {codeResult.overall_score}% - {codeResult.language}</span>}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button onClick={runTests} disabled={isBusy} className="inline-flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-4 py-2 font-semibold text-slate-100 disabled:opacity-50"><Play size={17} /> Run</button>
+                  </div>
+                  {codeResult && <span className="text-sm text-slate-300">{codeResult.passed_testcases}/{codeResult.total_testcases} tests passed · {codeResult.overall_score}% · {codeResult.language}</span>}
                 </div>
-                {codeResult && <div className="grid max-h-28 gap-2 overflow-y-auto md:grid-cols-2">{codeResult.testcase_results.map((tc, index) => <div key={`${tc.input}-${index}`} className={`rounded p-2 text-xs ${tc.passed ? "bg-emerald-950 text-emerald-100" : "bg-red-950 text-red-100"}`}><b>{tc.visible ? `Case ${index + 1}` : `Hidden ${index + 1}`}:</b> {tc.passed ? "Passed" : `${tc.stderr || `Expected ${tc.expected_output}, got ${tc.actual_output || "no output"}`}`}</div>)}</div>}
+                {codeResult && <div className="grid max-h-56 gap-2 overflow-y-auto md:grid-cols-2">
+                  {(codeResult.testcase_results || []).map((tc, index) => <div key={`${testValue(tc.input)}-${index}`} className={`rounded border p-2 text-xs ${tc.passed ? "border-emerald-800 bg-emerald-950/80 text-emerald-100" : "border-red-800 bg-red-950/80 text-red-100"}`}>
+                    <div className="mb-1 flex items-center justify-between gap-2 font-semibold">
+                      <span>{tc.visible ? `Case ${index + 1}` : `Hidden ${index + 1}`}</span>
+                      <span>{tc.passed ? "Passed" : "Failed"}</span>
+                    </div>
+                    <div className="grid gap-1 font-mono text-[11px] leading-5 text-slate-100">
+                      <div><span className="text-slate-400">Input:</span> {testValue(tc.input)}</div>
+                      <div><span className="text-slate-400">Expected:</span> {testValue(tc.expected_output)}</div>
+                      <div><span className="text-slate-400">Actual:</span> {testValue(tc.actual_output)}</div>
+                      {tc.stderr && <div className="whitespace-pre-wrap text-red-200"><span className="text-slate-400">Error:</span> {tc.stderr}</div>}
+                    </div>
+                  </div>)}
+                </div>}
               </div>
             </div>
           </div> : <InterviewWorkspace input={input} setInput={setInput} isBusy={isBusy} sendMessage={sendMessage} toggleMic={toggleMic} autoVoice={autoVoice} voiceState={voiceState} liveTranscript={liveTranscript} lastAiMessage={lastAiMessage} isCsRound={isCsRound} scratchpad={scratchpad} setScratchpad={setScratchpad} scratchpadMode={scratchpadMode} setScratchpadMode={setScratchpadMode} />}
@@ -598,7 +821,7 @@ export default function App() {
             <button onClick={() => setTranscriptOpen(false)} className="rounded border border-slate-700 px-2 py-1 text-xs">Close</button>
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-            {messages.map((m, i) => <div key={i} className={`rounded p-3 text-sm ${m.role === "candidate" ? "bg-slate-800" : "bg-cyan-950 text-cyan-50"}`}><b>{m.role === "candidate" ? "You" : "AI"}:</b> {m.content}</div>)}
+            {messages.map((m, i) => m.role === "thinking" ? <div key={i} className="flex items-center gap-2 rounded bg-cyan-950/50 p-3 text-sm text-cyan-200 animate-pulse"><span className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-bounce" />Thinking...</div> : <div key={i} className={`rounded p-3 text-sm ${m.role === "candidate" ? "bg-slate-800" : m.role === "system" ? "border border-cyan-600 bg-cyan-900/30 text-cyan-300 text-xs" : "bg-cyan-950 text-cyan-50"}`}><b>{m.role === "candidate" ? "You" : m.role === "system" ? "↑" : "AI"}:</b> {m.content}{m.degraded && <span className="ml-2 rounded bg-amber-900/60 px-1.5 py-0.5 text-[10px] text-amber-300" title="AI service was temporarily unavailable — this is a pre-built response">offline mode</span>}</div>)}
             {liveTranscript && <div className="rounded border border-cyan-700 bg-slate-900 p-3 text-sm text-cyan-100"><b>Hearing now:</b> {liveTranscript}</div>}
           </div>
           <div className="border-t border-slate-800 p-3 text-xs text-slate-400">Live transcript of AI and candidate turns. Click Start voice once; browser permission is required.</div>
@@ -611,7 +834,7 @@ export default function App() {
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
             <div className="rounded bg-slate-900 p-3 text-sm text-slate-300"><b>Current probe:</b> {lastAiMessage}</div>
-            {messages.slice(-6).map((m, i) => <div key={i} className={`rounded p-3 text-sm ${m.role === "candidate" ? "bg-slate-800" : "bg-cyan-950 text-cyan-50"}`}><b>{m.role === "candidate" ? "You" : "AI"}:</b> {m.content}</div>)}
+            {messages.slice(-6).map((m, i) => m.role === "thinking" ? <div key={i} className="flex items-center gap-2 rounded bg-cyan-950/50 p-3 text-sm text-cyan-200 animate-pulse"><span className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-bounce" />Thinking...</div> : <div key={i} className={`rounded p-3 text-sm ${m.role === "candidate" ? "bg-slate-800" : m.role === "system" ? "border border-cyan-600 bg-cyan-900/30 text-cyan-300 text-xs" : "bg-cyan-950 text-cyan-50"}`}><b>{m.role === "candidate" ? "You" : m.role === "system" ? "↑" : "AI"}:</b> {m.content}{m.degraded && <span className="ml-2 rounded bg-amber-900/60 px-1.5 py-0.5 text-[10px] text-amber-300" title="AI service was temporarily unavailable — this is a pre-built response">offline mode</span>}</div>)}
           </div>
           <div className="border-t border-slate-800 p-3">
             <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask for clarification, request a hint, or answer..." className="h-24 w-full resize-none rounded border border-slate-700 bg-slate-950 p-3 text-sm outline-none focus:border-cyan-400" />
@@ -644,12 +867,60 @@ function RoundContext({ title, items }) {
   return <div className="space-y-4 p-5 text-sm text-slate-300"><div><div className="text-xs uppercase text-slate-500">Round context</div><h3 className="mt-1 text-lg font-semibold text-slate-100">{title}</h3></div><div className="grid gap-2">{items.filter(Boolean).map((item) => <div key={item} className="rounded bg-slate-950 p-3">{item}</div>)}</div></div>
 }
 
-function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, autoVoice, voiceState, liveTranscript, lastAiMessage, isCsRound, scratchpad, setScratchpad, scratchpadMode, setScratchpadMode }) {
-  return <div className="grid h-full grid-rows-[auto_1fr_auto] rounded border border-slate-800 bg-slate-900">
-    <div className="border-b border-slate-800 px-4 py-3">
-      <div className="text-sm text-slate-400">Current question</div>
-      <div className="mt-2 rounded bg-slate-950 p-3 text-sm leading-6 text-cyan-50">{lastAiMessage || "The interviewer question will appear here."}</div>
+function CsRoundPanel({ messages, lastAiMessage, session, form }) {
+  const csMemory = session?.cs_fundamentals || {}
+  const currentTopic = csMemory.current_topic || ""
+  const topicsCovered = csMemory.topics_covered || []
+  const weakTopics = csMemory.weak_topics || []
+  const strongTopics = csMemory.strong_topics || []
+  const history = messages.filter((m) => m.role !== "system").slice(0, -1)
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-slate-800 p-5">
+        <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wider text-cyan-500">
+          {currentTopic && <span className="rounded bg-cyan-900/50 px-2 py-0.5">{currentTopic}</span>}
+          <span>Current question</span>
+        </div>
+        <div className="mt-2 rounded border border-cyan-700/60 bg-cyan-950/30 p-4 text-sm font-medium leading-7 text-cyan-50">
+          {lastAiMessage || "Loading your first question\u2026"}
+        </div>
+      </div>
+
+      {history.length > 0 && (
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+          <div className="mb-1 text-xs uppercase text-slate-500">Earlier in this interview</div>
+          {history.map((m, i) => (
+            <div key={i} className={`rounded p-2 text-xs leading-5 ${m.role === "interviewer" ? "border border-cyan-800/40 bg-cyan-950/25 text-cyan-100" : "bg-slate-800 text-slate-300"}`}>
+              <span className="mr-1 font-semibold">{m.role === "interviewer" ? "Interviewer:" : "You:"}</span>
+              {m.content.length > 260 ? `${m.content.slice(0, 260)}\u2026` : m.content}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="border-t border-slate-800 p-4">
+        <div className="grid gap-1 text-xs text-slate-400">
+          <div>{session?.target_company || form.target_company ? `${session?.target_company || form.target_company} \u00b7 ` : ""}{form.job_role}</div>
+          {topicsCovered.length > 0 && <div>Covered: {topicsCovered.join(" \u00b7 ")}</div>}
+          {weakTopics.length > 0 && <div className="text-amber-400">Needs work: {weakTopics.join(", ")}</div>}
+          {strongTopics.length > 0 && <div className="text-emerald-400">Strong: {strongTopics.join(", ")}</div>}
+          {topicsCovered.length === 0 && <div>Topics: DBMS \u00b7 OOP \u00b7 OS \u00b7 Networks</div>}
+          <div className="text-slate-500">Scratchpad notes are evaluated \u2014 nothing is executed.</div>
+        </div>
+      </div>
     </div>
+  )
+}
+
+function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, autoVoice, voiceState, liveTranscript, lastAiMessage, isCsRound, scratchpad, setScratchpad, scratchpadMode, setScratchpadMode }) {
+  return <div className={`grid h-full rounded border border-slate-800 bg-slate-900 ${isCsRound ? "grid-rows-[1fr_auto]" : "grid-rows-[auto_1fr_auto]"}`}>
+    {!isCsRound && (
+      <div className="border-b border-slate-800 px-4 py-3">
+        <div className="text-sm text-slate-400">Current question</div>
+        <div className="mt-2 rounded bg-slate-950 p-3 text-sm leading-6 text-cyan-50">{lastAiMessage || "The interviewer question will appear here."}</div>
+      </div>
+    )}
     <div className={`grid min-h-0 gap-3 p-4 ${isCsRound ? "lg:grid-cols-2" : "grid-cols-1"}`}>
       <div className="min-h-0 rounded border border-slate-800 bg-slate-950 p-3">
         <label className="grid h-full gap-2 text-sm text-slate-300">
@@ -699,9 +970,31 @@ function Feedback({ report, onRestart }) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-5">
-        {Object.entries(report.scores || {}).map(([k, v]) => <ScoreCard key={k} label={k} value={v} suffix="/4" />)}
-      </div>
+      {report.parameter_scores?.length > 0 ? (
+        <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {report.parameter_scores.map((p) => <ParameterCard key={p.name} param={p} />)}
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-4 md:grid-cols-5">
+          {Object.entries(report.scores || {}).map(([k, v]) => <ScoreCard key={k} label={k} value={v} suffix="/4" />)}
+        </div>
+      )}
+
+      {report.skill_gap && (
+        <div className="mt-5 rounded border border-amber-500/30 bg-amber-500/5 p-4">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-amber-300">Where You're Lagging</h2>
+          <p className="text-sm leading-6 text-slate-300">{report.skill_gap}</p>
+        </div>
+      )}
+
+      {report.topic_mastery?.length > 0 && (
+        <div className="mt-5">
+          <h2 className="mb-3 font-semibold">Topics Asked &amp; Mastery</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {report.topic_mastery.map((t) => <ParameterCard key={t.topic} param={{ name: t.topic, score: t.mastery, note: t.note }} />)}
+          </div>
+        </div>
+      )}
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
         <ScoreCard label="Round" value={breakdown.round_score || 0} suffix="/100" />
@@ -717,8 +1010,8 @@ function Feedback({ report, onRestart }) {
         <div className="space-y-5">
           <ReportPanel title="Strengths" items={report.strengths || []} />
           <ReportPanel title="Weak Areas" items={report.weak_areas || []} />
-          <ReportPanel title="Practice Plan" items={report.study_plan || []} />
-          <ReportPanel title="Integrity" items={[`${integrity.score ?? 100}/100 integrity score`, `${integrity.violations?.length || 0} proctoring events`, `focus loss: ${integrity.focus_loss || 0}`, `paste events: ${integrity.paste_events || 0}`, `voice turns: ${integrity.voice_turns || 0}`]} />
+          <ReportPanel title="Suggestions to Work On" items={report.study_plan || []} />
+          <ReportPanel title="Integrity" items={[`${integrity.score ?? 100}/100 integrity score`, `${integrity.violations?.length || 0} proctoring events`, `tab switches: ${integrity.focus_loss || 0}`, `paste events: ${integrity.paste_events || 0}`]} />
         </div>
       </div>
 
@@ -729,6 +1022,20 @@ function Feedback({ report, onRestart }) {
 
 function ScoreCard({ label, value, suffix }) {
   return <div className="rounded bg-slate-950 p-3"><div className="text-xs uppercase text-slate-500">{label.replaceAll("_", " ")}</div><div className="mt-1 text-xl font-semibold">{value}{suffix}</div></div>
+}
+
+function ParameterCard({ param }) {
+  const score = Math.max(0, Math.min(100, Number(param.score) || 0))
+  const tone = score >= 75 ? "text-emerald-300" : score >= 50 ? "text-cyan-300" : "text-amber-300"
+  const bar = score >= 75 ? "bg-emerald-400" : score >= 50 ? "bg-cyan-400" : "bg-amber-400"
+  return <div className="rounded border border-slate-800 bg-slate-950 p-4">
+    <div className="flex items-baseline justify-between">
+      <div className="text-sm font-medium text-slate-200">{param.name}</div>
+      <div className={`text-xl font-semibold ${tone}`}>{score}<span className="text-xs text-slate-500">/100</span></div>
+    </div>
+    <div className="mt-2 h-1.5 w-full rounded bg-slate-800"><div className={`h-1.5 rounded ${bar}`} style={{ width: `${score}%` }} /></div>
+    {param.note && <p className="mt-2 text-xs leading-5 text-slate-400">{param.note}</p>}
+  </div>
 }
 
 function ReportPanel({ title, items }) {
@@ -782,7 +1089,11 @@ function prettyRound(roundType) {
 
 async function postJson(path, body) {
   const res = await apiFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) {
+    const error = new Error(await res.text())
+    error.status = res.status
+    throw error
+  }
   return res.json()
 }
 
@@ -791,9 +1102,19 @@ async function apiFetch(path, options = {}) {
   for (const base of API_BASES) {
     try {
       const res = await fetch(`${base}${path}`, options)
-      if (res.status === 404 && base !== API_BASES[API_BASES.length - 1]) {
-        lastError = new Error(`404 from ${base}${path}`)
-        continue
+      // Application-level 404 (e.g. "Session not found", "Problem not found"):
+      // the body is a JSON {"detail":"..."} — return immediately, don't retry other bases.
+      if (res.status === 404) {
+        const clone = res.clone()
+        try {
+          const body = await clone.json()
+          if (body && body.detail) return res   // real app error, surface it
+        } catch {}
+        // No JSON detail → might be wrong server, try next base (unless last)
+        if (base !== API_BASES[API_BASES.length - 1]) {
+          lastError = new Error(`404 from ${base}${path}`)
+          continue
+        }
       }
       return res
     } catch (err) {
@@ -813,30 +1134,52 @@ function monacoLanguage(selectedLanguage) {
   return { cpp: "cpp", c: "c", java: "java", python: "python" }[selectedLanguage] || "plaintext"
 }
 
+function formatTimer(seconds) {
+  const total = Math.max(0, Number(seconds) || 0)
+  const mins = Math.floor(total / 60)
+  const secs = total % 60
+  return `${mins}:${String(secs).padStart(2, "0")}`
+}
+
 function friendlyError(err) {
   const text = err?.message || String(err || "")
   if (text.includes("Failed to fetch")) return "API is not reachable after trying the /api proxy and direct local backend ports. Hard refresh the page and confirm /api/health opens."
   try {
     const parsed = JSON.parse(text)
-    return parsed.detail || text
+    if (typeof parsed.detail === "string") return parsed.detail
+    return parsed.detail?.message || text
   } catch {
     return text.slice(0, 220)
+  }
+}
+
+function parseErrorDetail(err) {
+  try {
+    return JSON.parse(err?.message || "{}")?.detail || null
+  } catch {
+    return null
   }
 }
 
 function isLikelyEcho(candidateText, aiText) {
   const candidate = normalizeSpeech(candidateText)
   const ai = normalizeSpeech(aiText)
-  if (!candidate || !ai || candidate.length < 24) return false
+  if (!candidate || !ai) return false
+  // Very short fragments that appear at the start of AI text are almost always echo
+  if (candidate.length < 24) {
+    return ai.startsWith(candidate) || ai.includes(candidate)
+  }
   if (ai.includes(candidate) || candidate.includes(ai.slice(0, Math.min(ai.length, 120)))) return true
-  const candidateWords = new Set(candidate.split(" ").filter((word) => word.length > 3))
+  const candidateWords = candidate.split(" ").filter((word) => word.length > 3)
   const aiWords = new Set(ai.split(" ").filter((word) => word.length > 3))
-  if (candidateWords.size < 5) return false
+  if (candidateWords.length < 4) return false
   let overlap = 0
   candidateWords.forEach((word) => {
     if (aiWords.has(word)) overlap += 1
   })
-  return overlap / candidateWords.size > 0.72
+  // If >60% overlap, it's echo. Lowered from 72% to catch partial echoes
+  // where AEC suppressed some words but not others
+  return overlap / candidateWords.length > 0.6
 }
 
 function normalizeSpeech(text) {

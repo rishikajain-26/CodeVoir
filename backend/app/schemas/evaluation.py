@@ -66,3 +66,25 @@ class DSAEvaluation(BaseModel):
     confidence_score: float
 
     reasoning: str
+
+
+class DSAComparison(BaseModel):
+
+    alignment_score: float
+
+    expected_alignment_score: float
+
+    missing_concepts: List[str]
+
+    extra_risk_flags: List[str]
+
+    recommended_improvements: List[str]
+
+    confidence_score: float
+
+    reasoning: str
+
+
+class DSAFollowUp(BaseModel):
+
+    follow_up_question: str

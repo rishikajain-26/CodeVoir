@@ -92,6 +92,10 @@ class InterviewDataService:
         result.setdefault("round_type", normalized_round)
         result.setdefault("company", profile.get("company") or company_name or "")
         result.setdefault("tier", profile.get("tier", "default"))
+        if normalized_round == "dsa":
+            from app.dsa.progress import normalize_dsa_round_config
+
+            result = normalize_dsa_round_config(result, self._defaults())
         return result
 
     def get_dsa_config(self, company_name: str | None) -> dict[str, Any]:

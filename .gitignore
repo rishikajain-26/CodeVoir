@@ -26,3 +26,10 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Temp Office lock files
+~$*
+
+# Runtime session store
+backend/data/
+CHANGELOG.docx
