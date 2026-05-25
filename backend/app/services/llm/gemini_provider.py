@@ -1,5 +1,6 @@
 import json
 
+import litellm
 from litellm import acompletion
 
 from pydantic import ValidationError
@@ -10,11 +11,10 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.core.config import settings
-
 from app.services.llm.base_provider import (
     BaseLLMProvider
 )
+from app.services.llm.litellm_config import resolve_litellm_settings
 
 from app.services.llm.exceptions import (
     LLMGenerationError,
@@ -30,15 +30,22 @@ from app.utils.json_utils import (
 from app.utils.logger import logger
 
 
+def _gemini_direct_settings() -> dict | None:
+    """Return Gemini settings as rate-limit fallback, or None if unavailable."""
+    from app.core.config import settings
+    if not settings.GEMINI_API_KEY:
+        return None
+    model = (settings.GEMINI_MODEL or "gemini-2.0-flash").strip()
+    if not model.startswith("gemini/"):
+        model = f"gemini/{model}"
+    return {"provider": "gemini", "model": model, "api_key": settings.GEMINI_API_KEY}
+
+
 class GeminiProvider(BaseLLMProvider):
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(
-            multiplier=1,
-            min=2,
-            max=10,
-        ),
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=1, max=4),
     )
     async def generate_structured_output(
 
@@ -58,29 +65,40 @@ class GeminiProvider(BaseLLMProvider):
         # =========================
 
         try:
+            llm = resolve_litellm_settings()
+            if not llm.get("api_key"):
+                raise LLMGenerationError("No LLM API key configured (set GROQ_API_KEY or GEMINI_API_KEY).")
 
-            response = await acompletion(
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt + "\n\nReturn ONLY valid JSON."},
+            ]
 
-                model=settings.MODEL_NAME,
+            try:
+                response = await acompletion(
+                    model=llm["model"],
+                    messages=messages,
+                    api_key=llm["api_key"],
+                )
+            except litellm.RateLimitError:
+                # Primary provider rate-limited — skip retries, try Gemini immediately
+                fallback = _gemini_direct_settings()
+                if fallback and fallback["model"] != llm.get("model"):
+                    logger.warning(
+                        "Structured output rate-limited by %s, falling back to Gemini",
+                        llm.get("provider"),
+                    )
+                    response = await acompletion(
+                        model=fallback["model"],
+                        messages=messages,
+                        api_key=fallback["api_key"],
+                    )
+                else:
+                    raise
 
-                messages=[
-
-                    {
-                        "role": "system",
-                        "content": system_prompt,
-                    },
-
-                    {
-                        "role": "user",
-                        "content": (
-                            user_prompt
-                            + "\n\nReturn ONLY valid JSON."
-                        ),
-                    },
-                ],
-
-                api_key=settings.GEMINI_API_KEY,
-            )
+        except litellm.RateLimitError as e:
+            logger.error(f"LLM generation rate-limited (no fallback available): {e}")
+            raise LLMGenerationError(str(e))
 
         except Exception as e:
 

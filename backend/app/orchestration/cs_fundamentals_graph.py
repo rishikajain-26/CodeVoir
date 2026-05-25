@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import re
 from typing import Any, TypedDict
 
@@ -52,11 +53,10 @@ def _select_topic_node(state: CSFundamentalsState) -> CSFundamentalsState:
     weak_topics = memory.get("weak_topics", [])
 
     if weak_topics and turn % 3 == 0:
-        selected = next((topic for topic in topics if topic.get("topic") == weak_topics[-1]), topics[turn % len(topics)])
+        selected = next((topic for topic in topics if topic.get("topic") == weak_topics[-1]), random.choice(topics))
     else:
-        selected = topics[(max(1, turn) - 1) % len(topics)]
-        if covered and len(set(covered)) < len(topics):
-            selected = next((topic for topic in topics if topic.get("topic") not in covered), selected)
+        uncovered = [topic for topic in topics if topic.get("topic") not in covered]
+        selected = random.choice(uncovered) if uncovered else random.choice(topics)
 
     return {**state, "current_topic": selected}
 
@@ -270,7 +270,7 @@ def _build_llm_payload(state: CSFundamentalsState) -> dict[str, Any]:
 def _pick_subtopic(topic: dict[str, Any]) -> str:
     subtopics = topic.get("subtopics") or []
     if subtopics:
-        return str(subtopics[0])
+        return str(random.choice(subtopics))
     fallbacks = {
         "DBMS": "transactions or indexing",
         "OOP": "polymorphism or interfaces",

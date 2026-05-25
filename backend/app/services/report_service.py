@@ -74,8 +74,17 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
     run_score = float(latest.get("overall_score", 0) or 0)
     hints = int(session.get("hint_count", 0) or 0)
     code_analysis = session.get("latest_code_analysis", {})
-    strengths = []
-    weak_areas = []
+    dsa_memory = session.get("dsa", {})
+    graph_report = dsa_memory.get("report") or {}
+    strengths = list(graph_report.get("strengths_weaknesses", {}).get("strengths", []))
+    weak_areas = list(graph_report.get("strengths_weaknesses", {}).get("weaknesses", []))
+    if dsa_memory.get("known_weak_areas"):
+        weak_areas = _dedupe([*weak_areas, *dsa_memory.get("known_weak_areas", [])])
+    if dsa_memory.get("known_strong_areas"):
+        strengths = _dedupe([*strengths, *dsa_memory.get("known_strong_areas", [])])
+    graph_scores = graph_report.get("scores", {}) if isinstance(graph_report, dict) else {}
+    if graph_scores.get("overall"):
+        run_score = max(run_score, float(graph_scores["overall"]) * 100)
     if total and passed == total:
         strengths.append(f"Code passed all {total} runnable test cases.")
     elif total:
@@ -90,6 +99,11 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
         "type": "dsa",
         "title": "DSA Round",
         "round_score": round(run_score if total else 55, 1),
+        "hiring_recommendation": graph_report.get("recommendation", ""),
+        "recommendation_rationale": graph_report.get("recommendation_rationale", ""),
+        "radar_data": graph_report.get("radar_data", {}),
+        "behaviour_summary": graph_report.get("behaviour_summary", ""),
+        "confidence_trend": dsa_memory.get("confidence_trend", []),
         "problem": {
             "title": problem.get("title", ""),
             "difficulty": problem.get("difficulty", ""),
@@ -105,6 +119,11 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
         "strengths": strengths,
         "weak_areas": weak_areas,
         "evidence": _message_evidence(session, 4),
+        "contradiction_history": [
+            {"claim_before": c.get("claim_before", ""), "claim_now": c.get("claim_now", ""), "topic": c.get("topic", "")}
+            for c in (dsa_memory.get("contradiction_history") or [])[-5:]
+        ],
+        "rolling_summary": dsa_memory.get("rolling_summary", ""),
     }
 
 
@@ -118,14 +137,46 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
     weak_areas = list(latest_flags)
     jd_skills = memory.get("jd_signals", {}).get("skills", [])
     project = memory.get("resume_focus", {}).get("selected_project", "")
+
+    # STAR completeness across all turns
+    star_counts = {"situation": 0, "task": 0, "action": 0, "result": 0}
+    for turn in turns:
+        for component, present in (turn.get("star_components") or {}).items():
+            if present and component in star_counts:
+                star_counts[component] += 1
+    star_completeness_pct = round(
+        sum(star_counts.values()) / max(len(turns) * 4, 1) * 100, 0
+    ) if turns else 0
+
+    # Exaggeration and accountability signals
+    exaggeration_turns = sum(1 for t in turns if t.get("exaggeration_risk"))
+    contradiction_history = memory.get("contradiction_history", [])
+
     if project:
         strengths.append(f"Discussed resume project focus: {project}.")
     if jd_skills:
         strengths.append(f"Connected the round to JD signals: {', '.join(jd_skills[:5])}.")
     if memory.get("company_style"):
         strengths.append(f"Interview adapted to company style: {memory.get('company_style')}.")
+    if star_completeness_pct >= 75:
+        strengths.append(f"STAR framework used in {star_completeness_pct:.0f}% of turns.")
+
     if not turns:
         weak_areas.append("No Project + Behavioural answer turns were recorded.")
+    missing_star = [c for c, count in star_counts.items() if turns and count / len(turns) < 0.4]
+    if missing_star:
+        weak_areas.append(f"STAR components often missing: {', '.join(missing_star)}. Practice including all four.")
+    if exaggeration_turns > 0:
+        weak_areas.append(
+            f"Possible claim exaggeration in {exaggeration_turns} turn{'s' if exaggeration_turns != 1 else ''} — use specific, verifiable metrics."
+        )
+    if memory.get("accountability_gap"):
+        weak_areas.append("Accountability gap detected: used 'we' language without clarifying personal ownership.")
+    if contradiction_history:
+        weak_areas.append(
+            f"{len(contradiction_history)} potential metric contradiction{'s' if len(contradiction_history) != 1 else ''} detected across turns."
+        )
+
     return {
         "type": "project_behavioral",
         "title": "Project + Behavioural Round",
@@ -137,6 +188,10 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
         "turn_count": len(turns),
         "latest_scores": latest_scores,
         "latest_flags": latest_flags,
+        "star_breakdown": star_counts,
+        "star_completeness_pct": star_completeness_pct,
+        "exaggeration_turns": exaggeration_turns,
+        "contradiction_history": contradiction_history,
         "strengths": strengths,
         "weak_areas": weak_areas,
         "evidence": turns[-5:],

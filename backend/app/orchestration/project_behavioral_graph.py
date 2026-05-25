@@ -90,18 +90,60 @@ def _strategy_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     return {**state, "strategy": strategy, "phase": phase}
 
 
+_BEHAVIORAL_SYSTEM_PROMPT = """You are a sharp, realistic Project + Behavioural interviewer. Your job is to extract evidence, not make the candidate feel good.
+
+Response rules:
+1. React to what the candidate just said in ONE sentence (acknowledge, correct, or push back).
+2. Ask exactly ONE focused follow-up question — never two.
+3. If STAR components are missing, name which one is absent and ask for it directly.
+4. If exaggeration_risk is true, challenge the claim: "You said X — can you give me a specific number or a concrete example?"
+5. If accountability_gap is true, push: "You said 'we' a lot — what did YOU personally own in that?"
+6. In pressure_validation phase: be direct, do not soften pushback.
+7. In behavioural_star phase: require all 4 STAR components before moving on.
+
+Anti-patterns (never do these):
+- Do not summarize what the candidate said.
+- Do not give encouragement like "Great answer!" or "That's impressive."
+- Do not ask multiple questions.
+- Do not answer on behalf of the candidate.
+
+Plain text only. Maximum 3 sentences."""
+
+
 def _response_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     fallback = _fallback_question(state)
     ai_text = fallback
     if state["session"].get("llm_enabled"):
         ai_text = llm_service.generate(
-            "You are a concise, realistic Project + Behavioural interviewer. Ask exactly one focused next question. Do not answer for the candidate.",
+            _BEHAVIORAL_SYSTEM_PROMPT,
             _build_llm_payload(state),
             fallback=fallback,
-            temperature=0.45,
-            max_tokens=220,
+            temperature=0.4,
+            max_tokens=240,
         )
     return {**state, "ai_text": ai_text}
+
+
+def _detect_claim_contradiction(previous_turns: list[dict], current_text: str) -> dict | None:
+    """Heuristic contradiction detection for behavioral answers."""
+    if not previous_turns or not current_text:
+        return None
+    current_lower = current_text.lower()
+    for past_turn in reversed(previous_turns[-4:]):
+        past_excerpt = (past_turn.get("answer_excerpt") or "").lower()
+        # Detect metric flip: claimed 50% before, now claiming 20%
+        past_numbers = re.findall(r"\b(\d+)\s*(%|x|users?|ms|seconds?|engineers?)", past_excerpt)
+        curr_numbers = re.findall(r"\b(\d+)\s*(%|x|users?|ms|seconds?|engineers?)", current_lower)
+        if past_numbers and curr_numbers:
+            for pn, pu in past_numbers:
+                for cn, cu in curr_numbers:
+                    if pu == cu and abs(int(pn) - int(cn)) / max(int(pn), 1) > 0.5:
+                        return {
+                            "claim_before": f"{pn}{pu}",
+                            "claim_now": f"{cn}{cu}",
+                            "topic": "metrics",
+                        }
+    return None
 
 
 def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
@@ -112,7 +154,9 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     profile = state.get("company_profile", {})
 
     turns = previous.get("turns", [])
+    contradiction = None
     if state.get("user_text"):
+        contradiction = _detect_claim_contradiction(turns, state.get("user_text", ""))
         turns = [
             *turns,
             {
@@ -121,8 +165,14 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
                 "scores": evaluation.get("scores", {}),
                 "flags": evaluation.get("flags", []),
                 "evidence": evaluation.get("evidence", []),
+                "star_components": evaluation.get("star_components", {}),
+                "exaggeration_risk": evaluation.get("exaggeration_risk", False),
             },
         ][-20:]
+
+    contradiction_history = previous.get("contradiction_history", [])
+    if contradiction:
+        contradiction_history = [*contradiction_history, contradiction][-10:]
 
     weak_areas = _weak_areas_from_eval(evaluation)
     project_behavioral = {
@@ -143,6 +193,10 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         "turns": turns,
         "latest_scores": evaluation.get("scores", {}),
         "latest_flags": evaluation.get("flags", []),
+        "latest_star": evaluation.get("star_components", {}),
+        "exaggeration_risk": evaluation.get("exaggeration_risk", False),
+        "accountability_gap": evaluation.get("accountability_gap", False),
+        "contradiction_history": contradiction_history,
         "current_goal": strategy.get("goal", ""),
     }
     return {**state, "project_behavioral": project_behavioral, "weak_areas": weak_areas}
@@ -209,31 +263,68 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
     text = user_text.strip()
     lower = text.lower()
     words = re.findall(r"[a-zA-Z0-9+.#-]+", text)
-    has_metric = bool(re.search(r"\b\d+%|\b\d+x|\b\d+\+|\b\d+\s*(users|ms|seconds|requests|apis|features|tests|people|days|weeks)\b", lower))
-    first_person = len(re.findall(r"\bi\b|\bmy\b|\bme\b", lower))
+    has_metric = bool(re.search(
+        r"\b\d+%|\b\d+x|\b\d+\+|\b\d+\s*(users|ms|seconds|requests|apis|features|tests|people|days|weeks|engineers?)\b",
+        lower,
+    ))
+    first_person = len(re.findall(r"\bi\b|\bmy\b|\bme\b|\bbuilt\b|\bimplemented\b|\bdesigned\b|\bowned\b", lower))
     technical_terms = _keyword_hits(lower, [
         "api", "database", "cache", "latency", "scale", "architecture", "frontend", "backend",
         "react", "fastapi", "docker", "redis", "postgres", "testing", "security", "deployment",
-        "tradeoff", "complexity", "failure", "monitoring",
+        "tradeoff", "complexity", "failure", "monitoring", "microservices", "distributed",
+        "schema", "index", "query", "throughput", "async", "concurrent",
     ])
-    star_terms = _keyword_hits(lower, ["situation", "task", "action", "result", "conflict", "deadline", "learned"])
+
+    # STAR component detection
+    situation_signals = _keyword_hits(lower, ["situation", "context", "background", "was working on", "we were", "the team"])
+    task_signals = _keyword_hits(lower, ["task", "responsibility", "assigned", "challenge", "goal", "needed to"])
+    action_signals = _keyword_hits(lower, ["i decided", "i implemented", "i refactored", "i built", "i changed", "i proposed", "my approach", "i wrote"])
+    result_signals = _keyword_hits(lower, ["result", "outcome", "reduced", "improved", "increased", "shipped", "deployed", "learned", "prevented", "saved"])
+
+    star_score = min(10, (
+        (3 if situation_signals else 0) +
+        (3 if task_signals else 0) +
+        (2 if action_signals else 1) +
+        (3 if result_signals else 0) +
+        (1 if has_metric else 0)
+    ))
+
+    # Exaggeration / inflation signals
+    vague_superlatives = _keyword_hits(lower, [
+        "best in class", "revolutionary", "completely redesigned", "10x engineer",
+        "saved millions", "single-handedly", "entirely alone", "nobody else",
+        "state of the art", "world-class",
+    ])
+    accountability_gap = bool(
+        re.search(r"\bwe\b", lower) and not re.search(r"\bi\b|\bmy\b|\bmy role\b|\bmy contribution\b", lower)
+    )
 
     scores = {
         "specificity": _score(len(words), [35, 80, 140]),
-        "ownership": min(10, 4 + first_person * 2),
+        "ownership": min(10, 3 + first_person),
         "technical_depth": min(10, 3 + len(technical_terms)),
-        "impact": 8 if has_metric else 4,
-        "reflection": min(10, 3 + len(star_terms)),
+        "impact": 9 if (has_metric and result_signals) else (6 if has_metric else (5 if result_signals else 3)),
+        "star_completeness": star_score,
+        "reflection": min(10, 3 + len(result_signals)),
     }
     flags = []
     if len(words) < 35:
         flags.append("Answer is too brief for a realistic Project + Behavioural interview.")
-    if first_person == 0:
-        flags.append("Personal ownership is unclear; explain what you specifically did.")
+    if first_person < 2 or accountability_gap:
+        flags.append("Personal ownership is unclear; explain what YOU specifically did, not just 'we'.")
     if not has_metric:
-        flags.append("Impact is not quantified; add honest metrics or observable results.")
+        flags.append("Impact is not quantified; add honest metrics or observable outcomes.")
     if len(technical_terms) < 2:
         flags.append("Technical depth is thin; include architecture, tradeoffs, or failure modes.")
+    if not result_signals:
+        flags.append("STAR result is missing; end with a concrete outcome and what you learned.")
+    if not action_signals:
+        flags.append("Your specific action is vague; say explicitly what you built or decided.")
+    if vague_superlatives:
+        flags.append(
+            f"Possible exaggeration detected ({', '.join(vague_superlatives[:2])}); "
+            "use precise, verifiable claims."
+        )
 
     return {
         "scores": scores,
@@ -241,6 +332,14 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
         "evidence": _extract_evidence_sentences(text),
         "technical_terms": technical_terms[:8],
         "has_metric": has_metric,
+        "star_components": {
+            "situation": bool(situation_signals),
+            "task": bool(task_signals),
+            "action": bool(action_signals),
+            "result": bool(result_signals),
+        },
+        "exaggeration_risk": len(vague_superlatives) > 0,
+        "accountability_gap": accountability_gap,
     }
 
 
@@ -282,6 +381,7 @@ def _fallback_question(state: ProjectBehavioralState) -> str:
 
 def _build_llm_payload(state: ProjectBehavioralState) -> dict[str, Any]:
     session = state["session"]
+    evaluation = state.get("answer_evaluation", {})
     return {
         "round": "Project + Behavioural",
         "role": session.get("job_role"),
@@ -291,8 +391,12 @@ def _build_llm_payload(state: ProjectBehavioralState) -> dict[str, Any]:
         "company_profile": state.get("company_profile", {}),
         "jd_signals": state.get("jd_signals", {}),
         "resume_signals": state.get("resume_signals", {}),
-        "latest_evaluation": state.get("answer_evaluation", {}),
+        "latest_evaluation": evaluation,
+        "star_components": evaluation.get("star_components", {}),
+        "exaggeration_risk": evaluation.get("exaggeration_risk", False),
+        "accountability_gap": evaluation.get("accountability_gap", False),
         "candidate_answer": state.get("user_text", "")[-1200:],
+        "contradiction_history": (state.get("session", {}).get("project_behavioral", {}) or {}).get("contradiction_history", [])[-3:],
     }
 
 

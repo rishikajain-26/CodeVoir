@@ -29,6 +29,10 @@ from app.services.interview_data_service import (
 )
 from app.services.llm_service import llm_service
 from app.services.report_service import build_feedback_report
+from app.services.session_store import (
+    load_all_sessions,
+    save_session as _db_save_session,
+)
 
 try:
     import pdfplumber
@@ -57,7 +61,12 @@ except Exception:
 
 
 APP_VERSION = "1.1.0-mvp"
-SESSIONS: dict[str, dict[str, Any]] = {}
+SESSIONS: dict[str, dict[str, Any]] = load_all_sessions()
+
+
+def _persist(session: dict[str, Any]) -> None:
+    """Write-through: save session to SQLite after each mutation."""
+    _db_save_session(session)
 SUPPORTED_LANGUAGES = {"python", "cpp", "c", "java"}
 LANGUAGE_LABELS = {
     "python": "Python",
@@ -80,7 +89,20 @@ def _load_problem_dataset() -> list[dict[str, Any]]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     problems = raw.get("questions", raw) if isinstance(raw, dict) else raw
     normalized = [_normalize_problem(p) for p in problems]
-    return [p for p in normalized if p.get("title") and p.get("prompt")]
+    return [p for p in normalized if _is_runnable_problem(p)]
+
+
+def _is_runnable_problem(problem: dict[str, Any]) -> bool:
+    starter_code = problem.get("starter_code") or {}
+    testcases = problem.get("testcases") or []
+    return bool(
+        problem.get("id")
+        and problem.get("title")
+        and problem.get("prompt")
+        and isinstance(starter_code, dict)
+        and starter_code.get("python")
+        and testcases
+    )
 
 
 def _normalize_problem(problem: dict[str, Any]) -> dict[str, Any]:
@@ -200,6 +222,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:5175",
         "http://127.0.0.1:5175",
         "http://localhost:4173",
@@ -327,6 +351,7 @@ async def start_session(payload: StartSessionRequest):
         "timer_minutes": payload.timer_minutes,
         "phase": "dsa" if normalized_round_type == "dsa" else "warmup",
         "question_count": 0,
+        "exchange_count": 0,
         "messages": [],
         "resume_text": "",
         "resume_data": {},
@@ -345,7 +370,22 @@ async def start_session(payload: StartSessionRequest):
         "cs_fundamentals": {},
         "problem": problem,
         "code_runs": [],
+        "used_problem_ids": [],
     }
+    session = SESSIONS[session_id]
+    dsa_progress = _init_dsa_session_progress(session) if normalized_round_type == "dsa" else {}
+    _persist(session)
+    opening = _opening_prompt(session)
+    if normalized_round_type == "dsa" and dsa_progress:
+        opening = (
+            f"{opening} This {session.get('target_company') or 'company'}-style round has "
+            f"{dsa_progress['total_questions']} coding question(s) and about {dsa_progress['allocated_minutes']} minutes total."
+        )
+    if normalized_round_type == "cs_fundamentals":
+        try:
+            opening = _cs_opening_question(session)
+        except Exception:
+            pass
     return {
         "session_id": session_id,
         "status": "created",
@@ -354,7 +394,9 @@ async def start_session(payload: StartSessionRequest):
         "dataset_label": DATASET_DISPLAY_LABEL,
         "target_company": target_company,
         "languages": LANGUAGE_LABELS,
-        "ai_text": _opening_prompt(SESSIONS[session_id]),
+        "round_config": session.get("round_config", {}),
+        "dsa_progress": dsa_progress,
+        "ai_text": opening,
     }
 
 
@@ -368,6 +410,7 @@ async def upload_resume(session_id: str = Form(...), file: UploadFile = File(...
     data = _parse_resume(text)
     session["resume_text"] = text
     session["resume_data"] = data
+    _persist(session)
     return {"status": "parsed", "name": data.get("name", ""), "skills_count": len(data["skills"]), "projects_count": len(data["projects"])}
 
 
@@ -379,6 +422,19 @@ async def review_resume(file: UploadFile = File(...)):
     return {"resume_data": data, "review": _resume_review(text, data)}
 
 
+@app.get("/api/interview/progress")
+async def interview_progress(session_id: str):
+    session = _require_session(session_id)
+    progress = _dsa_progress_payload(session)
+    return {
+        "session_id": session_id,
+        "round_type": session.get("round_type"),
+        "phase": session.get("phase"),
+        "dsa_progress": progress,
+        "round_config": session.get("round_config", {}),
+    }
+
+
 @app.post("/api/interview/message")
 async def interview_message(payload: MessageRequest):
     session = _require_session(payload.session_id)
@@ -386,19 +442,37 @@ async def interview_message(payload: MessageRequest):
     if not user_text:
         raise HTTPException(status_code=400, detail="user_text is required")
     session["messages"].append({"role": "candidate", "content": user_text, "ts": _now()})
-    session["question_count"] += 1
+    session["exchange_count"] = int(session.get("exchange_count", 0) or 0) + 1
+    session["question_count"] = session["exchange_count"]
     _ingest_code_context(session, payload.code_context, source="message")
     _ingest_scratchpad(session, payload.scratchpad)
     _update_behavior(session, user_text, payload.behavioral_metrics)
-    ai_text = _next_interview_turn(session, user_text, payload.scratchpad)
+    prior_problem_id = str((session.get("problem") or {}).get("id", ""))
+    ai_text = await _next_interview_turn(session, user_text, payload.scratchpad, payload.behavioral_metrics)
     session["messages"].append({"role": "interviewer", "content": ai_text, "ts": _now()})
+    progress = _dsa_progress_payload(session)
+    if progress.get("time_expired") and session.get("round_type") == "dsa":
+        session["phase"] = "complete"
+        ai_text = (
+            f"{ai_text} We have reached the company time limit for this round. "
+            "Please wrap up, and end the interview to generate your report."
+        ).strip()
+    new_problem_id = str((session.get("problem") or {}).get("id", ""))
+    problem_changed = new_problem_id != prior_problem_id and bool(new_problem_id)
+    degraded = session.pop("_last_reply_degraded", False)
+    _persist(session)
     return {
         "ai_text": ai_text,
         "phase": session["phase"],
         "round_complete": session["phase"] == "complete",
         "question_count": session["question_count"],
+        "exchange_count": session["exchange_count"],
         "behavioral_signals": session["behavioral_signals"],
         "weak_areas": session["weak_areas"][-5:],
+        "dsa_progress": progress,
+        "problem": session.get("problem") if problem_changed else None,
+        "problem_changed": problem_changed,
+        "degraded": degraded,
     }
 
 
@@ -408,14 +482,64 @@ async def submit_code(payload: CodeSubmitRequest):
     if payload.language not in SUPPORTED_LANGUAGES:
         raise HTTPException(status_code=400, detail=f"Unsupported language. Choose one of: {', '.join(sorted(SUPPORTED_LANGUAGES))}.")
     problem = session["problem"]
+    if payload.problem_id and str(payload.problem_id) != str(problem.get("id")):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "The active question changed. I resynced the editor to the current starter code; submit again after reviewing it.",
+                "current_problem": problem,
+            },
+        )
     session["code_snapshots"].append({"language": payload.language, "code": payload.code[-8000:], "ts": _now()})
     session["latest_code_analysis"] = _code_insights(payload.code, payload.language, problem)
     result = _run_code_tests(payload.code, problem["testcases"], payload.language, problem)
     session["code_runs"].append(result)
+    session["latest_code_run"] = result
     review = _code_review(payload.code, result, problem, payload.language)
-    session["messages"].append({"role": "candidate", "content": f"Submitted code for {problem['title']}", "ts": _now()})
+    progress = _dsa_progress_payload(session)
+    if session.get("round_type") == "dsa" and session.get("llm_enabled"):
+        graph_reply = await _dsa_graph_code_submit_turn(
+            session,
+            code=payload.code,
+            language=payload.language,
+            result=result,
+            problem=problem,
+            fallback_review=review,
+        )
+        if graph_reply:
+            review = graph_reply
+        progress = session.get("dsa_progress", progress)
+    session["messages"].append({"role": "candidate", "content": f"Ran code for {problem['title']}", "ts": _now()})
     session["messages"].append({"role": "interviewer", "content": review, "ts": _now()})
-    return {"ai_text": review, "result": result, "phase": session["phase"], "round_complete": False}
+    _persist(session)
+    return {
+        "ai_text": review,
+        "result": result,
+        "phase": session["phase"],
+        "round_complete": session.get("phase") == "complete",
+        "dsa_progress": progress,
+        "problem": session.get("problem"),
+        "problem_changed": False,
+    }
+
+
+@app.post("/api/interview/run-tests")
+async def run_tests_only(payload: CodeSubmitRequest):
+    """Run code against visible test cases only — no AI turn, no session state change."""
+    session = _require_session(payload.session_id)
+    if payload.language not in SUPPORTED_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language. Choose one of: {', '.join(sorted(SUPPORTED_LANGUAGES))}.")
+    problem = session["problem"]
+    if payload.problem_id and str(payload.problem_id) != str(problem.get("id")):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "The active question changed. Resynced the editor to the current starter code.",
+                "current_problem": problem,
+            },
+        )
+    result = _run_code_tests(payload.code, problem["testcases"], payload.language, problem)
+    return {"result": result}
 
 
 @app.post("/api/interview/violation")
@@ -437,7 +561,25 @@ async def log_violation(payload: ViolationRequest):
         signals["delete_events"] = max(signals.get("delete_events", 0), int(detail.get("deletions", 0) or 0))
         session["behavior_log"].append({"ts": _now(), "type": "code_telemetry", "detail": detail})
         _ingest_code_context(session, detail, source="telemetry")
+    _persist(session)
     return {"logged": True, "violations_count": len(session["violations"])}
+
+
+
+@app.get("/api/sessions")
+async def list_sessions():
+    """List active sessions (lightweight metadata only)."""
+    return [
+        {
+            "session_id": s.get("session_id"),
+            "created_at": s.get("created_at"),
+            "round_type": s.get("round_type"),
+            "target_company": s.get("target_company"),
+            "phase": s.get("phase"),
+            "exchange_count": s.get("exchange_count", 0),
+        }
+        for s in SESSIONS.values()
+    ]
 
 
 @app.get("/api/feedback/{session_id}")
@@ -457,6 +599,11 @@ async def livekit_token(session_id: str = Form(...)):
 def _require_session(session_id: str) -> dict[str, Any]:
     session = SESSIONS.get(session_id)
     if not session:
+        from app.services.session_store import load_session
+        session = load_session(session_id)
+        if session:
+            SESSIONS[session_id] = session
+    if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
 
@@ -469,6 +616,70 @@ def _round_config_for_session(round_type: str, company: str) -> dict[str, Any]:
     if round_type == "cs_fundamentals":
         return get_cs_fundamentals_config(company)
     return interview_data_service.get_round_config(company, round_type)
+
+
+def _init_dsa_session_progress(session: dict[str, Any]) -> dict[str, Any]:
+    from app.dsa.progress import build_dsa_progress
+
+    progress = build_dsa_progress(
+        round_config=session.get("round_config", {}),
+        timer_minutes=int(session.get("timer_minutes", 35) or 35),
+    )
+    session["dsa_progress"] = progress
+    session["used_problem_ids"] = [session.get("problem", {}).get("id")]
+    return progress
+
+
+def _dsa_progress_payload(session: dict[str, Any]) -> dict[str, Any]:
+    from app.dsa.progress import refresh_dsa_progress
+
+    if session.get("round_type") != "dsa":
+        return {}
+    return refresh_dsa_progress(session)
+
+
+def _select_problem_excluding(
+    difficulty: str,
+    target_company: str = "",
+    exclude_ids: list[Any] | None = None,
+) -> dict[str, Any]:
+    exclude = {str(item) for item in (exclude_ids or []) if item}
+    wanted = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}.get(difficulty.lower(), "Medium")
+    pool = DSA_PROBLEMS
+    if target_company:
+        company_pool = [p for p in DSA_PROBLEMS if target_company in p.get("companies", [])]
+        if company_pool:
+            pool = company_pool
+    candidates = [p for p in pool if p.get("difficulty") == wanted] or pool or DSA_PROBLEMS
+    fresh = [p for p in candidates if str(p.get("id")) not in exclude]
+    if fresh:
+        candidates = fresh
+    if target_company:
+        weights = [max(1.0, float(problem.get("company_frequency", {}).get(target_company, 1))) for problem in candidates]
+        return random.choices(candidates, weights=weights, k=1)[0]
+    return random.choice(candidates)
+
+
+def _maybe_advance_dsa_question(session: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    from app.dsa.progress import advance_dsa_question, refresh_dsa_progress
+
+    progress = advance_dsa_question(session, reason=reason)
+    if progress.get("round_complete"):
+        session["phase"] = "complete"
+        return progress
+
+    next_problem = _select_problem_excluding(
+        session.get("difficulty", "medium"),
+        session.get("target_company", ""),
+        session.get("used_problem_ids", []),
+    )
+    session["problem"] = next_problem
+    session.setdefault("used_problem_ids", []).append(next_problem.get("id"))
+    session["code_snapshots"] = []
+    session["code_runs"] = []
+    session["latest_code_analysis"] = {}
+    refresh_dsa_progress(session)
+    return progress
 
 
 def _now() -> str:
@@ -521,6 +732,52 @@ def _opening_prompt(session: dict[str, Any]) -> str:
     company_text = f" for {session['target_company']}" if session.get("target_company") else ""
     jd_text = " I will also use the pasted job description." if session.get("job_description", "").strip() else ""
     return f"We will start the Project + Behavioural round{company_text}. Walk me through your resume and strongest project first.{jd_text} I will probe project ownership, tradeoffs, measurable impact, and realistic behavioral examples."
+
+
+def _cs_opening_question(session: dict[str, Any]) -> str:
+    """Generate the very first CS Fundamentals question without running the evaluation/memory nodes."""
+    config = session.get("round_config", {})
+    raw_topics = config.get("topics", []) or []
+    topics = [
+        topic.get("topic", "") if isinstance(topic, dict) else str(topic)
+        for topic in raw_topics
+        if (topic.get("topic") if isinstance(topic, dict) else str(topic))
+    ] or config.get("fallback_topics", ["DBMS", "OOP", "Operating Systems", "Computer Networks"])
+    first_topic = random.choice(topics) if topics else "DBMS"
+
+    subtopic_map = {
+        "DBMS": "ACID properties and transactions",
+        "OOP": "polymorphism and interfaces",
+        "Operating Systems": "processes, threads, and scheduling",
+        "Computer Networks": "HTTP, TCP, and how a request travels from browser to server",
+    }
+    subtopic = subtopic_map.get(first_topic, first_topic)
+    company_text = f" for {session['target_company']}" if session.get("target_company") else ""
+
+    if session.get("llm_enabled") and llm_service.is_configured():
+        prompt_ctx = {
+            "round": f"CS Fundamentals{company_text}",
+            "role": session.get("job_role"),
+            "experience": session.get("experience_level"),
+            "topic": first_topic,
+            "subtopic": subtopic,
+            "question_type": "concept",
+            "goal": f"establish baseline clarity in {first_topic}",
+        }
+        question = llm_service.generate(
+            "You are a concise CS fundamentals interviewer opening the interview. Ask exactly ONE focused concept question to establish the candidate's baseline. Be direct — no intro, just the question.",
+            str(prompt_ctx),
+            fallback="",
+            temperature=0.4,
+            max_tokens=180,
+        )
+        if question.strip():
+            return question.strip()
+
+    return (
+        f"Let's begin with {first_topic}. Explain {subtopic}: "
+        "what it means, why it matters in practice, and give one real system or scenario where it has direct impact."
+    )
 
 
 def _extract_resume_text(contents: bytes, filename: str) -> str:
@@ -618,34 +875,40 @@ def _ingest_scratchpad(session: dict[str, Any], scratchpad: dict[str, Any]) -> N
     session["scratchpad_history"] = session["scratchpad_history"][-20:]
 
 
-def _next_interview_turn(session: dict[str, Any], user_text: str, scratchpad: dict[str, Any] | None = None) -> str:
+async def _next_interview_turn(
+    session: dict[str, Any],
+    user_text: str,
+    scratchpad: dict[str, Any] | None = None,
+    behavioral_metrics: dict[str, Any] | None = None,
+) -> str:
+    import asyncio
+
     lower = user_text.lower()
     if session["round_type"] == "dsa":
         direct = _answer_dsa_question(session["problem"], lower)
         if direct:
             return direct
+        if session.get("llm_enabled"):
+            graph_reply = await _dsa_graph_interview_turn(session, user_text, behavioral_metrics)
+            if graph_reply:
+                return graph_reply
+            # Retry once after 1.5s delay (rate limit cooldown)
+            await asyncio.sleep(1.5)
+            graph_reply = await _dsa_graph_interview_turn(session, user_text, behavioral_metrics)
+            if graph_reply:
+                return graph_reply
         llm_answer = _llm_interview_turn(session, user_text)
         if llm_answer:
             return llm_answer
-        if session["question_count"] == 1 and not _sounds_like_dsa_reasoning(lower):
-            return "Thanks for the intro. Now look at the problem statement on the left and tell me your initial approach: what pattern or data structure are you considering, and what makes it fit?"
-        if _asks_for_hint(lower) or _sounds_stuck(lower):
-            session["hint_count"] += 1
-            return _hint_for_problem(session["problem"], session["hint_count"])
-        if "o(" not in lower and "complex" not in lower:
-            session["weak_areas"].append("Did not state complexity clearly in DSA answer.")
-            return "Good direction. Before coding further, tell me the expected time and space complexity. I am looking for reasoning, not the final answer."
-        latest_code = session["code_snapshots"][-1]["code"] if session["code_snapshots"] else ""
-        if latest_code:
-            return _code_probe(latest_code, session["problem"])
-        return "Now start coding. I will watch for edge cases, complexity, and whether your implementation matches the approach you described."
+        session["_last_reply_degraded"] = True
+        return _varied_dsa_fallback(session, user_text, lower)
 
     if session["round_type"] == "cs_fundamentals":
         if run_cs_fundamentals_turn:
             result = run_cs_fundamentals_turn(session, user_text, scratchpad or {})
-            return result.get("ai_text", "Explain the current CS concept with one practical example and one tradeoff.")
+            return result.get("ai_text", _cs_fallback_turn(session))
         session["phase"] = "cs_fundamentals"
-        return "Explain one DBMS, OOP, OS, or networking concept clearly, then apply it to a real backend system."
+        return _cs_fallback_turn(session)
 
     if run_project_behavioral_turn:
         result = run_project_behavioral_turn(session, user_text)
@@ -665,14 +928,92 @@ def _next_interview_turn(session: dict[str, Any], user_text: str, scratchpad: di
     return "We are near the end. Ask me two thoughtful questions you would ask a real interviewer, then I will generate your feedback report."
 
 
+def _dsa_select_next_problem(session: dict[str, Any]) -> dict[str, Any]:
+    return _select_problem_excluding(
+        session.get("difficulty", "medium"),
+        session.get("target_company", ""),
+        session.get("used_problem_ids", []),
+    )
+
+
+async def _dsa_graph_interview_turn(
+    session: dict[str, Any],
+    user_text: str,
+    behavioral_metrics: dict[str, Any] | None = None,
+) -> str:
+    try:
+        from app.orchestration.dsa_graph import run_dsa_turn_async
+
+        latest_code = session["code_snapshots"][-1]["code"] if session.get("code_snapshots") else ""
+        result = await run_dsa_turn_async(
+            session=session,
+            candidate_code=latest_code,
+            candidate_explanation=user_text,
+            problem_statement=session.get("problem", {}).get("prompt", ""),
+            editor_context=json.dumps(session.get("latest_code_analysis", {}), ensure_ascii=False)[:2000],
+            metrics=behavioral_metrics or {},
+            trigger="message",
+            select_next_problem=_dsa_select_next_problem,
+        )
+        reply = (result.get("interviewer_reply") or result.get("followup") or "").strip()
+        if result.get("next_action") == "generate_report":
+            session["phase"] = "complete"
+        return reply
+    except Exception as exc:
+        session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "dsa_graph", "error": str(exc)[:300]})
+        return ""
+
+
+async def _dsa_graph_code_submit_turn(
+    session: dict[str, Any],
+    *,
+    code: str,
+    language: str,
+    result: dict[str, Any],
+    problem: dict[str, Any],
+    fallback_review: str,
+) -> str:
+    try:
+        from app.orchestration.dsa_graph import run_dsa_turn_async
+
+        passed = int(result.get("passed_testcases", 0) or 0)
+        total = int(result.get("total_testcases", 0) or 0)
+        explanation = (
+            f"I submitted my {language} solution for '{problem.get('title', 'the problem')}'. "
+            f"Runnable tests: {passed}/{total}. "
+            "I want feedback on correctness and edge cases, then one follow-up question on this same problem."
+        )
+        graph_result = await run_dsa_turn_async(
+            session=session,
+            candidate_code=code,
+            candidate_explanation=explanation,
+            problem_statement=problem.get("prompt", ""),
+            editor_context=json.dumps({**session.get("latest_code_analysis", {}), "submission": result}, ensure_ascii=False)[
+                :2000
+            ],
+            trigger="code_submit",
+            select_next_problem=_dsa_select_next_problem,
+        )
+        reply = (graph_result.get("interviewer_reply") or graph_result.get("followup") or "").strip()
+        return reply or fallback_review
+    except Exception as exc:
+        session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "dsa_graph_submit", "error": str(exc)[:300]})
+        return ""
+
+
 def _answer_dsa_question(problem: dict[str, Any], lower_text: str) -> str:
-    asks_for_cases = any(term in lower_text for term in ["test case", "test cases", "sample", "input", "example"])
+    asks_for_cases = any(term in lower_text for term in ["test case", "test cases", "sample", "samples", "examples"])
     is_question = "?" in lower_text or any(term in lower_text for term in ["where", "what", "show", "give", "provide", "list", "can i see"])
-    if asks_for_cases and is_question:
+    wants_cases_list = asks_for_cases and any(
+        term in lower_text for term in ["show", "give", "provide", "list", "can i see", "what are", "tell me the"]
+    )
+    if wants_cases_list and is_question:
         visible = [tc for tc in problem["testcases"] if tc.get("visible", True)]
         cases = " | ".join(f"Input: {tc['input'].strip()} => Expected: {tc['expected_output']}" for tc in visible)
         return f"Yes. The visible test cases are: {cases}. I will also run hidden edge cases after submission, so your solution should handle the full constraints."
-    if any(term in lower_text for term in ["language", "python", "java", "c++", "cpp", " c ", "change the language", "choose language"]):
+    asks_language = any(term in lower_text for term in ["language", "change the language", "choose language"])
+    mentions_language = any(term in lower_text for term in ["python", "java", "c++", "cpp", " c "])
+    if asks_language or (is_question and mentions_language):
         return "Use the language selector above the editor. This build supports Python, C++, C, and Java. If your machine is missing gcc, g++, or a JDK, submissions will show a clear compiler-missing message instead of silently failing."
     if any(term in lower_text for term in ["constraint", "constraints", "limit"]):
         return "Constraints: " + "; ".join(problem.get("constraints", []))
@@ -712,6 +1053,53 @@ def _asks_for_hint(lower_text: str) -> bool:
 
 def _sounds_stuck(lower_text: str) -> bool:
     return any(term in lower_text for term in ["i don't know", "i dont know", "blank", "lost", "can't think", "cannot think"])
+
+
+def _varied_dsa_fallback(session: dict[str, Any], user_text: str, lower: str) -> str:
+    """Rotate through 6 distinct follow-up prompts to avoid repeating the same line."""
+    exchange = int(session.get("exchange_count", session.get("question_count", 0)) or 0)
+    if exchange <= 1 and not _sounds_like_dsa_reasoning(lower):
+        return (
+            "Thanks for the intro. Now look at the problem statement on the left and tell me "
+            "your initial approach: what pattern or data structure are you considering, and what makes it fit?"
+        )
+    if _asks_for_hint(lower) or _sounds_stuck(lower):
+        session["hint_count"] += 1
+        return _hint_for_problem(session["problem"], session["hint_count"])
+    latest_code = session["code_snapshots"][-1]["code"] if session.get("code_snapshots") else ""
+    if latest_code:
+        probe = _code_probe(latest_code, session["problem"])
+        if probe:
+            return probe
+    if "o(" not in lower and "complex" not in lower:
+        session["weak_areas"].append("Did not state complexity clearly in DSA answer.")
+    prompts = [
+        "Before writing more code, state the expected time and space complexity and explain why that bound is achievable.",
+        "Walk me through one concrete example using the first visible test case. What does your algorithm do at each individual step?",
+        "What edge cases does your current approach handle? Name at least two: one with empty or minimum input, one with unexpected ordering.",
+        "If your approach is O(n²), how would you reduce it? Which data structure or technique removes the inner scan?",
+        "Explain your invariant: what property must always hold true at each iteration or recursive call in your solution?",
+        "Code aside — what is the hardest part of this problem? Tell me exactly where a subtle bug would most likely hide.",
+    ]
+    return prompts[exchange % len(prompts)]
+
+
+def _cs_fallback_turn(session: dict[str, Any]) -> str:
+    """Return a rotating real CS question so the interview never repeats itself without LLM."""
+    exchange = int(session.get("exchange_count", session.get("question_count", 0)) or 0)
+    questions = [
+        "Explain what ACID properties mean in a database. Give a real example of a transaction that would violate atomicity if partial writes were allowed.",
+        "Compare a B-tree index to a full-table scan. When does adding an index hurt write performance more than it helps read speed?",
+        "What is the difference between a process and a thread? Give a concrete scenario where you would choose threads over processes in a backend service.",
+        "Explain how a deadlock occurs in an OS. State the four Coffman conditions and say which one is typically easiest to break in practice.",
+        "Walk me through an HTTP request from browser to server step by step — include DNS resolution, TCP handshake, and TLS if applicable.",
+        "Explain polymorphism with a real code example. What problem does it solve compared to a long if-else or switch chain?",
+        "What is the difference between TCP and UDP? Name one application protocol that must use TCP and one that benefits from UDP.",
+        "Explain database normalization up to 3NF. Give a denormalized table example and show how you would split it to remove a transitive dependency.",
+        "What is the difference between a mutex and a semaphore? When would using a binary semaphore instead of a mutex cause subtle correctness bugs?",
+        "Describe encapsulation and its practical benefit. How does hiding internal state prevent bugs in a multi-developer codebase?",
+    ]
+    return questions[exchange % len(questions)]
 
 
 def _hint_for_problem(problem: dict[str, Any], hint_count: int) -> str:
@@ -818,6 +1206,12 @@ def _llm_interview_turn(session: dict[str, Any], user_text: str) -> str:
         if groq_answer:
             return groq_answer
     if os.getenv("GEMINI_API_KEY"):
+        gemini_answer = _gemini_interview_turn(session, user_text)
+        if gemini_answer:
+            return gemini_answer
+    # Both providers failed — retry Gemini once (it has higher RPM than Groq free tier)
+    if os.getenv("GEMINI_API_KEY"):
+        time.sleep(1.0)
         return _gemini_interview_turn(session, user_text)
     return ""
 

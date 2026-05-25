@@ -29,10 +29,19 @@ class LLMService:
             model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         elif provider == "gemini":
             model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        dsa_litellm = {}
+        try:
+            from app.services.llm.litellm_config import resolve_litellm_settings
+
+            dsa_litellm = resolve_litellm_settings()
+        except Exception:
+            dsa_litellm = {}
         return {
             "provider": provider,
             "configured": self.is_configured(),
             "model": model,
+            "dsa_graph_model": dsa_litellm.get("model", ""),
+            "dsa_graph_provider": dsa_litellm.get("provider", ""),
             "fallback": "deterministic_local",
         }
 
