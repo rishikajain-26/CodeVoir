@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
-import { AlertTriangle, Bot, Camera, Code2, FileText, Mic, Play, Send, Shield, Square, Upload } from "lucide-react"
+import { AlertTriangle, Bot, Camera, Code2, FileText, Mic, Play, Send, Shield, Square, Upload, Zap } from "lucide-react"
+import OpportunitiesPage from "./pages/OpportunitiesPage.jsx"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 // Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
@@ -60,7 +61,7 @@ function testValue(value) {
 export default function App() {
   const [screen, setScreen] = useState("setup")
   const [session, setSession] = useState(null)
-  const [form, setForm] = useState({ job_role: "Software Engineer", experience_level: "fresher", target_company: "", job_description: "", round_type: "dsa", difficulty: "medium", timer_minutes: 35 })
+  const [form, setForm] = useState({ job_role: "Software Engineer", experience_level: "fresher", target_company: "", job_description: "", round_type: "dsa", difficulty: "medium", timer_minutes: 45 })
   const [resume, setResume] = useState(null)
   const [resumeReviewFile, setResumeReviewFile] = useState(null)
   const [resumeReview, setResumeReview] = useState(null)
@@ -84,6 +85,8 @@ export default function App() {
   const [roundOptions, setRoundOptions] = useState([])
   const [isBusy, setIsBusy] = useState(false)
   const [dsaProgress, setDsaProgress] = useState(null)
+  const [llmOffline, setLlmOffline] = useState(false)
+  const [llmConfigured, setLlmConfigured] = useState(true)
   const videoRef = useRef(null)
   const recognitionRef = useRef(null)
   const autoVoiceRef = useRef(false)
@@ -131,6 +134,17 @@ export default function App() {
   }, [form.round_type])
 
   useEffect(() => {
+    if (!form.target_company || form.round_type !== "dsa") return
+    apiFetch(`/api/interview/company-config?company=${encodeURIComponent(form.target_company)}&round_type=dsa`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        const minutes = data?.config?.minutes
+        if (minutes && minutes > 10) setForm((prev) => ({ ...prev, timer_minutes: minutes }))
+      })
+      .catch(() => {})
+  }, [form.target_company, form.round_type])
+
+  useEffect(() => {
     if (!currentProblem) return
     const nextCode = getStarterCode(currentProblem, language)
     setCode(nextCode)
@@ -164,6 +178,26 @@ export default function App() {
     const timer = window.setInterval(() => { if (!stopped) tick() }, 1000)
     return () => window.clearInterval(timer)
   }, [session?.session_id, isDsaRound])
+
+  // Poll LLM health across all rounds so the candidate sees an accurate
+  // "AI online/offline" status (and it recovers automatically when the LLM is back).
+  useEffect(() => {
+    if (!session?.session_id) return undefined
+    let stopped = false
+    const check = () => {
+      apiFetch("/api/health/llm")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((payload) => {
+          if (!payload) return
+          if (typeof payload.configured === "boolean") setLlmConfigured(payload.configured)
+          if (typeof payload.offline === "boolean") setLlmOffline(payload.offline)
+        })
+        .catch(() => {})
+    }
+    check()
+    const timer = window.setInterval(() => { if (!stopped) check() }, 15000)
+    return () => { stopped = true; window.clearInterval(timer) }
+  }, [session?.session_id])
 
   useEffect(() => {
     if (screen !== "interview" || !session) return
@@ -246,7 +280,6 @@ export default function App() {
     const inEchoWindow = speakingRef.current || (Date.now() - ttsEndedAtRef.current < 500)
     if (inEchoWindow && isLikelyEcho(clean, lastAiSpokenRef.current)) {
       setLiveTranscript("")
-      if (autoVoiceRef.current && !speakingRef.current) scheduleListen(800)
       return
     }
     setInput("")
@@ -261,6 +294,7 @@ export default function App() {
       const reply = await postJson("/api/interview/message", payload)
       // Remove thinking indicator
       setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
+      if (typeof reply.llm_offline === "boolean") setLlmOffline(reply.llm_offline)
       if (reply.dsa_progress) setDsaProgress(reply.dsa_progress)
       setSession((prev) => {
         if (!prev) return prev
@@ -405,7 +439,6 @@ export default function App() {
 
   function speak(text) {
     if (!text) return
-    if (voiceRestartTimerRef.current) window.clearTimeout(voiceRestartTimerRef.current)
     _stopCurrentSpeech()
     lastAiSpokenRef.current = text
     speakingRef.current = true
@@ -416,28 +449,21 @@ export default function App() {
       speakingRef.current = false
       ttsEndedAtRef.current = Date.now()
       currentAudioRef.current = null
+      // Push-to-talk: never auto-start the mic. The candidate presses the mic when
+      // ready to answer — this is what removes the lag after the AI stops speaking.
       setVoiceState(recognitionRef.current ? "listening" : "user_turn")
-      if (autoVoiceRef.current && !recognitionRef.current) scheduleListen(300)
     }
 
     if (EL_API_KEY) {
       _elevenLabsTTS(text, (audio) => { currentAudioRef.current = audio })
         .then(finishSpeaking)
         .catch((err) => {
-          console.warn("ElevenLabs TTS failed, falling back to browser TTS:", err)
+          console.warn("ElevenLabs TTS failed, using browser voice:", err)
           currentAudioRef.current = null
           _speakBrowserTTS(text, finishSpeaking)
         })
     } else {
-      // Browser TTS conflicts with recognition on same audio channel — must pause mic
-      if (recognitionRef.current) {
-        intentionalStopRef.current = true
-        recognitionRef.current.stop?.()
-      }
-      _speakBrowserTTS(text, () => {
-        finishSpeaking()
-        if (autoVoiceRef.current && !recognitionRef.current) scheduleListen(600)
-      })
+      _speakBrowserTTS(text, finishSpeaking)
     }
   }
 
@@ -452,147 +478,88 @@ export default function App() {
     ttsTimeoutRef.current = window.setTimeout(onDone, Math.min(30000, text.length * 60 + 500))
   }
 
-  function startListening() {
+  // ── Push-to-talk voice capture ───────────────────────────────────────────
+  // The candidate explicitly presses the mic to start talking and presses again
+  // to stop+send. There are NO silence timers, NO auto-restart cycle, and NO
+  // TTS↔mic coordination — so there is no lag after the AI stops, and natural
+  // pauses no longer fragment or drop speech.
+  function startPushToTalk() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      setWarning("Speech recognition is only available in Chrome. Use manual text input.")
+      setWarning("Voice needs Chrome. Type your answer in the box instead.")
       window.setTimeout(() => setWarning(""), 5000)
       return
     }
     if (recognitionRef.current) return
-    // Only block mic during browser TTS (same audio channel); ElevenLabs uses
-    // a separate Audio element and Chrome AEC handles echo suppression.
-    if (speakingRef.current && !EL_API_KEY) return
-    const sinceLastEnd = Date.now() - lastListenEndedAtRef.current
-    if (sinceLastEnd < 700) {
-      scheduleListen(700 - sinceLastEnd)
-      return
-    }
+    // Barge-in: pressing the mic immediately silences the AI so you can talk.
+    _stopCurrentSpeech()
+    speakingRef.current = false
     const recognition = new SpeechRecognition()
     recognition.lang = "en-US"
     recognition.interimResults = true
     recognition.continuous = true
     recognition.maxAlternatives = 1
     let finalText = ""
-    let latestHeardText = ""
-    let startedAt = Date.now()
-    let hadRecoverableError = false
-    let finalSpeechTimer = null
-    let silenceTimer = null
-    const stopAfterSpeech = (delayMs = 1800) => {
-      if (silenceTimer) window.clearTimeout(silenceTimer)
-      silenceTimer = window.setTimeout(() => {
-        // Don't auto-stop during AI speech — candidate might be waiting to interrupt
-        if (speakingRef.current) return
-        intentionalStopRef.current = false
-        recognition.stop()
-      }, delayMs)
-    }
-    recognition.onstart = () => {
-      intentionalStopRef.current = false
-      startedAt = Date.now()
-      setVoiceState("listening")
-      setLiveTranscript("")
-    }
+    recognition.onstart = () => setVoiceState("listening")
     recognition.onresult = (event) => {
       let interim = ""
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const chunk = event.results[i][0]?.transcript || ""
-        if (event.results[i].isFinal) {
-          finalText += `${chunk} `
-          // Candidate is actively speaking — if AI is still talking, interrupt it
-          if (speakingRef.current && !isLikelyEcho(finalText.trim(), lastAiSpokenRef.current)) {
-            _stopCurrentSpeech()
-            speakingRef.current = false
-            ttsEndedAtRef.current = Date.now()
-            currentAudioRef.current = null
-            setVoiceState("listening")
-          }
-          if (finalSpeechTimer) window.clearTimeout(finalSpeechTimer)
-          finalSpeechTimer = window.setTimeout(() => {
-            if (speakingRef.current) return
-            intentionalStopRef.current = false
-            recognition.stop()
-          }, 1800)
-        } else interim += chunk
+        if (event.results[i].isFinal) finalText += `${chunk} `
+        else interim += chunk
       }
-      latestHeardText = `${finalText}${interim}`.trim()
-      setLiveTranscript(latestHeardText)
-      if (latestHeardText) stopAfterSpeech(finalText.trim() ? 1800 : 2500)
+      setLiveTranscript(`${finalText}${interim}`.trim())
     }
     recognition.onerror = (event) => {
-      hadRecoverableError = ["aborted", "interrupted", "network", "no-speech"].includes(event.error)
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        setAutoVoice(false)
         autoVoiceRef.current = false
-        setWarning("Microphone permission is blocked. Allow mic access in the browser, then click Start voice.")
+        setAutoVoice(false)
+        setWarning("Microphone permission is blocked. Allow mic access, then press the mic again.")
+        window.setTimeout(() => setWarning(""), 6000)
       } else if (event.error === "audio-capture") {
-        setAutoVoice(false)
         autoVoiceRef.current = false
-        setWarning("No microphone was detected by the browser. Check Windows input settings, then click Start voice.")
-      } else if (!hadRecoverableError) {
-        setWarning(`Speech recognition error: ${event.error}. Click Start voice again.`)
-      }
-      if (event.error !== "aborted" && event.error !== "interrupted" && event.error !== "no-speech") {
+        setAutoVoice(false)
+        setWarning("No microphone detected. Check your input device, then press the mic again.")
         window.setTimeout(() => setWarning(""), 6000)
       }
+      // "no-speech" / "aborted" / "network" are recoverable — onend restarts while active.
     }
     recognition.onend = () => {
-      if (finalSpeechTimer) window.clearTimeout(finalSpeechTimer)
-      if (silenceTimer) window.clearTimeout(silenceTimer)
-      lastListenEndedAtRef.current = Date.now()
+      // Chrome ends recognition on a long pause or ~60s. While the candidate is
+      // still holding the mic, restart immediately (no delay) so capture is seamless.
+      if (autoVoiceRef.current) {
+        try { recognition.start(); return } catch { /* fall through to cleanup */ }
+      }
       recognitionRef.current = null
       setVoiceState("user_turn")
-      if (intentionalStopRef.current) {
-        intentionalStopRef.current = false
-        return
-      }
-      const clean = (finalText.trim() || latestHeardText.trim())
-      if (clean) {
-        const inEchoWindow = speakingRef.current || (Date.now() - ttsEndedAtRef.current < 500)
-        if (inEchoWindow && isLikelyEcho(clean, lastAiSpokenRef.current)) {
-          setLiveTranscript("")
-          if (autoVoiceRef.current && !speakingRef.current) scheduleListen(900)
-          return
-        }
-        sendMessage(clean, { speech_duration_ms: Date.now() - startedAt, voice_turn: true })
-      } else if (autoVoiceRef.current && !speakingRef.current && hadRecoverableError && voiceRetryRef.current < 1) {
-        voiceRetryRef.current += 1
-        scheduleListen(1200)
-      }
     }
     recognitionRef.current = recognition
+    autoVoiceRef.current = true
+    setAutoVoice(true)
+    setLiveTranscript("")
     try {
       recognition.start()
     } catch {
       recognitionRef.current = null
-      scheduleListen(900)
+      autoVoiceRef.current = false
+      setAutoVoice(false)
     }
   }
 
-  function scheduleListen(delayMs) {
-    if (!autoVoiceRef.current) return
-    // Block during browser TTS only — ElevenLabs plays via Audio element,
-    // Chrome AEC handles echo, so mic can stay alive during playback
-    if (speakingRef.current && !EL_API_KEY) return
-    if (voiceRestartTimerRef.current) window.clearTimeout(voiceRestartTimerRef.current)
-    voiceRestartTimerRef.current = window.setTimeout(() => {
-      voiceRestartTimerRef.current = null
-      startListening()
-    }, delayMs)
-  }
-
-  function stopListening() {
-    if (voiceRestartTimerRef.current) window.clearTimeout(voiceRestartTimerRef.current)
-    const clean = liveTranscriptRef.current.trim()
+  function stopPushToTalkAndSend() {
     autoVoiceRef.current = false
     setAutoVoice(false)
-    intentionalStopRef.current = true
-    recognitionRef.current?.stop?.()
+    const recognition = recognitionRef.current
     recognitionRef.current = null
+    if (recognition) {
+      recognition.onend = null   // prevent the auto-restart on stop
+      try { recognition.stop() } catch {}
+    }
     setVoiceState("user_turn")
+    const clean = liveTranscriptRef.current.trim()
+    setLiveTranscript("")
     if (clean && session && !isBusy) {
-      sendMessage(clean, { voice_turn: true, stopped_manually: true })
+      sendMessage(clean, { voice_turn: true })
     }
   }
 
@@ -604,14 +571,11 @@ export default function App() {
   }
 
   function toggleMic() {
-    if (autoVoice || voiceState === "listening") {
-      stopListening()
-      return
+    if (autoVoiceRef.current || recognitionRef.current || voiceState === "listening") {
+      stopPushToTalkAndSend()
+    } else {
+      startPushToTalk()
     }
-    autoVoiceRef.current = true
-    voiceRetryRef.current = 0
-    setAutoVoice(true)
-    startListening()
   }
 
   function onEditorMount(editor) {
@@ -665,6 +629,10 @@ export default function App() {
 
   if (screen === "feedback" && feedback) return <Feedback report={feedback} onRestart={() => window.location.reload()} />
 
+  if (screen === "opportunities") {
+    return <OpportunitiesPage onBack={() => setScreen("setup")} />
+  }
+
   if (screen === "setup") {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -678,7 +646,16 @@ export default function App() {
                 <p className="text-sm text-slate-400">Voice-first mock interviews with DSA, resume probing, and proctoring.</p>
               </div>
             </div>
-            <div className="hidden items-center gap-2 text-sm text-slate-300 md:flex"><Shield size={16} /> Integrity monitoring enabled</div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setScreen("opportunities")}
+                className="flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all"
+              >
+                <Zap size={15} />
+                Find Opportunities
+              </button>
+              <div className="hidden items-center gap-2 text-sm text-slate-300 md:flex"><Shield size={16} /> Integrity monitoring enabled</div>
+            </div>
           </div>
         </section>
 
@@ -738,6 +715,10 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <span className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${!llmConfigured ? "border-amber-600 bg-amber-950 text-amber-300" : llmOffline ? "border-red-500 bg-red-950 text-red-300" : "border-emerald-700 bg-emerald-950 text-emerald-300"}`} title={!llmConfigured ? "No API key set — add GROQ_API_KEY or GEMINI_API_KEY to .env" : llmOffline ? "The AI model can't be reached right now — replies are limited" : "AI model is responding normally"}>
+            <span className={`h-2 w-2 rounded-full ${!llmConfigured ? "bg-amber-400" : llmOffline ? "bg-red-400" : "bg-emerald-400"}`} />
+            {!llmConfigured ? "AI not configured" : llmOffline ? "AI offline" : "AI online"}
+          </span>
           {isDsaRound && dsaProgress && (
             <div className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200">
               <div className="font-semibold text-cyan-300">{dsaProgress.label || `Question ${dsaProgress.current_question_index} of ${dsaProgress.total_questions}`}</div>
@@ -755,6 +736,9 @@ export default function App() {
       </header>
 
       {warning && <div className="fixed left-1/2 top-20 z-20 flex -translate-x-1/2 items-center gap-2 rounded bg-amber-300 px-4 py-2 font-medium text-slate-950"><AlertTriangle size={18} /> {warning}</div>}
+
+      {!llmConfigured && <div className="fixed left-1/2 top-32 z-20 flex -translate-x-1/2 items-center gap-2 rounded border border-amber-500 bg-amber-950 px-4 py-2 text-sm font-medium text-amber-100"><AlertTriangle size={16} /> No API key configured — add GROQ_API_KEY or GEMINI_API_KEY to your .env file for AI responses.</div>}
+      {llmConfigured && llmOffline && <div className="fixed left-1/2 top-32 z-20 flex -translate-x-1/2 items-center gap-2 rounded border border-red-500 bg-red-950 px-4 py-2 text-sm font-medium text-red-100"><AlertTriangle size={16} /> AI is currently offline — answers are limited and may be generic until it reconnects.</div>}
 
       <div className="fixed z-20 w-48 rounded border border-slate-700 bg-slate-950/95 p-2 shadow-2xl" style={{ left: cameraPos.x, top: cameraPos.y }}>
         <div onPointerDown={startCameraDrag} className="mb-2 flex cursor-move touch-none select-none items-center justify-between px-1 text-xs text-slate-300"><span className="flex items-center gap-1"><Camera size={14} /> Candidate</span><span>{voiceState === "listening" ? "Listening" : voiceState === "ai_speaking" ? "AI speaking" : "Mic ready"}</span></div>
@@ -964,7 +948,160 @@ function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, a
   </div>
 }
 
+// Build a client-side dsa_evaluation from heuristic report data when backend
+// deep eval is unavailable (old session, LLM down, or pre-update backend).
+function _buildClientDSAEval(report) {
+  const bd = report.round_breakdown || {}
+  const overall = Number(report.overall_score) || 50
+  const paramScores = report.parameter_scores || []
+
+  function _sl(s) {
+    if (s >= 85) return "Exceptional"
+    if (s >= 70) return "Strong"
+    if (s >= 55) return "Competent"
+    if (s >= 40) return "Developing"
+    return "Weak"
+  }
+
+  const coreNames = ["Problem Solving Ability","DSA Knowledge","Optimization Skill","Coding Accuracy","Communication & Explanation","Confidence During Interview","Hint Dependency","Adaptability","Complexity Analysis","Edge Case Awareness"]
+
+  let core_metrics
+  if (paramScores.length >= 5) {
+    const extended = [...paramScores]
+    while (extended.length < 10) {
+      extended.push({ name: coreNames[extended.length] || `Metric ${extended.length + 1}`, score: Math.round(overall * 0.9), note: "Score derived from session signals." })
+    }
+    core_metrics = extended.slice(0, 10).map((p, i) => ({
+      name: coreNames[i] || p.name,
+      score: Math.max(0, Math.min(100, Number(p.score) || Math.round(overall * 0.9))),
+      label: _sl(Math.max(0, Math.min(100, Number(p.score) || Math.round(overall * 0.9)))),
+      note: p.note || "Derived from session evaluation signals.",
+    }))
+  } else {
+    const base = Math.round(overall)
+    core_metrics = coreNames.map((name, i) => {
+      const nudge = [0, 2, -5, bd.submission?.passed_testcases && bd.submission?.total_testcases ? Math.round((bd.submission.passed_testcases / bd.submission.total_testcases) * 100) - base : 0, 0, 0, 0, -3, -5, -8][i] || 0
+      const s = Math.max(0, Math.min(100, base + nudge))
+      return { name, score: s, label: _sl(s), note: "Score derived from heuristic session evaluation." }
+    })
+  }
+
+  const signalMap = { "Strong hire": "Strong Hire", "Leaning hire": "Hire", "Needs targeted preparation": "Lean Hire", "Needs significant preparation": "Lean Reject" }
+  const verdictSignal = signalMap[report.hiring_signal] || (overall >= 82 ? "Strong Hire" : overall >= 68 ? "Hire" : overall >= 52 ? "Lean Hire" : "Lean Reject")
+
+  const weakAreas = report.weak_areas || []
+  const strengths = report.strengths || []
+
+  return {
+    core_metrics,
+    advanced_metrics: {
+      company_fit: { score: Math.round(overall), fit_signals: strengths.slice(0, 3), concern_signals: weakAreas.slice(0, 3), note: "Company fit estimated from session signals." },
+    },
+    company_tailored: {
+      company: report.target_company || "Target Company",
+      bar_assessment: overall >= 82 ? "Above Bar" : overall >= 68 ? "At Bar" : overall >= 52 ? "Approaching Bar" : "Below Bar",
+      optimization_quality: { score: Math.round(overall * 0.9), note: "Optimization quality derived from session approach signals." },
+      communication_clarity: { score: Math.round(overall * 0.88), note: "Communication clarity from explanation quality signals." },
+      followup_handling: { score: Math.round(overall * 0.85), note: "Follow-up handling estimated from session response patterns." },
+      coding_speed: { score: bd.submission?.total_testcases ? Math.round((bd.submission.passed_testcases / bd.submission.total_testcases) * 100) : Math.round(overall * 0.85), note: bd.submission?.total_testcases ? `${bd.submission.passed_testcases}/${bd.submission.total_testcases} tests passed.` : "No code submission recorded." },
+      debugging_behavior: { score: Math.round(overall * 0.82), note: "Debugging behavior estimated from session signals." },
+      summary: `Performance at ${report.target_company || "the target company"} maps to a ${overall >= 75 ? "strong" : overall >= 58 ? "borderline" : "developing"} candidate profile based on session signals.`,
+    },
+    weakness_analysis: weakAreas.slice(0, 4).map((w) => ({
+      area: w.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 60),
+      specific_issue: w,
+      why_it_matters: "Identified as a key gap during this session's evaluation.",
+      improvement: "Practice this area with deliberate focus — state complexity before coding and cover edge cases.",
+    })),
+    improvement_recommendations: (() => {
+      const recs = []
+      const weakRec = {
+        approach_quality: ["Problem Solving", "Your session flagged approach quality as a gap. Practice stating the brute-force first, then explicitly narrate the optimization step — 'I can trade space for time using a hash map.' Interviewers score the transition, not just the final answer.", "high"],
+        complexity_analysis: ["Complexity Analysis", "Complexity analysis was flagged as weak. Before writing any code, write the Big-O as a comment. After coding, trace one example to verify the claim. Incorrect complexity claims are an immediate red flag.", "high"],
+        code_quality: ["Code Quality", "Code quality signals suggest rushed or unclean submissions. Practice clean variable names, no magic numbers, and one-line inline comments for non-obvious logic.", "high"],
+        communication: ["Communication", "Communication was flagged as weak. Narrate every decision as you make it: 'I'm using a sliding window here because the constraint is contiguous subarray.' Silent coding gives interviewers nothing to evaluate.", "high"],
+        debugging: ["Debugging", "Debugging signals were weak. When a test fails, state the failing case, trace through your code manually for that input, identify the exact diverging line, then fix it. Narrate this process out loud.", "high"],
+        edge_cases: ["Edge Case Handling", "Edge case handling was flagged. Before submitting, explicitly list: empty input, single element, all-same values, max size, and negatives. Then verify each with a 30-second trace.", "medium"],
+        dsa_knowledge: ["DSA Knowledge", "DSA knowledge gaps were identified. Revisit the flagged topic area with 3–5 focused problems. For each, understand why the data structure fits — not just how to code it.", "medium"],
+      }
+      for (const w of weakAreas.slice(0, 3)) {
+        const key = w.toLowerCase().replace(/\s+/g, "_")
+        if (weakRec[key]) {
+          const [cat, rec, pri] = weakRec[key]
+          recs.push({ category: cat, recommendation: rec, priority: pri })
+        }
+      }
+      const bd2 = report.round_breakdown || {}
+      const hintCount = report.dsa?.hints_given || 0
+      const passedTC = bd2.submission?.passed_testcases ?? null
+      const totalTC = bd2.submission?.total_testcases ?? null
+      if (hintCount >= 2 && recs.length < 5) recs.push({ category: "Independent Problem Solving", recommendation: `You requested ${hintCount} hints this session. Practice 20-minute timed attempts with no hints — when stuck, speak partial thinking aloud. Demonstrating process is as valuable as finding the answer.`, priority: "high" })
+      if (totalTC && passedTC < totalTC && recs.length < 5) recs.push({ category: "Code Correctness", recommendation: `Your code passed ${passedTC}/${totalTC} test cases. Trace through each failing case manually — identify the exact value that diverges from expected before resubmitting.`, priority: "high" })
+      const defaults = [
+        ["Interview Habits", "Before writing any code, state your approach, the invariant, and the time/space complexity. Interviewers score this narration as heavily as the code.", "high"],
+        ["Optimization Strategy", "After reaching a brute-force, explicitly ask: 'Can I reduce time complexity by trading space?' Narrate the transition — that moment is what senior interviewers watch for.", "medium"],
+        ["Edge Case Discipline", "Before submitting, enumerate edge cases out loud: empty input, single element, duplicates, negatives, overflow. Then trace one through your code manually.", "medium"],
+      ]
+      for (const [cat, rec, pri] of defaults) { if (recs.length >= 5) break; recs.push({ category: cat, recommendation: rec, priority: pri }) }
+      return recs.slice(0, 5)
+    })(),
+    behavior_coaching: [{
+      observation: "Report generated from session heuristic signals.",
+      impact: "Complete voice interaction and code narration enable deeper behavioral analysis.",
+      coaching: "In your next session: narrate every decision, ask clarifying questions before coding, and explain time/space complexity before submitting.",
+    }],
+    learning_plan: {
+      one_week: {
+        daily_goals: ["Solve 2 LeetCode problems daily (1 easy + 1 medium). State complexity before writing code.", "Review the optimal solution after each problem — understand the pattern, not just the answer.", "Practice 1 weak area topic per day with deliberate focus.", "Set a 25-minute timer per problem — simulate real interview pressure.", "Write brute-force first always, then optimize. Never skip this step."],
+        focus_topics: weakAreas.slice(0, 4).map((w) => w.replace(/_/g, " ")).filter(Boolean).concat(["Arrays", "Hash Maps"]).slice(0, 4),
+        problem_types: ["Two Sum variants (hash map)", "Sliding Window", "BFS/DFS on matrices", "Binary Search"],
+      },
+      two_week: {
+        daily_goals: ["Solve 3 problems daily including 1 hard. Full verbal narration throughout.", "Mock interview: record yourself, watch it back — are you explaining decisions clearly?", "For each problem: identify the pattern category before starting.", "Optimize every brute-force — what trade-off improves time or space?", "Review 5 past failed solutions — understand the root cause of each failure."],
+        focus_topics: (weakAreas.slice(0, 2).map((w) => w.replace(/_/g, " ")).filter(Boolean)).concat(["Dynamic Programming", "Graph Traversal", "Trees"]).slice(0, 5),
+        problem_types: ["DP: Knapsack / LCS", "Graph BFS/DFS", "Binary Search on answer", "Monotonic Stack", "Prefix Sum"],
+      },
+      recommended_problems: ["Two Sum & 3Sum", "Sliding Window Maximum", "Number of Islands", "Merge Intervals", "LRU Cache", "Word Search II"],
+    },
+    benchmarking: {
+      faang_readiness_score: Math.round(overall * 0.92),
+      estimated_level: overall >= 85 ? "L5/Senior" : overall >= 70 ? "L4/Mid" : overall >= 55 ? "L3/Junior" : "Below L3",
+      comparisons: [
+        { metric: "Problem Solving", candidate_score: core_metrics[0].score, faang_bar: 80, gap_note: core_metrics[0].score >= 80 ? "On target." : `Gap of ${80 - core_metrics[0].score} pts — practice structured approach to optimization.` },
+        { metric: "Code Correctness", candidate_score: core_metrics[3].score, faang_bar: 85, gap_note: core_metrics[3].score >= 85 ? "On target." : `Gap of ${85 - core_metrics[3].score} pts — enumerate edge cases before submitting.` },
+        { metric: "Communication", candidate_score: core_metrics[4].score, faang_bar: 75, gap_note: core_metrics[4].score >= 75 ? "On target." : `Gap of ${75 - core_metrics[4].score} pts — narrate every decision throughout.` },
+        { metric: "Complexity Analysis", candidate_score: core_metrics[8].score, faang_bar: 80, gap_note: core_metrics[8].score >= 80 ? "On target." : `Gap of ${80 - core_metrics[8].score} pts — always state O() before coding.` },
+      ],
+      overall_readiness_note: `Current performance places you at approximately ${Math.round(overall * 0.92)}/100 FAANG readiness. ${bd.submission?.total_testcases ? `With ${bd.submission.passed_testcases}/${bd.submission.total_testcases} tests passing, the next focus should be edge case coverage and optimization narration.` : "Submit code solutions in every session to generate precise correctness signals."}`,
+    },
+    strength_recognition: strengths.slice(0, 3).map((s) => ({
+      strength: s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 60),
+      evidence: s,
+      interview_value: "A recognized strength in your session evaluation profile.",
+    })),
+    final_verdict: {
+      signal: verdictSignal,
+      confidence_score: Math.min(85, Math.round(overall)),
+      summary: report.summary || `Session score: ${Math.round(overall)}/100. ${bd.submission?.total_testcases ? `Code correctness (${bd.submission.passed_testcases}/${bd.submission.total_testcases} tests) was a primary evaluation signal.` : "No code submission recorded — submit code for a full evaluation."}`,
+      biggest_strength: strengths[0] || (bd.submission?.passed_testcases === bd.submission?.total_testcases && bd.submission?.total_testcases ? "Code correctness — all tests passed" : "Session engagement"),
+      biggest_weakness: weakAreas[0] || (bd.submission?.total_testcases ? "Edge case coverage" : "No code submission recorded"),
+      most_important_next_step: (report.study_plan || [])[0] || "State your approach, complexity, and edge cases out loud before every code submission.",
+    },
+    question_performance: [],
+    _source: "client_fallback",
+  }
+}
+
 function Feedback({ report, onRestart }) {
+  if (report.round_type === "dsa") {
+    return <DSAFeedback report={report} onRestart={onRestart} />
+  }
+  if (report.round_type === "cs_fundamentals") {
+    return <CSFeedback report={report} onRestart={onRestart} />
+  }
+  if (report.round_type === "project_behavioral") {
+    return <PBFeedback report={report} onRestart={onRestart} />
+  }
   const breakdown = report.round_breakdown || {}
   const roundItems = roundBreakdownItems(breakdown)
   const integrity = report.integrity || {}
@@ -1031,6 +1168,1524 @@ function Feedback({ report, onRestart }) {
       <button onClick={onRestart} className="mt-6 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950">Start another interview</button>
     </section>
   </main>
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DSA COMPREHENSIVE REPORT COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function verdictColors(signal) {
+  if (!signal) return { bg: "bg-slate-800", border: "border-slate-600", text: "text-slate-300", dot: "bg-slate-400" }
+  const s = signal.toLowerCase()
+  if (s.includes("strong hire")) return { bg: "bg-emerald-950", border: "border-emerald-500", text: "text-emerald-300", dot: "bg-emerald-400" }
+  if (s === "hire") return { bg: "bg-cyan-950", border: "border-cyan-500", text: "text-cyan-300", dot: "bg-cyan-400" }
+  if (s.includes("lean hire")) return { bg: "bg-blue-950", border: "border-blue-500", text: "text-blue-300", dot: "bg-blue-400" }
+  if (s.includes("lean reject")) return { bg: "bg-amber-950", border: "border-amber-500", text: "text-amber-300", dot: "bg-amber-400" }
+  return { bg: "bg-red-950", border: "border-red-500", text: "text-red-300", dot: "bg-red-400" }
+}
+
+function scoreColor(score) {
+  if (score >= 80) return { bar: "bg-emerald-400", text: "text-emerald-300" }
+  if (score >= 65) return { bar: "bg-cyan-400", text: "text-cyan-300" }
+  if (score >= 50) return { bar: "bg-blue-400", text: "text-blue-300" }
+  if (score >= 35) return { bar: "bg-amber-400", text: "text-amber-300" }
+  return { bar: "bg-red-400", text: "text-red-300" }
+}
+
+function labelColor(label) {
+  if (!label) return "text-slate-400"
+  const l = label.toLowerCase()
+  if (l === "exceptional") return "text-emerald-300"
+  if (l === "strong") return "text-cyan-300"
+  if (l === "competent") return "text-blue-300"
+  if (l === "developing") return "text-amber-300"
+  return "text-red-300"
+}
+
+function RadarChart({ metrics }) {
+  if (!metrics || metrics.length === 0) return null
+  const size = 280
+  const cx = size / 2
+  const cy = size / 2
+  const r = 100
+  const n = metrics.length
+  const angles = metrics.map((_, i) => (i * 2 * Math.PI / n) - Math.PI / 2)
+
+  const rings = [0.25, 0.5, 0.75, 1.0].map((scale) => {
+    const pts = angles.map((a) => `${cx + r * scale * Math.cos(a)},${cy + r * scale * Math.sin(a)}`).join(" ")
+    return <polygon key={scale} points={pts} fill="none" stroke="#1e293b" strokeWidth="1" />
+  })
+
+  const axes = angles.map((a, i) => (
+    <line key={i} x1={cx} y1={cy} x2={cx + r * Math.cos(a)} y2={cy + r * Math.sin(a)} stroke="#334155" strokeWidth="1" />
+  ))
+
+  const dataPoints = metrics.map((m, i) => {
+    const v = Math.max(0, Math.min(100, Number(m.score) || 0)) / 100
+    return `${cx + r * v * Math.cos(angles[i])},${cy + r * v * Math.sin(angles[i])}`
+  }).join(" ")
+
+  const dots = metrics.map((m, i) => {
+    const v = Math.max(0, Math.min(100, Number(m.score) || 0)) / 100
+    return <circle key={i} cx={cx + r * v * Math.cos(angles[i])} cy={cy + r * v * Math.sin(angles[i])} r="3" fill="#22d3ee" />
+  })
+
+  const labels = metrics.map((m, i) => {
+    const labelR = r * 1.28
+    const x = cx + labelR * Math.cos(angles[i])
+    const y = cy + labelR * Math.sin(angles[i])
+    const anchor = Math.cos(angles[i]) > 0.15 ? "start" : Math.cos(angles[i]) < -0.15 ? "end" : "middle"
+    const shortName = m.name.length > 14 ? m.name.slice(0, 12) + "…" : m.name
+    return (
+      <text key={i} x={x} y={y} textAnchor={anchor} fontSize="9.5" fill="#94a3b8" dominantBaseline="middle">
+        {shortName}
+      </text>
+    )
+  })
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="mx-auto block">
+      {rings}
+      {axes}
+      <polygon points={dataPoints} fill="rgba(34,211,238,0.12)" stroke="#22d3ee" strokeWidth="1.5" />
+      {dots}
+      {labels}
+    </svg>
+  )
+}
+
+function MetricCard({ metric }) {
+  const score = Math.max(0, Math.min(100, Number(metric.score) || 0))
+  const { bar, text } = scoreColor(score)
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm font-medium text-slate-200 leading-5">{metric.name}</div>
+        <div className={`text-lg font-bold shrink-0 ${text}`}>{score}</div>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="flex-1 h-1.5 rounded bg-slate-800">
+          <div className={`h-1.5 rounded ${bar} transition-all`} style={{ width: `${score}%` }} />
+        </div>
+        {metric.label && <span className={`text-xs font-medium shrink-0 ${labelColor(metric.label)}`}>{metric.label}</span>}
+      </div>
+      {metric.note && <p className="mt-2 text-xs leading-5 text-slate-400">{metric.note}</p>}
+    </div>
+  )
+}
+
+function VerdictCard({ verdict, overallScore }) {
+  const signal = verdict?.signal || ""
+  const { bg, border, text, dot } = verdictColors(signal)
+  const confidence = Math.max(0, Math.min(100, Number(verdict?.confidence_score) || 0))
+  const { bar: confBar } = scoreColor(confidence)
+  return (
+    <div className={`rounded border-2 ${border} ${bg} p-5`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Final Verdict</div>
+          <div className="flex items-center gap-2">
+            <div className={`h-3 w-3 rounded-full ${dot}`} />
+            <span className={`text-xl font-bold ${text}`}>{signal || "Pending"}</span>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className={`text-4xl font-bold ${text}`}>{Math.round(Number(overallScore) || 0)}</div>
+          <div className="text-xs text-slate-500">overall</div>
+        </div>
+      </div>
+      <div className="mt-3">
+        <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+          <span>Confidence</span><span>{confidence}%</span>
+        </div>
+        <div className="h-1.5 rounded bg-slate-800">
+          <div className={`h-1.5 rounded ${confBar}`} style={{ width: `${confidence}%` }} />
+        </div>
+      </div>
+      {verdict?.summary && <p className="mt-3 text-sm leading-6 text-slate-300">{verdict.summary}</p>}
+      {(verdict?.biggest_strength || verdict?.biggest_weakness || verdict?.most_important_next_step) && (
+        <div className="mt-3 grid gap-2">
+          {verdict.biggest_strength && (
+            <div className="rounded bg-emerald-950/50 border border-emerald-800/40 px-3 py-2 text-xs text-emerald-200">
+              <span className="font-semibold text-emerald-400">Top strength: </span>{verdict.biggest_strength}
+            </div>
+          )}
+          {verdict.biggest_weakness && (
+            <div className="rounded bg-amber-950/50 border border-amber-800/40 px-3 py-2 text-xs text-amber-200">
+              <span className="font-semibold text-amber-400">Key gap: </span>{verdict.biggest_weakness}
+            </div>
+          )}
+          {verdict.most_important_next_step && (
+            <div className="rounded bg-blue-950/50 border border-blue-800/40 px-3 py-2 text-xs text-blue-200">
+              <span className="font-semibold text-blue-400">Priority action: </span>{verdict.most_important_next_step}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WeaknessCard({ weakness }) {
+  return (
+    <div className="rounded border border-amber-800/30 bg-amber-950/20 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+        <h4 className="text-sm font-semibold text-amber-200">{weakness.area}</h4>
+      </div>
+      {weakness.specific_issue && (
+        <p className="text-sm leading-6 text-slate-300 mb-2">{weakness.specific_issue}</p>
+      )}
+      <div className="grid gap-2 mt-2">
+        {weakness.why_it_matters && (
+          <div className="rounded bg-slate-900 px-3 py-2 text-xs leading-5 text-slate-400">
+            <span className="font-semibold text-slate-300">Why it matters: </span>{weakness.why_it_matters}
+          </div>
+        )}
+        {weakness.improvement && (
+          <div className="rounded bg-slate-900 px-3 py-2 text-xs leading-5 text-cyan-200">
+            <span className="font-semibold text-cyan-400">Fix: </span>{weakness.improvement}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StrengthCard({ strength }) {
+  return (
+    <div className="rounded border border-emerald-800/30 bg-emerald-950/20 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+        <h4 className="text-sm font-semibold text-emerald-200">{strength.strength}</h4>
+      </div>
+      {strength.evidence && <p className="text-xs leading-5 text-slate-400 mb-1">{strength.evidence}</p>}
+      {strength.interview_value && (
+        <div className="mt-1 rounded bg-slate-900 px-2 py-1 text-xs text-emerald-300">
+          <span className="font-semibold">Interview value: </span>{strength.interview_value}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BehaviorCoachCard({ item }) {
+  return (
+    <div className="rounded border border-blue-800/30 bg-blue-950/20 p-4">
+      <div className="mb-2">
+        <span className="rounded bg-blue-900/60 px-2 py-0.5 text-xs font-medium text-blue-300">Observed</span>
+      </div>
+      <p className="text-sm font-medium text-slate-200 mb-2">{item.observation}</p>
+      {item.impact && <p className="text-xs leading-5 text-slate-400 mb-2"><span className="font-semibold text-slate-300">Impact: </span>{item.impact}</p>}
+      {item.coaching && (
+        <div className="rounded bg-slate-900 px-3 py-2 text-xs leading-5 text-blue-200">
+          <span className="font-semibold text-blue-400">Coach says: </span>{item.coaching}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RecommendationCard({ rec }) {
+  const priorityStyle = { high: "bg-red-900/60 text-red-300", medium: "bg-amber-900/60 text-amber-300", low: "bg-slate-800 text-slate-400" }
+  const catStyle = { "Practice Patterns": "text-cyan-400", "Interview Habits": "text-blue-400", "Optimization Strategy": "text-emerald-400", "Debugging Strategy": "text-amber-400", "Communication": "text-purple-400", "Edge Case Handling": "text-pink-400" }
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`rounded px-2 py-0.5 text-xs font-medium ${priorityStyle[rec.priority] || priorityStyle.low}`}>{rec.priority || "medium"}</span>
+        <span className={`text-xs font-medium ${catStyle[rec.category] || "text-slate-400"}`}>{rec.category}</span>
+      </div>
+      <p className="text-sm leading-6 text-slate-300">{rec.recommendation}</p>
+    </div>
+  )
+}
+
+function QuestionPerformanceCard({ qp }) {
+  const verdictColor = { Strong: "text-emerald-400 bg-emerald-900/40", Satisfactory: "text-blue-400 bg-blue-900/40", "Needs Work": "text-amber-400 bg-amber-900/40", Weak: "text-red-400 bg-red-900/40" }
+  const vc = verdictColor[qp.verdict] || verdictColor["Needs Work"]
+  const metrics = qp.metrics || {}
+  const bars = [
+    { label: "Approach", val: metrics.approach_quality || 0 },
+    { label: "Implementation", val: metrics.implementation || 0 },
+    { label: "Communication", val: metrics.communication || 0 },
+    { label: "Debugging", val: metrics.debugging || 0 },
+  ]
+  return (
+    <div className="rounded border border-slate-700 bg-slate-900 p-4">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Question {qp.question_index}</span>
+          {qp.problem_excerpt && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{qp.problem_excerpt}</p>}
+        </div>
+        <div className="flex flex-col items-end gap-1 ml-3 shrink-0">
+          <span className={`rounded px-2 py-0.5 text-xs font-semibold ${vc}`}>{qp.verdict}</span>
+          <span className="text-lg font-bold text-slate-100">{qp.overall_score}<span className="text-xs font-normal text-slate-500">/100</span></span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        {bars.map(({ label, val }) => {
+          const { bar, text } = scoreColor(val)
+          return (
+            <div key={label}>
+              <div className="flex justify-between text-xs mb-0.5"><span className="text-slate-500">{label}</span><span className={text}>{val}</span></div>
+              <div className="h-1 rounded bg-slate-800"><div className={`h-1 rounded ${bar}`} style={{ width: `${val}%` }} /></div>
+            </div>
+          )
+        })}
+      </div>
+      {(qp.hints_used > 0 || (qp.followups_asked || []).length > 0) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {qp.hints_used > 0 && <span className="rounded bg-amber-900/30 px-2 py-0.5 text-xs text-amber-400">{qp.hints_used} hint{qp.hints_used !== 1 ? "s" : ""} used</span>}
+          {(qp.followups_asked || []).slice(0, 1).map((f, i) => <span key={i} className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400 max-w-xs truncate">{f}</span>)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AdvancedMetricCard({ title, score, children }) {
+  const { bar, text } = scoreColor(Math.max(0, Math.min(100, Number(score) || 0)))
+  const s = Math.max(0, Math.min(100, Number(score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-semibold text-slate-200">{title}</h4>
+        <span className={`text-lg font-bold ${text}`}>{s}</span>
+      </div>
+      <div className="h-1.5 rounded bg-slate-800 mb-3">
+        <div className={`h-1.5 rounded ${bar}`} style={{ width: `${s}%` }} />
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function BenchmarkRow({ comparison }) {
+  const c = Math.max(0, Math.min(100, Number(comparison.candidate_score) || 0))
+  const f = Math.max(0, Math.min(100, Number(comparison.faang_bar) || 0))
+  const { bar: cBar } = scoreColor(c)
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm text-slate-200">{comparison.metric}</span>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-cyan-300 font-medium">You: {c}</span>
+          <span className="text-slate-500">Bar: {f}</span>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="w-10 text-xs text-slate-500 shrink-0">You</span>
+          <div className="flex-1 h-2 rounded bg-slate-800">
+            <div className={`h-2 rounded ${cBar}`} style={{ width: `${c}%` }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-10 text-xs text-slate-500 shrink-0">Bar</span>
+          <div className="flex-1 h-2 rounded bg-slate-800">
+            <div className="h-2 rounded bg-slate-600" style={{ width: `${f}%` }} />
+          </div>
+        </div>
+      </div>
+      {comparison.gap_note && <p className="mt-2 text-xs leading-5 text-slate-400">{comparison.gap_note}</p>}
+    </div>
+  )
+}
+
+function LearningPlanSection({ plan }) {
+  const [tab, setTab] = useState("week1")
+  if (!plan || (!plan.one_week && !plan.two_week)) return null
+  const week1 = plan.one_week || {}
+  const week2 = plan.two_week || {}
+  const current = tab === "week1" ? week1 : week2
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-5">
+      <h2 className="mb-4 text-base font-semibold text-slate-100">Personalized Learning Plan</h2>
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setTab("week1")} className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${tab === "week1" ? "bg-cyan-500 text-slate-950" : "border border-slate-700 text-slate-400 hover:text-slate-200"}`}>Week 1</button>
+        <button onClick={() => setTab("week2")} className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${tab === "week2" ? "bg-cyan-500 text-slate-950" : "border border-slate-700 text-slate-400 hover:text-slate-200"}`}>Week 2</button>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {current.daily_goals?.length > 0 && (
+          <div>
+            <h3 className="text-xs uppercase text-cyan-400 mb-2 font-semibold tracking-wide">Daily Goals</h3>
+            <ul className="space-y-1.5">
+              {current.daily_goals.map((g, i) => (
+                <li key={i} className="flex gap-2 text-xs leading-5 text-slate-300">
+                  <span className="shrink-0 text-cyan-500 font-bold">{i + 1}.</span>{g}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {current.focus_topics?.length > 0 && (
+          <div>
+            <h3 className="text-xs uppercase text-emerald-400 mb-2 font-semibold tracking-wide">Focus Topics</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {current.focus_topics.map((t, i) => (
+                <span key={i} className="rounded bg-emerald-900/40 border border-emerald-800/40 px-2 py-0.5 text-xs text-emerald-200">{t}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {current.problem_types?.length > 0 && (
+          <div>
+            <h3 className="text-xs uppercase text-blue-400 mb-2 font-semibold tracking-wide">Problem Types</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {current.problem_types.map((p, i) => (
+                <span key={i} className="rounded bg-blue-900/40 border border-blue-800/40 px-2 py-0.5 text-xs text-blue-200">{p}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      {plan.recommended_problems?.length > 0 && (
+        <div className="mt-4 border-t border-slate-800 pt-4">
+          <h3 className="text-xs uppercase text-amber-400 mb-2 font-semibold tracking-wide">Recommended Problem Patterns</h3>
+          <div className="flex flex-wrap gap-2">
+            {plan.recommended_problems.map((p, i) => (
+              <span key={i} className="rounded bg-amber-900/30 border border-amber-800/30 px-2.5 py-1 text-xs text-amber-200">{p}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DSAFeedback({ report, onRestart }) {
+  const ev = (report.dsa_evaluation && report.dsa_evaluation.final_verdict)
+    ? report.dsa_evaluation
+    : _buildClientDSAEval(report)
+  const verdict = ev.final_verdict || {}
+  const ct = ev.company_tailored || {}
+  const adv = ev.advanced_metrics || {}
+  const breakdown = report.round_breakdown || {}
+  const integrity = report.integrity || {}
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="mx-auto max-w-7xl px-4 py-8">
+
+        {/* Header */}
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
+              <span>DSA Interview Report</span>
+              {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
+              {report.job_role && <span className="text-slate-500">{report.job_role}</span>}
+            </div>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{report.summary || verdict.summary}</p>
+            {report.skill_gap && (
+              <div className="mt-3 rounded border border-amber-700/30 bg-amber-950/20 px-3 py-2 text-xs leading-5 text-amber-200 max-w-2xl">
+                <span className="font-semibold text-amber-400">Key skill gap: </span>{report.skill_gap}
+              </div>
+            )}
+          </div>
+          {breakdown.problem?.title && (
+            <div className="rounded border border-slate-800 bg-slate-900 px-4 py-3 text-right text-sm shrink-0">
+              <div className="text-slate-500 text-xs mb-0.5">Problem</div>
+              <div className="font-semibold text-slate-100">{breakdown.problem.title}</div>
+              <div className="text-slate-400 text-xs mt-0.5">{breakdown.problem.difficulty} · {(breakdown.problem.topics || []).slice(0, 3).join(", ")}</div>
+              {breakdown.submission?.total_testcases > 0 && (
+                <div className={`mt-1 text-xs font-medium ${breakdown.submission.passed_testcases === breakdown.submission.total_testcases ? "text-emerald-400" : "text-amber-400"}`}>
+                  {breakdown.submission.passed_testcases}/{breakdown.submission.total_testcases} tests passed
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Main two-column layout */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+
+          {/* Left column */}
+          <div className="space-y-6">
+
+            {/* Radar + core metrics header */}
+            {ev.core_metrics?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Core Evaluation Metrics</h2>
+                <div className="grid gap-6 md:grid-cols-[280px_1fr] items-start">
+                  <RadarChart metrics={ev.core_metrics} />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {ev.core_metrics.map((m) => <MetricCard key={m.name} metric={m} />)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Advanced metrics */}
+            {adv.company_fit && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Company Fit Analysis</h2>
+                <AdvancedMetricCard title="Company Fit" score={adv.company_fit.score}>
+                  <p className="text-xs leading-5 text-slate-400 mb-2">{adv.company_fit.note}</p>
+                  <div className="space-y-1">
+                    {adv.company_fit.fit_signals?.slice(0, 3).map((s, i) => (
+                      <div key={i} className="flex gap-1 text-xs text-emerald-300"><span>+</span>{s}</div>
+                    ))}
+                    {adv.company_fit.concern_signals?.slice(0, 3).map((s, i) => (
+                      <div key={i} className="flex gap-1 text-xs text-amber-300"><span>−</span>{s}</div>
+                    ))}
+                  </div>
+                </AdvancedMetricCard>
+              </div>
+            )}
+
+            {/* Company-tailored */}
+            {ct.company && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-slate-100">{ct.company} — Company-Tailored Evaluation</h2>
+                  {ct.bar_assessment && (
+                    <span className={`rounded px-2.5 py-1 text-xs font-semibold ${ct.bar_assessment === "Above Bar" ? "bg-emerald-900 text-emerald-300" : ct.bar_assessment === "At Bar" ? "bg-cyan-900 text-cyan-300" : ct.bar_assessment === "Approaching Bar" ? "bg-amber-900 text-amber-300" : "bg-red-900 text-red-300"}`}>
+                      {ct.bar_assessment}
+                    </span>
+                  )}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    ["Optimization Quality", ct.optimization_quality],
+                    ["Communication Clarity", ct.communication_clarity],
+                    ["Follow-up Handling", ct.followup_handling],
+                    ["Coding Speed", ct.coding_speed],
+                    ["Debugging Behavior", ct.debugging_behavior],
+                  ].filter(([, v]) => v).map(([label, val]) => (
+                    <div key={label} className="rounded border border-slate-800 bg-slate-950 p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-medium text-slate-300">{label}</span>
+                        <span className={`text-base font-bold ${scoreColor(Number(val.score) || 0).text}`}>{Math.max(0, Math.min(100, Number(val.score) || 0))}</span>
+                      </div>
+                      <div className="h-1 rounded bg-slate-800 mb-2">
+                        <div className={`h-1 rounded ${scoreColor(Number(val.score) || 0).bar}`} style={{ width: `${Math.max(0, Math.min(100, Number(val.score) || 0))}%` }} />
+                      </div>
+                      <p className="text-xs leading-5 text-slate-400">{val.note}</p>
+                    </div>
+                  ))}
+                </div>
+                {ct.summary && (
+                  <div className="mt-4 rounded border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-300">
+                    {ct.summary}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Benchmarking */}
+            {ev.benchmarking && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-start justify-between mb-4 gap-4">
+                  <h2 className="text-base font-semibold text-slate-100">Comparative Benchmarking</h2>
+                  <div className="text-right shrink-0">
+                    <div className={`text-2xl font-bold ${scoreColor(ev.benchmarking.faang_readiness_score || 0).text}`}>
+                      {ev.benchmarking.faang_readiness_score || 0}
+                    </div>
+                    <div className="text-xs text-slate-500">FAANG readiness</div>
+                    {ev.benchmarking.estimated_level && (
+                      <div className="mt-0.5 text-xs font-medium text-slate-400">{ev.benchmarking.estimated_level}</div>
+                    )}
+                  </div>
+                </div>
+                {ev.benchmarking.overall_readiness_note && (
+                  <p className="text-sm leading-6 text-slate-400 mb-4">{ev.benchmarking.overall_readiness_note}</p>
+                )}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(ev.benchmarking.comparisons || []).map((c, i) => <BenchmarkRow key={i} comparison={c} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Topic mastery heatmap */}
+            {report.topic_mastery?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Topic Mastery</h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {report.topic_mastery.map((t) => <ParameterCard key={t.topic} param={{ name: t.topic, score: t.mastery, note: t.note }} />)}
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Right column */}
+          <div className="space-y-5">
+            <VerdictCard verdict={verdict} overallScore={report.overall_score} />
+
+            {ev.weakness_analysis?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Weakness Analysis</h2>
+                <div className="space-y-3">
+                  {ev.weakness_analysis.map((w, i) => <WeaknessCard key={i} weakness={w} />)}
+                </div>
+              </div>
+            )}
+
+            {ev.strength_recognition?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Strengths Recognized</h2>
+                <div className="space-y-3">
+                  {ev.strength_recognition.map((s, i) => <StrengthCard key={i} strength={s} />)}
+                </div>
+              </div>
+            )}
+
+            {ev.behavior_coaching?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Behavior Coaching</h2>
+                <div className="space-y-3">
+                  {ev.behavior_coaching.map((item, i) => <BehaviorCoachCard key={i} item={item} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Integrity */}
+            <div className="rounded border border-slate-800 bg-slate-900 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Integrity</h2>
+              <div className={`text-3xl font-bold mb-1 ${scoreColor(integrity.score ?? 100).text}`}>{integrity.score ?? 100}<span className="text-sm text-slate-500">/100</span></div>
+              <div className="grid gap-1 text-xs text-slate-400">
+                <span>{integrity.violations?.length || 0} proctoring event{integrity.violations?.length !== 1 ? "s" : ""}</span>
+                <span>Tab switches: {integrity.focus_loss || 0}</span>
+                <span>Paste events: {integrity.paste_events || 0}</span>
+                {integrity.large_pastes > 0 && <span className="text-amber-400">Large pastes: {integrity.large_pastes}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Full-width bottom sections */}
+        <div className="mt-6 space-y-6">
+
+          {ev.question_performance?.length > 0 && (
+            <div className="rounded border border-slate-800 bg-slate-900 p-5">
+              <h2 className="mb-4 text-base font-semibold text-slate-100">Question-wise Performance</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {ev.question_performance.map((qp, i) => <QuestionPerformanceCard key={i} qp={qp} />)}
+              </div>
+            </div>
+          )}
+
+          {ev.improvement_recommendations?.length > 0 && (
+            <div className="rounded border border-slate-800 bg-slate-900 p-5">
+              <h2 className="mb-4 text-base font-semibold text-slate-100">Improvement Recommendations</h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {ev.improvement_recommendations.map((rec, i) => <RecommendationCard key={i} rec={rec} />)}
+              </div>
+            </div>
+          )}
+
+          <LearningPlanSection plan={ev.learning_plan || {}} />
+
+          {/* Evidence */}
+          {breakdown.evidence?.length > 0 && <EvidencePanel evidence={breakdown.evidence} />}
+
+        </div>
+
+        <button onClick={onRestart} className="mt-8 rounded bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300 transition-colors">
+          Start Another Interview
+        </button>
+      </div>
+    </main>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CS FUNDAMENTALS REPORT COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function depthStyle(level) {
+  if (!level) return { bg: "bg-slate-900", text: "text-slate-400", border: "border-slate-700" }
+  const l = String(level).toLowerCase()
+  if (l === "expert") return { bg: "bg-emerald-950/50", text: "text-emerald-300", border: "border-emerald-800/50" }
+  if (l === "practical") return { bg: "bg-cyan-950/50", text: "text-cyan-300", border: "border-cyan-800/50" }
+  if (l === "theoretical") return { bg: "bg-blue-950/50", text: "text-blue-300", border: "border-blue-800/50" }
+  return { bg: "bg-amber-950/50", text: "text-amber-300", border: "border-amber-800/50" }
+}
+
+function severityStyle(severity) {
+  const s = String(severity || "").toLowerCase()
+  if (s === "critical") return { bg: "bg-red-950/60", border: "border-red-700/40", badge: "bg-red-900/80 text-red-300", text: "text-red-200" }
+  if (s === "moderate") return { bg: "bg-amber-950/60", border: "border-amber-700/40", badge: "bg-amber-900/80 text-amber-300", text: "text-amber-200" }
+  return { bg: "bg-slate-900", border: "border-slate-700", badge: "bg-slate-800 text-slate-400", text: "text-slate-300" }
+}
+
+function followUpPatternStyle(pattern) {
+  const p = String(pattern || "").toLowerCase()
+  if (p.includes("consistently_strong")) return "text-emerald-300"
+  if (p.includes("improved")) return "text-cyan-300"
+  if (p.includes("degraded")) return "text-amber-300"
+  if (p.includes("collapsed")) return "text-red-300"
+  return "text-slate-400"
+}
+
+function balanceLabel(balance) {
+  const map = { "Heavy_Theory": "Heavy Theory", "Theory_Leaning": "Theory-Leaning", "Balanced": "Balanced", "Practice_Leaning": "Practice-Leaning", "Heavy_Practice": "Heavy Practice" }
+  return map[balance] || balance || "—"
+}
+
+function TopicProfileCard({ topic }) {
+  const { bg, text, border } = depthStyle(topic.depth_level)
+  const score = Math.max(0, Math.min(100, Number(topic.score) || 0))
+  const { bar } = scoreColor(score)
+  return (
+    <div className={`rounded border ${border} ${bg} p-4`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-100">{topic.topic}</h4>
+          {topic.depth_level && <span className={`text-xs font-medium ${text}`}>{topic.depth_level}</span>}
+        </div>
+        <div className={`text-xl font-bold shrink-0 ${scoreColor(score).text}`}>{score}</div>
+      </div>
+      <div className="h-1.5 rounded bg-slate-800 mb-3">
+        <div className={`h-1.5 rounded ${bar}`} style={{ width: `${score}%` }} />
+      </div>
+      {topic.highlight && (
+        <div className="mb-2 rounded bg-emerald-950/40 border border-emerald-800/30 px-2 py-1.5 text-xs leading-5 text-emerald-200">
+          <span className="font-semibold text-emerald-400">Strong: </span>{topic.highlight}
+        </div>
+      )}
+      {topic.gap && (
+        <div className="mb-2 rounded bg-amber-950/40 border border-amber-800/30 px-2 py-1.5 text-xs leading-5 text-amber-200">
+          <span className="font-semibold text-amber-400">Gap: </span>{topic.gap}
+        </div>
+      )}
+      {topic.misconceptions_detected?.length > 0 && (
+        <div className="mb-2">
+          {topic.misconceptions_detected.map((m, i) => (
+            <div key={i} className="flex gap-1.5 text-xs leading-5 text-red-300">
+              <span className="shrink-0 font-bold text-red-400">⚠</span>{m}
+            </div>
+          ))}
+        </div>
+      )}
+      {topic.coaching && (
+        <div className="rounded bg-slate-900 px-2 py-1.5 text-xs leading-5 text-blue-200">
+          <span className="font-semibold text-blue-400">Coach: </span>{topic.coaching}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MisconceptionCard({ item }) {
+  const { bg, border, badge, text } = severityStyle(item.severity)
+  return (
+    <div className={`rounded border ${border} ${bg} p-4`}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge}`}>{item.severity || "Minor"}</span>
+        <h4 className="text-sm font-semibold text-slate-100">{item.concept}</h4>
+      </div>
+      {item.what_was_said && (
+        <div className="mb-2">
+          <div className="text-xs font-semibold text-slate-500 mb-1">What was said</div>
+          <p className={`text-xs leading-5 italic ${text}`}>"{item.what_was_said}"</p>
+        </div>
+      )}
+      {item.what_is_correct && (
+        <div className="mb-2 rounded bg-slate-900 px-3 py-2 text-xs leading-5 text-slate-300">
+          <span className="font-semibold text-emerald-400">Correct: </span>{item.what_is_correct}
+        </div>
+      )}
+      {item.interview_impact && (
+        <p className="text-xs leading-5 text-slate-400"><span className="font-semibold text-slate-300">Interviewer reads this as: </span>{item.interview_impact}</p>
+      )}
+    </div>
+  )
+}
+
+function FollowUpPanel({ analysis }) {
+  if (!analysis) return null
+  const score = Math.max(0, Math.min(100, Number(analysis.score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-100">Follow-Up Resilience</h3>
+        <div className="flex items-center gap-2">
+          {analysis.pattern && <span className={`text-xs font-medium ${followUpPatternStyle(analysis.pattern)}`}>{analysis.pattern.replaceAll("_", " ")}</span>}
+          <span className={`text-lg font-bold ${scoreColor(score).text}`}>{score}</span>
+        </div>
+      </div>
+      <div className="h-1.5 rounded bg-slate-800 mb-3">
+        <div className={`h-1.5 rounded ${scoreColor(score).bar}`} style={{ width: `${score}%` }} />
+      </div>
+      {analysis.observations?.length > 0 && (
+        <div className="space-y-1.5 mb-3">
+          {analysis.observations.map((obs, i) => (
+            <div key={i} className="flex gap-2 text-xs leading-5 text-slate-300">
+              <span className="shrink-0 text-slate-500">→</span>{obs}
+            </div>
+          ))}
+        </div>
+      )}
+      {analysis.coaching && (
+        <div className="rounded bg-blue-950/40 border border-blue-800/30 px-3 py-2 text-xs leading-5 text-blue-200">
+          <span className="font-semibold text-blue-400">Coach: </span>{analysis.coaching}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EngineeringIntuitionPanel({ intuition }) {
+  if (!intuition) return null
+  const score = Math.max(0, Math.min(100, Number(intuition.score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-slate-100">Engineering Intuition</h3>
+        <span className={`text-lg font-bold ${scoreColor(score).text}`}>{score}</span>
+      </div>
+      <div className="h-1.5 rounded bg-slate-800 mb-3">
+        <div className={`h-1.5 rounded ${scoreColor(score).bar}`} style={{ width: `${score}%` }} />
+      </div>
+      {intuition.balance && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs text-slate-500">Balance:</span>
+          <span className={`text-xs font-medium ${intuition.balance === "Balanced" ? "text-cyan-300" : intuition.balance?.includes("Practice") ? "text-emerald-300" : "text-amber-300"}`}>
+            {balanceLabel(intuition.balance)}
+          </span>
+        </div>
+      )}
+      <div className="grid gap-2 sm:grid-cols-2 mb-3">
+        {intuition.strong_practical_areas?.length > 0 && (
+          <div>
+            <div className="text-xs font-semibold text-emerald-400 mb-1.5">Practical intuition shown</div>
+            {intuition.strong_practical_areas.map((a, i) => (
+              <div key={i} className="flex gap-1 text-xs leading-5 text-emerald-200"><span>+</span>{a}</div>
+            ))}
+          </div>
+        )}
+        {intuition.theory_only_areas?.length > 0 && (
+          <div>
+            <div className="text-xs font-semibold text-amber-400 mb-1.5">Definition-only answers</div>
+            {intuition.theory_only_areas.map((a, i) => (
+              <div key={i} className="flex gap-1 text-xs leading-5 text-amber-200"><span>−</span>{a}</div>
+            ))}
+          </div>
+        )}
+      </div>
+      {intuition.coaching && (
+        <div className="rounded bg-blue-950/40 border border-blue-800/30 px-3 py-2 text-xs leading-5 text-blue-200">
+          <span className="font-semibold text-blue-400">Coach: </span>{intuition.coaching}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ExplanationCoachingCard({ item }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="rounded bg-blue-900/50 px-2 py-0.5 text-xs font-medium text-blue-300">{item.topic}</span>
+      </div>
+      {item.pattern_observed && <p className="text-xs leading-5 text-slate-400 mb-2">{item.pattern_observed}</p>}
+      {item.coaching && (
+        <div className="rounded bg-slate-900 px-2 py-1.5 text-xs leading-5 text-blue-200">
+          <span className="font-semibold text-blue-400">Improve: </span>{item.coaching}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CSBenchmarkSection({ benchmarking }) {
+  if (!benchmarking) return null
+  const score = Math.max(0, Math.min(100, Number(benchmarking.readiness_score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-5">
+      <div className="flex items-start justify-between mb-4 gap-4">
+        <h2 className="text-base font-semibold text-slate-100">Benchmarking</h2>
+        <div className="text-right shrink-0">
+          <div className={`text-2xl font-bold ${scoreColor(score).text}`}>{score}</div>
+          <div className="text-xs text-slate-500">readiness</div>
+          {benchmarking.level_estimate && <div className="text-xs font-medium text-slate-400">{benchmarking.level_estimate}</div>}
+        </div>
+      </div>
+      {benchmarking.overall_note && <p className="text-sm leading-6 text-slate-400 mb-4">{benchmarking.overall_note}</p>}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {(benchmarking.comparisons || []).map((c, i) => (
+          <div key={i} className="rounded border border-slate-800 bg-slate-950 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-slate-200">{c.topic}</span>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`font-medium ${scoreColor(c.candidate_score || 0).text}`}>You: {c.candidate_score || 0}</span>
+                <span className="text-slate-500">Exp: {c.expectation || 0}</span>
+              </div>
+            </div>
+            <div className="space-y-1 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500 shrink-0">You</span>
+                <div className="flex-1 h-1.5 rounded bg-slate-800">
+                  <div className={`h-1.5 rounded ${scoreColor(c.candidate_score || 0).bar}`} style={{ width: `${c.candidate_score || 0}%` }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500 shrink-0">Exp</span>
+                <div className="flex-1 h-1.5 rounded bg-slate-800">
+                  <div className="h-1.5 rounded bg-slate-600" style={{ width: `${c.expectation || 0}%` }} />
+                </div>
+              </div>
+            </div>
+            {c.gap_note && <p className="text-xs leading-5 text-slate-400">{c.gap_note}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CSFeedback({ report, onRestart }) {
+  const ev = report.cs_evaluation || {}
+  const verdict = ev.final_verdict || {}
+  const breakdown = report.round_breakdown || {}
+  const integrity = report.integrity || {}
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="mx-auto max-w-7xl px-4 py-8">
+
+        {/* Header */}
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
+              <span>CS Fundamentals Report</span>
+              {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
+              {report.job_role && <span className="text-slate-500">{report.job_role}</span>}
+            </div>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{report.summary || verdict.summary}</p>
+            {report.skill_gap && (
+              <div className="mt-3 rounded border border-amber-700/30 bg-amber-950/20 px-3 py-2 text-xs leading-5 text-amber-200 max-w-2xl">
+                <span className="font-semibold text-amber-400">Key gap: </span>{report.skill_gap}
+              </div>
+            )}
+          </div>
+          {breakdown.topics_covered?.length > 0 && (
+            <div className="rounded border border-slate-800 bg-slate-900 px-4 py-3 text-sm shrink-0">
+              <div className="text-slate-500 text-xs mb-1">Topics covered</div>
+              <div className="flex flex-wrap gap-1">
+                {breakdown.topics_covered.map((t) => (
+                  <span key={t} className="rounded bg-cyan-900/40 px-2 py-0.5 text-xs text-cyan-300">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Two-column layout */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+
+          {/* Left column */}
+          <div className="space-y-6">
+
+            {/* Core metrics */}
+            {ev.core_metrics?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Core Evaluation Metrics</h2>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {ev.core_metrics.map((m) => <MetricCard key={m.name} metric={m} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Topic profiles */}
+            {ev.topic_profiles?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Topic-by-Topic Breakdown</h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {ev.topic_profiles.map((t, i) => <TopicProfileCard key={i} topic={t} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Engineering intuition + follow-up */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <EngineeringIntuitionPanel intuition={ev.engineering_intuition} />
+              <FollowUpPanel analysis={ev.follow_up_analysis} />
+            </div>
+
+            {/* Explanation coaching */}
+            {ev.explanation_coaching?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Explanation Coaching</h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {ev.explanation_coaching.map((item, i) => <ExplanationCoachingCard key={i} item={item} />)}
+                </div>
+              </div>
+            )}
+
+            <CSBenchmarkSection benchmarking={ev.benchmarking} />
+
+          </div>
+
+          {/* Right column */}
+          <div className="space-y-5">
+            <VerdictCard verdict={verdict} overallScore={report.overall_score} />
+
+            {ev.misconceptions?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-100">
+                  Misconceptions Detected
+                  <span className="ml-2 rounded bg-red-900/50 px-1.5 py-0.5 text-xs text-red-300">{ev.misconceptions.length}</span>
+                </h2>
+                <div className="space-y-3">
+                  {ev.misconceptions.map((item, i) => <MisconceptionCard key={i} item={item} />)}
+                </div>
+              </div>
+            )}
+
+            {ev.improvement_recommendations?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-100">Recommendations</h2>
+                <div className="space-y-2">
+                  {ev.improvement_recommendations.map((rec, i) => <RecommendationCard key={i} rec={rec} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Integrity */}
+            <div className="rounded border border-slate-800 bg-slate-900 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Integrity</h2>
+              <div className={`text-3xl font-bold mb-1 ${scoreColor(integrity.score ?? 100).text}`}>{integrity.score ?? 100}<span className="text-sm text-slate-500">/100</span></div>
+              <div className="grid gap-1 text-xs text-slate-400">
+                <span>{integrity.violations?.length || 0} proctoring event{integrity.violations?.length !== 1 ? "s" : ""}</span>
+                <span>Tab switches: {integrity.focus_loss || 0}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button onClick={onRestart} className="mt-8 rounded bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300 transition-colors">
+          Start Another Interview
+        </button>
+      </div>
+    </main>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT + BEHAVIORAL REPORT COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ownershipPatternStyle(pattern) {
+  const p = String(pattern || "").toLowerCase()
+  if (p.includes("strong")) return { text: "text-emerald-300", badge: "bg-emerald-900/60 text-emerald-300" }
+  if (p.includes("shared")) return { text: "text-cyan-300", badge: "bg-cyan-900/60 text-cyan-300" }
+  if (p.includes("passive")) return { text: "text-amber-300", badge: "bg-amber-900/60 text-amber-300" }
+  return { text: "text-red-300", badge: "bg-red-900/60 text-red-300" }
+}
+
+function conflictMaturityStyle(level) {
+  const l = String(level || "").toLowerCase()
+  if (l === "strategic") return "text-emerald-300"
+  if (l === "assertive") return "text-cyan-300"
+  if (l === "diplomatic") return "text-blue-300"
+  return "text-amber-300"
+}
+
+function OwnershipPanel({ ownership }) {
+  if (!ownership) return null
+  const score = Math.max(0, Math.min(100, Number(ownership.ownership_score) || 0))
+  const analysis = ownership.ownership_analysis || {}
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-100">Project Ownership</h3>
+        <span className={`text-xl font-bold ${scoreColor(score).text}`}>{score}</span>
+      </div>
+      <div className="h-1.5 rounded bg-slate-800 mb-4">
+        <div className={`h-1.5 rounded ${scoreColor(score).bar}`} style={{ width: `${score}%` }} />
+      </div>
+      <div className="space-y-2">
+        {analysis.strong_signals?.slice(0, 3).map((s, i) => (
+          <div key={i} className="flex gap-2 text-xs leading-5 text-emerald-200">
+            <span className="shrink-0 font-bold text-emerald-400">+</span>{s}
+          </div>
+        ))}
+        {analysis.weak_signals?.slice(0, 3).map((s, i) => (
+          <div key={i} className="flex gap-2 text-xs leading-5 text-amber-200">
+            <span className="shrink-0 font-bold text-amber-400">−</span>{s}
+          </div>
+        ))}
+      </div>
+      {analysis.overall_note && (
+        <p className="mt-3 text-xs leading-5 text-slate-400 border-t border-slate-800 pt-3">{analysis.overall_note}</p>
+      )}
+    </div>
+  )
+}
+
+function EngineeringMaturityGrid({ maturity }) {
+  if (!maturity) return null
+  const indicators = [
+    ["Production Thinking", maturity.production_thinking],
+    ["Scalability Awareness", maturity.scalability_awareness],
+    ["Failure Handling", maturity.failure_handling],
+    ["Monitoring & Observability", maturity.monitoring_observability],
+    ["Optimization Thinking", maturity.optimization_thinking],
+  ].filter(([, v]) => v !== undefined && v !== null)
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-100">Engineering Maturity</h3>
+        <span className={`text-xl font-bold ${scoreColor(Number(maturity.score) || 0).text}`}>{Math.max(0, Math.min(100, Number(maturity.score) || 0))}</span>
+      </div>
+      <div className="space-y-2 mb-3">
+        {indicators.map(([label, val]) => {
+          const v = Math.max(0, Math.min(100, Number(val) || 0))
+          return (
+            <div key={label} className="grid grid-cols-[1fr_auto] items-center gap-2">
+              <div>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-xs text-slate-400">{label}</span>
+                  <span className={`text-xs font-medium ${scoreColor(v).text}`}>{v}</span>
+                </div>
+                <div className="h-1 rounded bg-slate-800">
+                  <div className={`h-1 rounded ${scoreColor(v).bar}`} style={{ width: `${v}%` }} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {maturity.note && <p className="text-xs leading-5 text-slate-400 border-t border-slate-800 pt-3">{maturity.note}</p>}
+    </div>
+  )
+}
+
+function STARBreakdown({ starAnalysis }) {
+  if (!starAnalysis) return null
+  const components = [
+    ["S — Situation", starAnalysis.situation],
+    ["T — Task", starAnalysis.task],
+    ["A — Action", starAnalysis.action],
+    ["R — Result", starAnalysis.result],
+  ]
+  const overall = Math.max(0, Math.min(100, Number(starAnalysis.overall_score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-slate-100">STAR Framework Analysis</h3>
+        <span className={`text-xl font-bold ${scoreColor(overall).text}`}>{overall}</span>
+      </div>
+      <div className="space-y-3">
+        {components.map(([label, comp]) => {
+          if (!comp) return null
+          const s = Math.max(0, Math.min(100, Number(comp.score) || 0))
+          return (
+            <div key={label}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-slate-300">{label}</span>
+                <span className={`text-sm font-bold ${scoreColor(s).text}`}>{s}</span>
+              </div>
+              <div className="h-1.5 rounded bg-slate-800 mb-1">
+                <div className={`h-1.5 rounded ${scoreColor(s).bar}`} style={{ width: `${s}%` }} />
+              </div>
+              {comp.note && <p className="text-xs leading-4 text-slate-400">{comp.note}</p>}
+            </div>
+          )
+        })}
+      </div>
+      {starAnalysis.coaching && (
+        <div className="mt-3 rounded bg-blue-950/40 border border-blue-800/30 px-3 py-2 text-xs leading-5 text-blue-200">
+          <span className="font-semibold text-blue-400">Coach: </span>{starAnalysis.coaching}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AuthenticityCard({ authenticity, title }) {
+  if (!authenticity) return null
+  const score = Math.max(0, Math.min(100, Number(authenticity.score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-slate-100">{title || "Authenticity"}</h3>
+        <span className={`text-xl font-bold ${scoreColor(score).text}`}>{score}</span>
+      </div>
+      <div className="h-1.5 rounded bg-slate-800 mb-3">
+        <div className={`h-1.5 rounded ${scoreColor(score).bar}`} style={{ width: `${score}%` }} />
+      </div>
+      {(authenticity.overclaiming_detected || authenticity.generic_leadership_detected) && (
+        <div className="mb-2 rounded bg-amber-950/40 border border-amber-800/30 px-2 py-1.5 text-xs text-amber-200">
+          {authenticity.overclaiming_detected && <div>⚠ Overclaiming signals detected</div>}
+          {authenticity.generic_leadership_detected && <div>⚠ Generic leadership story detected</div>}
+        </div>
+      )}
+      <div className="space-y-1.5">
+        {authenticity.scripted_indicators?.slice(0, 3).map((s, i) => (
+          <div key={i} className="flex gap-2 text-xs leading-5 text-amber-200">
+            <span className="shrink-0 text-amber-400">−</span>{s}
+          </div>
+        ))}
+        {authenticity.genuine_technical_moments?.slice(0, 3).map((s, i) => (
+          <div key={i} className="flex gap-2 text-xs leading-5 text-emerald-200">
+            <span className="shrink-0 text-emerald-400">+</span>{s}
+          </div>
+        ))}
+        {authenticity.authentic_moments?.slice(0, 2).map((s, i) => (
+          <div key={i} className="flex gap-2 text-xs leading-5 text-emerald-200">
+            <span className="shrink-0 text-emerald-400">+</span>{s}
+          </div>
+        ))}
+      </div>
+      {authenticity.note && <p className="mt-2 text-xs leading-5 text-slate-400 border-t border-slate-800 pt-2">{authenticity.note}</p>}
+    </div>
+  )
+}
+
+function BehavioralQualityCard({ title, score, note, pattern, patternStyleFn, badges }) {
+  const s = Math.max(0, Math.min(100, Number(score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-slate-200">{title}</span>
+        <span className={`text-lg font-bold ${scoreColor(s).text}`}>{s}</span>
+      </div>
+      <div className="h-1.5 rounded bg-slate-800 mb-2">
+        <div className={`h-1.5 rounded ${scoreColor(s).bar}`} style={{ width: `${s}%` }} />
+      </div>
+      {pattern && patternStyleFn && (
+        <span className={`text-xs font-medium ${patternStyleFn(pattern).text}`}>{pattern.replaceAll("_", " ")}</span>
+      )}
+      {badges?.map((b, i) => b && <span key={i} className="ml-2 rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{b}</span>)}
+      {note && <p className="mt-2 text-xs leading-5 text-slate-400">{note}</p>}
+    </div>
+  )
+}
+
+function ProjectTechCard({ topic }) {
+  const depth = Math.max(0, Math.min(100, Number(topic.depth_score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm font-medium text-slate-200">{topic.topic}</span>
+        <span className={`text-base font-bold ${scoreColor(depth).text}`}>{depth}</span>
+      </div>
+      <div className="h-1 rounded bg-slate-800 mb-2">
+        <div className={`h-1 rounded ${scoreColor(depth).bar}`} style={{ width: `${depth}%` }} />
+      </div>
+      {topic.note && <p className="text-xs leading-5 text-slate-400">{topic.note}</p>}
+    </div>
+  )
+}
+
+function CoachingSection({ coaching }) {
+  if (!coaching) return null
+  const sections = [
+    { label: "Project Explanation", items: coaching.project_coaching, color: "text-cyan-400" },
+    { label: "Behavioral Stories", items: coaching.behavioral_coaching, color: "text-blue-400" },
+    { label: "Communication", items: coaching.communication_coaching, color: "text-purple-400" },
+  ].filter((s) => s.items?.length > 0)
+  if (!sections.length) return null
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-5">
+      <h2 className="mb-4 text-base font-semibold text-slate-100">Personalized Coaching</h2>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {sections.map(({ label, items, color }) => (
+          <div key={label}>
+            <h3 className={`text-xs uppercase font-semibold tracking-wide mb-2 ${color}`}>{label}</h3>
+            <ul className="space-y-2">
+              {items.map((item, i) => (
+                <li key={i} className="flex gap-2 text-xs leading-5 text-slate-300">
+                  <span className={`shrink-0 font-bold ${color}`}>{i + 1}.</span>{item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PBBenchmarkSection({ benchmarking }) {
+  if (!benchmarking) return null
+  const score = Math.max(0, Math.min(100, Number(benchmarking.readiness_score) || 0))
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900 p-5">
+      <div className="flex items-start justify-between mb-4 gap-4">
+        <h2 className="text-base font-semibold text-slate-100">Benchmarking</h2>
+        <div className="text-right shrink-0">
+          <div className={`text-2xl font-bold ${scoreColor(score).text}`}>{score}</div>
+          <div className="text-xs text-slate-500">readiness</div>
+          {benchmarking.level_estimate && <div className="text-xs font-medium text-slate-400">{benchmarking.level_estimate}</div>}
+        </div>
+      </div>
+      {benchmarking.note && <p className="text-sm leading-6 text-slate-400 mb-4">{benchmarking.note}</p>}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {(benchmarking.comparisons || []).map((c, i) => (
+          <div key={i} className="rounded border border-slate-800 bg-slate-950 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-slate-200">{c.dimension}</span>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`font-medium ${scoreColor(c.candidate_score || 0).text}`}>You: {c.candidate_score || 0}</span>
+                <span className="text-slate-500">Exp: {c.expectation || 0}</span>
+              </div>
+            </div>
+            <div className="space-y-1 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500 shrink-0">You</span>
+                <div className="flex-1 h-1.5 rounded bg-slate-800">
+                  <div className={`h-1.5 rounded ${scoreColor(c.candidate_score || 0).bar}`} style={{ width: `${c.candidate_score || 0}%` }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500 shrink-0">Exp</span>
+                <div className="flex-1 h-1.5 rounded bg-slate-800">
+                  <div className="h-1.5 rounded bg-slate-600" style={{ width: `${c.expectation || 0}%` }} />
+                </div>
+              </div>
+            </div>
+            {c.gap_note && <p className="text-xs leading-5 text-slate-400">{c.gap_note}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PBFeedback({ report, onRestart }) {
+  const ev = report.pb_evaluation || {}
+  const verdict = ev.final_verdict || {}
+  const proj = ev.project_evaluation || {}
+  const beh = ev.behavioral_evaluation || {}
+  const comm = ev.communication_profile || {}
+  const breakdown = report.round_breakdown || {}
+  const integrity = report.integrity || {}
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="mx-auto max-w-7xl px-4 py-8">
+
+        {/* Header */}
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
+              <span>Project + Behavioral Report</span>
+              {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
+              {report.job_role && <span className="text-slate-500">{report.job_role}</span>}
+              {breakdown.company_style && <span className="text-slate-500">{breakdown.company_style}</span>}
+            </div>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{report.summary || verdict.summary}</p>
+            {report.skill_gap && (
+              <div className="mt-3 rounded border border-amber-700/30 bg-amber-950/20 px-3 py-2 text-xs leading-5 text-amber-200 max-w-2xl">
+                <span className="font-semibold text-amber-400">Key gap: </span>{report.skill_gap}
+              </div>
+            )}
+          </div>
+          {breakdown.resume_focus?.selected_project && (
+            <div className="rounded border border-slate-800 bg-slate-900 px-4 py-3 text-sm shrink-0">
+              <div className="text-slate-500 text-xs mb-0.5">Project focus</div>
+              <div className="font-semibold text-slate-100">{breakdown.resume_focus.selected_project}</div>
+              {breakdown.jd_signals?.skills?.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {breakdown.jd_signals.skills.slice(0, 4).map((s) => (
+                    <span key={s} className="rounded bg-blue-900/40 px-1.5 py-0.5 text-xs text-blue-300">{s}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Two-column layout */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+
+          {/* Left column */}
+          <div className="space-y-6">
+
+            {/* Core metrics */}
+            {ev.core_metrics?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Core Evaluation Metrics</h2>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {ev.core_metrics.map((m) => <MetricCard key={m.name} metric={m} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Project evaluation */}
+            {proj.ownership_score !== undefined && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Project Evaluation</h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <OwnershipPanel ownership={proj} />
+                  <EngineeringMaturityGrid maturity={proj.engineering_maturity} />
+                </div>
+
+                {proj.architecture_understanding && (
+                  <div className="mt-4 rounded border border-slate-800 bg-slate-950 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-semibold text-slate-100">Architecture Understanding</h4>
+                      <div className="flex items-center gap-2">
+                        {proj.architecture_understanding.depth && (
+                          <span className={`text-xs font-medium ${depthStyle(proj.architecture_understanding.depth.replace("_", "")).text}`}>
+                            {proj.architecture_understanding.depth.replaceAll("_", " ")}
+                          </span>
+                        )}
+                        <span className={`text-xl font-bold ${scoreColor(Number(proj.architecture_understanding.score) || 0).text}`}>
+                          {Math.max(0, Math.min(100, Number(proj.architecture_understanding.score) || 0))}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {proj.architecture_understanding.strong_areas?.map((a, i) => (
+                        <div key={i} className="flex gap-1 text-xs leading-5 text-emerald-200"><span className="text-emerald-400">+</span>{a}</div>
+                      ))}
+                      {proj.architecture_understanding.weak_areas?.map((a, i) => (
+                        <div key={i} className="flex gap-1 text-xs leading-5 text-amber-200"><span className="text-amber-400">−</span>{a}</div>
+                      ))}
+                    </div>
+                    {proj.architecture_understanding.note && (
+                      <p className="mt-2 text-xs leading-5 text-slate-400">{proj.architecture_understanding.note}</p>
+                    )}
+                  </div>
+                )}
+
+                {proj.technical_depth_topics?.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-xs uppercase font-semibold tracking-wide text-slate-400 mb-2">Technical Depth by Technology</h4>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {proj.technical_depth_topics.map((t, i) => <ProjectTechCard key={i} topic={t} />)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Behavioral evaluation */}
+            {beh.star_analysis && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="mb-4 text-base font-semibold text-slate-100">Behavioral Evaluation</h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <STARBreakdown starAnalysis={beh.star_analysis} />
+                  <div className="space-y-3">
+                    {beh.leadership_ownership && (
+                      <BehavioralQualityCard
+                        title="Leadership & Ownership"
+                        score={beh.leadership_ownership.score}
+                        note={beh.leadership_ownership.note}
+                        pattern={beh.leadership_ownership.pattern}
+                        patternStyleFn={ownershipPatternStyle}
+                      />
+                    )}
+                    {beh.conflict_resolution && (
+                      <BehavioralQualityCard
+                        title="Conflict Resolution"
+                        score={beh.conflict_resolution.score}
+                        note={beh.conflict_resolution.note}
+                        pattern={beh.conflict_resolution.maturity_level}
+                        patternStyleFn={(p) => ({ text: conflictMaturityStyle(p) })}
+                      />
+                    )}
+                    {beh.decision_quality && (
+                      <BehavioralQualityCard
+                        title="Decision Quality"
+                        score={beh.decision_quality.score}
+                        note={beh.decision_quality.note}
+                        badges={[beh.decision_quality.reasoning_quality]}
+                      />
+                    )}
+                    {beh.emotional_intelligence && (
+                      <BehavioralQualityCard
+                        title="Emotional Intelligence"
+                        score={beh.emotional_intelligence.score}
+                        note={beh.emotional_intelligence.note}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <CoachingSection coaching={ev.coaching} />
+            <PBBenchmarkSection benchmarking={ev.benchmarking} />
+          </div>
+
+          {/* Right column */}
+          <div className="space-y-5">
+            <VerdictCard verdict={verdict} overallScore={report.overall_score} />
+
+            {/* Authenticity panels */}
+            <AuthenticityCard authenticity={proj.authenticity} title="Project Authenticity" />
+            {beh.authenticity && <AuthenticityCard authenticity={beh.authenticity} title="Behavioral Authenticity" />}
+
+            {/* Communication profile */}
+            {comm.score !== undefined && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h3 className="text-sm font-semibold text-slate-100 mb-3">Communication Profile</h3>
+                {[
+                  ["Storytelling", comm.storytelling_quality],
+                  ["Clarity Under Probing", comm.clarity_under_probing],
+                  ["Confidence", comm.confidence_score],
+                  ["Structure", comm.structure_score],
+                ].filter(([, v]) => v !== undefined).map(([label, val]) => {
+                  const v = Math.max(0, Math.min(100, Number(val) || 0))
+                  return (
+                    <div key={label} className="mb-2">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs text-slate-400">{label}</span>
+                        <span className={`text-xs font-medium ${scoreColor(v).text}`}>{v}</span>
+                      </div>
+                      <div className="h-1 rounded bg-slate-800">
+                        <div className={`h-1 rounded ${scoreColor(v).bar}`} style={{ width: `${v}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+                {comm.key_observation && (
+                  <p className="mt-3 text-xs leading-5 text-slate-400 border-t border-slate-800 pt-3">{comm.key_observation}</p>
+                )}
+              </div>
+            )}
+
+            {ev.improvement_recommendations?.length > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-100">Recommendations</h2>
+                <div className="space-y-2">
+                  {ev.improvement_recommendations.map((rec, i) => <RecommendationCard key={i} rec={rec} />)}
+                </div>
+              </div>
+            )}
+
+            {/* STAR heuristic summary */}
+            {breakdown.star_completeness_pct > 0 && (
+              <div className="rounded border border-slate-800 bg-slate-900 p-4">
+                <h3 className="text-sm font-semibold text-slate-100 mb-2">STAR Completeness</h3>
+                <div className={`text-3xl font-bold mb-1 ${scoreColor(breakdown.star_completeness_pct).text}`}>
+                  {breakdown.star_completeness_pct}<span className="text-sm text-slate-500">%</span>
+                </div>
+                <div className="h-1.5 rounded bg-slate-800 mb-2">
+                  <div className={`h-1.5 rounded ${scoreColor(breakdown.star_completeness_pct).bar}`} style={{ width: `${breakdown.star_completeness_pct}%` }} />
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {Object.entries(breakdown.star_breakdown || {}).map(([k, v]) => (
+                    <div key={k} className="rounded bg-slate-950 px-1.5 py-1 text-center">
+                      <div className="text-xs uppercase text-slate-500">{k}</div>
+                      <div className="text-sm font-semibold">{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Integrity */}
+            <div className="rounded border border-slate-800 bg-slate-900 p-4">
+              <h2 className="mb-2 text-sm font-semibold text-slate-100 uppercase tracking-wide">Integrity</h2>
+              <div className={`text-3xl font-bold mb-1 ${scoreColor(integrity.score ?? 100).text}`}>{integrity.score ?? 100}<span className="text-sm text-slate-500">/100</span></div>
+              <div className="text-xs text-slate-400">{integrity.violations?.length || 0} proctoring event{integrity.violations?.length !== 1 ? "s" : ""}</div>
+            </div>
+          </div>
+        </div>
+
+        <button onClick={onRestart} className="mt-8 rounded bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300 transition-colors">
+          Start Another Interview
+        </button>
+      </div>
+    </main>
+  )
 }
 
 function ScoreCard({ label, value, suffix }) {

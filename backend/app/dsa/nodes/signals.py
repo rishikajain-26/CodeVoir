@@ -107,10 +107,30 @@ def behaviour_aggregator(state: DSAState) -> dict:
     silence = state.silence_profile
     speech = state.speech_signals
 
+    # Only weight each component when there's actual data behind it.
+    # Absence of a negative signal (no fillers, no backspace, no silence gaps)
+    # is NOT evidence of good performance — it's absence of data.
+    word_count = len(state.candidate_explanation.split())
+    has_code = len(state.candidate_code.strip()) > 10
+
+    _conf_components: list[float] = []
+
+    # Silence / confidence proxy: only meaningful when speech is substantive
+    if word_count >= 10 or silence.longest_gap > 0:
+        _conf_components.append(silence.confidence_proxy)
+
+    # Speech quality: only meaningful when candidate actually spoke
+    if word_count >= 10:
+        _conf_components.append(1.0 - min(speech.filler_ratio / 0.20, 1.0))
+
+    # Editor quality: only meaningful when candidate actually typed
+    if has_code or editor.first_keystroke_latency > 0 or editor.run_count > 0:
+        _conf_components.append(1.0 - min(editor.backspace_frequency / 0.60, 1.0))
+
     confidence = (
-        silence.confidence_proxy * 0.40
-        + (1.0 - min(speech.filler_ratio / 0.20, 1.0)) * 0.30
-        + (1.0 - min(editor.backspace_frequency / 0.60, 1.0)) * 0.30
+        sum(_conf_components) / len(_conf_components)
+        if _conf_components
+        else 0.0  # no engagement → no confidence signal
     )
     confidence = round(max(0.0, min(1.0, confidence)), 3)
 

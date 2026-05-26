@@ -24,14 +24,26 @@ def _to_str(v: Any) -> str:
 
 
 def _to_list(v: Any) -> list:
-    """Coerce scalar values to a list."""
-    if isinstance(v, list):
-        return v
+    """Coerce a scalar or mixed-type value to a list of non-empty strings.
+
+    Every list field in these schemas is typed ``list[str]``. LLMs frequently
+    emit booleans, numbers, or nulls inside these lists (e.g.
+    ``edge_cases_identified_early: [true]``). Pydantic then rejects the element
+    and the whole evaluation falls back to a keyword heuristic. Coercing each
+    element to a string (and dropping stray bools/nulls) keeps the LLM's
+    intelligent output instead of silently discarding it.
+    """
     if v is None or v is False or v == "":
         return []
-    if isinstance(v, str):
-        return [v] if v.strip() else []
-    return [v]
+    items = v if isinstance(v, list) else [v]
+    result: list[str] = []
+    for item in items:
+        if item is None or isinstance(item, bool):
+            continue  # stray boolean/null is a format error, not list content
+        text = str(item).strip()
+        if text:
+            result.append(text)
+    return result
 
 
 class UnderstandingLLM(BaseModel):
@@ -41,6 +53,9 @@ class UnderstandingLLM(BaseModel):
     edge_cases_identified_early: list[str] = Field(default_factory=list)
     misunderstood_constraints: list[str] = Field(default_factory=list)
     score: float = 0.5
+    # 0–1: how directly + correctly the reply answers the follow-up that was asked.
+    # -1 means "no follow-up was pending, not applicable".
+    answer_relevance: float = -1.0
 
     @field_validator("edge_cases_identified_early", "clarifying_questions", "misunderstood_constraints", mode="before")
     @classmethod
@@ -52,7 +67,7 @@ class UnderstandingLLM(BaseModel):
     def coerce_bool(cls, v: Any) -> bool:
         return _to_bool(v)
 
-    @field_validator("score", "time_to_first_clarification_s", mode="before")
+    @field_validator("score", "time_to_first_clarification_s", "answer_relevance", mode="before")
     @classmethod
     def coerce_float(cls, v: Any) -> float:
         try:

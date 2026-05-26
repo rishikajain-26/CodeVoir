@@ -34,10 +34,22 @@ async def audio_ingest(state: DSAState) -> dict:
     filler_count = sum(1 for word in words if word in FILLERS)
     filler_ratio = filler_count / max(len(words), 1)
     explanation = state.candidate_explanation.lower()
-    thinks_aloud = len(words) > 40 and filler_ratio < 0.15
+
+    # thinks_aloud: candidate is actively narrating their thought process.
+    # Requires ≥20 words (substantive), low fillers, AND at least one
+    # thinking-process phrase — prevents "ok sure" from triggering this.
+    _thinking_phrases = ("i would", "i'll", "i think", "my approach", "the idea", "we need",
+                         "so if", "notice that", "let me", "first i", "then i", "what if",
+                         "the key", "we can", "i want to")
+    thinks_aloud = (
+        len(words) >= 20
+        and filler_ratio < 0.20
+        and any(p in explanation for p in _thinking_phrases)
+    )
     explains_intuition = any(
         keyword in explanation
-        for keyword in ("because", "since", "reason", "intuition", "key insight", "notice")
+        for keyword in ("because", "since", "reason", "intuition", "key insight", "notice",
+                        "this gives", "so that", "in order to", "which means", "therefore")
     )
     speech = SpeechSignals(
         wpm=meta.wpm,
@@ -50,7 +62,9 @@ async def audio_ingest(state: DSAState) -> dict:
     )
     gaps = list(meta.silence_gaps)
     longest = max(gaps, default=0.0)
-    confidence = max(0.0, 1.0 - longest / 15.0)
+    # When there are no silence gaps (no audio data or trivially short speech),
+    # use 0.5 as a neutral proxy rather than 1.0 — absence of bad data ≠ good data.
+    confidence = max(0.0, 1.0 - longest / 15.0) if (gaps or len(words) >= 10) else 0.5
     silence = SilenceProfile(
         gaps=gaps,
         longest_gap=longest,

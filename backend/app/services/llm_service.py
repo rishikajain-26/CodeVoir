@@ -41,23 +41,43 @@ class LLMService:
         temperature: float = 0.45,
         max_tokens: int = 220,
     ) -> str:
-        text = self._generate_litellm(system_prompt, user_payload, temperature, max_tokens)
-        return text or fallback
+        from app.services.llm import health
 
-    def generate_structured(
-        self,
-        system_prompt: str,
-        user_payload: dict[str, Any] | str,
-        response_schema,
-        *,
-        temperature: float = 0.2,
-        max_tokens: int = 700,
-    ):
-        raw_text = self._generate_litellm(
-            f"{system_prompt}\n\nReturn ONLY valid JSON.",
-            user_payload,
-            temperature,
-            max_tokens,
+        provider = self.active_provider()
+        if provider == "groq":
+            text = self._generate_groq(system_prompt, user_payload, temperature, max_tokens)
+            if text:
+                health.record_ok()
+            else:
+                health.record_fail("groq_empty_or_error")
+            return text or fallback
+        if provider == "gemini":
+            text = self._generate_gemini(system_prompt, user_payload, temperature, max_tokens)
+            if text:
+                health.record_ok()
+            else:
+                health.record_fail("gemini_empty_or_error")
+            return text or fallback
+        health.record_fail("no_provider_configured")
+        return fallback
+
+    def _generate_groq(self, system_prompt: str, user_payload: dict[str, Any] | str, temperature: float, max_tokens: int) -> str:
+        key = os.getenv("GROQ_API_KEY", "").strip()
+        if not key:
+            return ""
+        body = {
+            "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": _payload_to_text(user_payload)},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        data = _post_json(
+            "https://api.groq.com/openai/v1/chat/completions",
+            body,
+            {"Authorization": f"Bearer {key}", "User-Agent": "ClioInterviewLab/1.0"},
         )
         if not raw_text:
             return None
