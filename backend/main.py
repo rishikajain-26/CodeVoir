@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import os
@@ -11,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from html import unescape
 from pathlib import Path
@@ -216,7 +218,47 @@ class ViolationRequest(BaseModel):
     detail: dict[str, Any] = {}
 
 
-app = FastAPI(title="AI Interview Platform", version=APP_VERSION)
+# ── Opportunities feature (kept separate from interview rounds) ───────────────
+try:
+    from app.opportunities.routes import router as _opp_router, crawl_scheduler as _opp_scheduler
+    from app.opportunities.database import init_db as _opp_init_db
+    _OPP_AVAILABLE = True
+except Exception as _opp_err:
+    import traceback as _tb
+    print(f"[opportunities] Import failed: {_opp_err}")
+    _tb.print_exc()
+    _opp_router = None
+    _opp_scheduler = None
+    _opp_init_db = None
+    _OPP_AVAILABLE = False
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # Init opportunities DB and start crawler scheduler
+    if _OPP_AVAILABLE:
+        try:
+            _opp_init_db()
+        except Exception as exc:
+            pass  # non-fatal
+        try:
+            _scheduler_task = asyncio.create_task(_opp_scheduler())
+        except Exception:
+            _scheduler_task = None
+    else:
+        _scheduler_task = None
+
+    yield
+
+    if _scheduler_task:
+        _scheduler_task.cancel()
+        try:
+            await _scheduler_task
+        except Exception:
+            pass
+
+
+app = FastAPI(title="AI Interview Platform", version=APP_VERSION, lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -238,6 +280,9 @@ app.add_middleware(
 
 if websocket_router:
     app.include_router(websocket_router)
+
+if _OPP_AVAILABLE and _opp_router:
+    app.include_router(_opp_router)
 
 
 @app.get("/")

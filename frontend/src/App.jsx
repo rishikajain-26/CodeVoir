@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
-import { AlertTriangle, Bot, Camera, Code2, FileText, Mic, Play, Send, Shield, Square, Upload } from "lucide-react"
+import { AlertTriangle, Bot, Camera, Code2, FileText, Mic, Play, Send, Shield, Square, Upload, Zap } from "lucide-react"
+import OpportunitiesPage from "./pages/OpportunitiesPage.jsx"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 // Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
@@ -615,6 +616,10 @@ export default function App() {
 
   if (screen === "feedback" && feedback) return <Feedback report={feedback} onRestart={() => window.location.reload()} />
 
+  if (screen === "opportunities") {
+    return <OpportunitiesPage onBack={() => setScreen("setup")} />
+  }
+
   if (screen === "setup") {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -628,7 +633,16 @@ export default function App() {
                 <p className="text-sm text-slate-400">Voice-first mock interviews with DSA, resume probing, and proctoring.</p>
               </div>
             </div>
-            <div className="hidden items-center gap-2 text-sm text-slate-300 md:flex"><Shield size={16} /> Integrity monitoring enabled</div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setScreen("opportunities")}
+                className="flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all"
+              >
+                <Zap size={15} />
+                Find Opportunities
+              </button>
+              <div className="hidden items-center gap-2 text-sm text-slate-300 md:flex"><Shield size={16} /> Integrity monitoring enabled</div>
+            </div>
           </div>
         </section>
 
