@@ -161,7 +161,8 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
             *turns,
             {
                 "phase": strategy.get("phase", state.get("phase", "projects")),
-                "answer_excerpt": _clip(state.get("user_text", ""), 320),
+                "answer_text": _clip(state.get("user_text", ""), 3000),
+                "answer_excerpt": _clip(state.get("user_text", ""), 900),
                 "scores": evaluation.get("scores", {}),
                 "flags": evaluation.get("flags", []),
                 "evidence": evaluation.get("evidence", []),
@@ -295,9 +296,14 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
         "saved millions", "single-handedly", "entirely alone", "nobody else",
         "state of the art", "world-class",
     ])
+    unsupported_claims = _keyword_hits(lower, [
+        "10x", "saved millions", "zero downtime", "millions of users", "100% accurate",
+        "never failed", "completely secure", "fully scalable", "production grade",
+    ])
     accountability_gap = bool(
         re.search(r"\bwe\b", lower) and not re.search(r"\bi\b|\bmy\b|\bmy role\b|\bmy contribution\b", lower)
     )
+    credibility_risk = bool(vague_superlatives or (unsupported_claims and not has_metric))
 
     scores = {
         "specificity": _score(len(words), [35, 80, 140]),
@@ -307,6 +313,12 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
         "star_completeness": star_score,
         "reflection": min(10, 3 + len(result_signals)),
     }
+    if accountability_gap:
+        scores["ownership"] = min(scores["ownership"], 4)
+    if credibility_risk:
+        scores["impact"] = min(scores["impact"], 4)
+        scores["specificity"] = min(scores["specificity"], 5)
+
     flags = []
     if len(words) < 35:
         flags.append("Answer is too brief for a realistic Project + Behavioural interview.")
@@ -325,6 +337,10 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
             f"Possible exaggeration detected ({', '.join(vague_superlatives[:2])}); "
             "use precise, verifiable claims."
         )
+    if unsupported_claims and not has_metric:
+        flags.append(
+            f"Unsupported high-impact claim detected ({', '.join(unsupported_claims[:2])}); interviewers need verifiable context before giving credit."
+        )
 
     return {
         "scores": scores,
@@ -338,7 +354,7 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
             "action": bool(action_signals),
             "result": bool(result_signals),
         },
-        "exaggeration_risk": len(vague_superlatives) > 0,
+        "exaggeration_risk": credibility_risk,
         "accountability_gap": accountability_gap,
     }
 

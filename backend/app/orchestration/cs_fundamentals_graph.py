@@ -132,6 +132,8 @@ def _memory_node(state: CSFundamentalsState) -> CSFundamentalsState:
             "scratchpad_excerpt": _clip(scratchpad.get("content", ""), 320),
             "scores": evaluation.get("scores", {}),
             "flags": evaluation.get("flags", []),
+            "misconceptions": evaluation.get("misconceptions", []),
+            "keyword_hits": evaluation.get("keyword_hits", []),
         },
     ][-30:]
 
@@ -203,17 +205,31 @@ def _evaluate_answer(user_text: str, scratchpad: dict[str, Any], topic: dict[str
     example_terms = _hits(lower, ["example", "for instance", "in a backend", "real system", "query", "api", "database", "thread", "request"])
     comparison_terms = _hits(lower, ["versus", "vs", "difference", "compare", "tradeoff", "pros", "cons"])
     correctness_terms = _topic_terms(topic_name, lower)
+    misconception_hits = _misconception_hits(topic_name, lower)
+    evidence_signals = len(correctness_terms) + len(keyword_hits)
+    correctness_score = min(10, 2 + evidence_signals * 2)
+    if misconception_hits:
+        correctness_score = min(correctness_score, 3)
+    elif evidence_signals == 0:
+        correctness_score = 2
 
     scores = {
         "clarity": _score(len(words), [25, 55, 100]),
-        "correctness": min(10, 4 + len(correctness_terms) + len(keyword_hits)),
+        "correctness": correctness_score,
         "application": min(10, 3 + len(example_terms) * 2),
         "depth": min(10, 3 + len(comparison_terms) * 2 + len(keyword_hits)),
         "communication": 8 if len(words) >= 35 and not _is_rambling(words) else 5,
     }
+    if scores["correctness"] <= 3:
+        # Real interviews do not reward fluent explanations that are technically wrong.
+        scores["application"] = min(scores["application"], 4)
+        scores["depth"] = min(scores["depth"], 4)
+
     flags = []
     if len(words) < 25:
         flags.append("Answer is too brief for a CS fundamentals interview.")
+    for misconception in misconception_hits:
+        flags.append(f"Incorrect concept: {misconception}.")
     if not correctness_terms and not keyword_hits:
         flags.append(f"Core {topic_name or 'CS'} concept signals are weak or missing.")
     if not example_terms:
@@ -224,6 +240,7 @@ def _evaluate_answer(user_text: str, scratchpad: dict[str, Any], topic: dict[str
         "scores": scores,
         "flags": flags,
         "keyword_hits": keyword_hits[:8],
+        "misconceptions": misconception_hits,
         "evidence": _extract_sentences(combined),
     }
 
@@ -312,6 +329,34 @@ def _topic_terms(topic_name: str, lower: str) -> list[str]:
         "Computer Networks": ["http", "https", "tcp", "udp", "dns", "tls", "packet", "latency", "request"],
     }
     return _hits(lower, terms.get(topic_name, []))
+
+
+def _misconception_hits(topic_name: str, lower: str) -> list[str]:
+    patterns = {
+        "DBMS": [
+            (r"\bindex(es)?\s+always\s+make(s)?\s+(queries|writes)\s+faster\b", "indexes are not always faster; they add write/storage cost and depend on query shape"),
+            (r"\bnormalization\s+(is|means)\s+index", "normalization and indexing solve different problems"),
+            (r"\btransaction(s)?\s+(is|are)\s+only\s+select\b", "transactions group one or more operations with commit/rollback semantics"),
+            (r"\bacid\b.*\b(speed|performance)\b", "ACID is about correctness guarantees, not raw speed"),
+        ],
+        "OOP": [
+            (r"\binterface(s)?\s+can\s+store\s+state\b", "interfaces define contracts; instance state belongs in implementing classes"),
+            (r"\bpolymorphism\s+(is|means)\s+copy", "polymorphism is substitutable behavior through a common interface/type"),
+            (r"\binheritance\s+always\s+better\b", "inheritance is not always better than composition"),
+        ],
+        "Operating Systems": [
+            (r"\bthread(s)?\s+do\s+not\s+share\s+memory\b", "threads in a process share address space"),
+            (r"\bprocess(es)?\s+share\s+the\s+same\s+memory\b", "separate processes are memory-isolated by default"),
+            (r"\bdeadlock\s+(is|means)\s+slow\b", "deadlock is circular waiting for resources, not just slowness"),
+        ],
+        "Computer Networks": [
+            (r"\bhttps\s+(is|means)\s+faster\s+http\b", "HTTPS adds TLS security; it is not defined as faster HTTP"),
+            (r"\btcp\s+does\s+not\s+guarantee\s+order\b", "TCP provides ordered reliable byte-stream delivery"),
+            (r"\budp\s+guarantee(s)?\s+delivery\b", "UDP does not guarantee delivery or ordering"),
+            (r"\bdns\s+(encrypts|encryption)\b", "DNS resolves names; encryption is handled by protocols such as TLS or encrypted DNS variants"),
+        ],
+    }
+    return [message for pattern, message in patterns.get(topic_name, []) if re.search(pattern, lower)]
 
 
 def _hits(text: str, terms: list[str]) -> list[str]:

@@ -779,11 +779,12 @@ def _cs_opening_question(session: dict[str, Any]) -> str:
             max_tokens=180,
         )
         if question.strip():
-            return question.strip()
+            return f"{question.strip()} You may use the scratchpad for SQL, pseudocode, diagrams, or examples; I will evaluate it as candidate-written text."
 
     return (
         f"Let's begin with {first_topic}. Explain {subtopic}: "
-        "what it means, why it matters in practice, and give one real system or scenario where it has direct impact."
+        "what it means, why it matters in practice, and give one real system or scenario where it has direct impact. "
+        "You may use the scratchpad for SQL, pseudocode, diagrams, or examples; I will evaluate it as candidate-written text."
     )
 
 
