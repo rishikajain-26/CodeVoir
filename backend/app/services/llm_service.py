@@ -2,46 +2,33 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
-import urllib.request
 from typing import Any
+
+from litellm import completion
+
+from app.utils.json_utils import clean_json_response, extract_json_object
 
 
 class LLMService:
     """Small API-ready LLM gateway with deterministic no-key fallback behavior."""
 
     def is_configured(self) -> bool:
-        return bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
+        return bool(self._litellm_settings().get("api_key"))
 
     def active_provider(self) -> str:
-        if os.getenv("LLM_PROVIDER", "").lower() == "gemini" and os.getenv("GEMINI_API_KEY"):
-            return "gemini"
-        if os.getenv("GROQ_API_KEY"):
-            return "groq"
-        if os.getenv("GEMINI_API_KEY"):
-            return "gemini"
-        return "local"
+        settings = self._litellm_settings()
+        provider = settings.get("provider", "unconfigured")
+        return "local" if provider == "unconfigured" else provider
 
     def status(self) -> dict[str, Any]:
         provider = self.active_provider()
-        model = ""
-        if provider == "groq":
-            model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-        elif provider == "gemini":
-            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        dsa_litellm = {}
-        try:
-            from app.services.llm.litellm_config import resolve_litellm_settings
-
-            dsa_litellm = resolve_litellm_settings()
-        except Exception:
-            dsa_litellm = {}
+        litellm_settings = self._litellm_settings()
         return {
             "provider": provider,
             "configured": self.is_configured(),
-            "model": model,
-            "dsa_graph_model": dsa_litellm.get("model", ""),
-            "dsa_graph_provider": dsa_litellm.get("provider", ""),
+            "model": litellm_settings.get("model", ""),
+            "dsa_graph_model": litellm_settings.get("model", ""),
+            "dsa_graph_provider": litellm_settings.get("provider", ""),
             "fallback": "deterministic_local",
         }
 
@@ -92,48 +79,58 @@ class LLMService:
             body,
             {"Authorization": f"Bearer {key}", "User-Agent": "ClioInterviewLab/1.0"},
         )
-        choices = data.get("choices") or [{}]
-        return choices[0].get("message", {}).get("content", "").strip()
+        if not raw_text:
+            return None
+        try:
+            parsed = json.loads(extract_json_object(clean_json_response(raw_text)))
+            if (
+                isinstance(parsed, dict)
+                and len(parsed) == 1
+                and not any(key in response_schema.model_fields for key in parsed)
+            ):
+                parsed = next(iter(parsed.values()))
+            return response_schema.model_validate(parsed)
+        except Exception:
+            return None
 
-    def _generate_gemini(self, system_prompt: str, user_payload: dict[str, Any] | str, temperature: float, max_tokens: int) -> str:
-        key = os.getenv("GEMINI_API_KEY", "").strip()
-        if not key:
+    def _generate_litellm(
+        self,
+        system_prompt: str,
+        user_payload: dict[str, Any] | str,
+        temperature: float,
+        max_tokens: int,
+    ) -> str:
+        settings = self._litellm_settings()
+        if not settings.get("api_key"):
             return ""
-        model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        body = {
-            "contents": [{"parts": [{"text": f"{system_prompt}\n\n{_payload_to_text(user_payload)}"}]}],
-            "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
-        }
-        data = _post_json(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-            body,
-            {},
-        )
-        candidates = data.get("candidates") or []
-        if not candidates:
+        try:
+            response = completion(
+                model=settings["model"],
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": _payload_to_text(user_payload)},
+                ],
+                api_key=settings["api_key"],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return (response.choices[0].message.content or "").strip()
+        except Exception:
             return ""
-        parts = candidates[0].get("content", {}).get("parts", [])
-        return " ".join(part.get("text", "") for part in parts).strip()
+
+    def _litellm_settings(self) -> dict[str, str]:
+        try:
+            from app.services.llm.litellm_config import resolve_litellm_settings
+
+            return resolve_litellm_settings()
+        except Exception:
+            return {"provider": "unconfigured", "model": "", "api_key": ""}
 
 
 def _payload_to_text(payload: dict[str, Any] | str) -> str:
     if isinstance(payload, str):
         return payload
     return json.dumps(payload, ensure_ascii=True)
-
-
-def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", **headers},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError, KeyError, OSError):
-        return {}
 
 
 llm_service = LLMService()

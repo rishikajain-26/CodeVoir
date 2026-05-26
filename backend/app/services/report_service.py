@@ -39,6 +39,7 @@ def build_feedback_report(session: dict[str, Any]) -> dict[str, Any]:
         "code_runs": session.get("code_runs", []),
         "project_behavioral": session.get("project_behavioral", {}),
         "cs_fundamentals": session.get("cs_fundamentals", {}),
+        "ai_generated": False,
         "study_plan": _practice_plan(round_type, weak_areas, round_section),
         "conversation": session.get("messages", []),
     }
@@ -131,8 +132,8 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
             "total_testcases": total,
             "overall_score": run_score,
         },
-        "strengths": strengths,
-        "weak_areas": weak_areas,
+        "strengths": _dedupe(strengths),
+        "weak_areas": _dedupe(weak_areas),
         "evidence": _message_evidence(session, 4),
         "contradiction_history": [
             {"claim_before": c.get("claim_before", ""), "claim_now": c.get("claim_now", ""), "topic": c.get("topic", "")}
@@ -147,10 +148,12 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
     turns = memory.get("turns", [])
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
-    avg_score = _avg_turn_scores(turns) if turns else (_avg_dict(latest_scores) * 10 if latest_scores else 0)
+    avg_score = _avg_turn_scores(turns) if turns else (_avg_scores_to_hundred(latest_scores) if latest_scores else 0)
     strengths = []
     weak_areas = list(latest_flags)
     jd_skills = memory.get("jd_signals", {}).get("skills", [])
+    jd_has_input = bool(memory.get("jd_signals", {}).get("has_jd"))
+    resume_has_project = int(memory.get("resume_focus", {}).get("project_count", 0) or 0) > 0
     project = memory.get("resume_focus", {}).get("selected_project", "")
 
     # STAR completeness across all turns
@@ -166,19 +169,39 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
     # Exaggeration and accountability signals
     exaggeration_turns = sum(1 for t in turns if t.get("exaggeration_risk"))
     contradiction_history = memory.get("contradiction_history", [])
+    evaluation_sources = _evaluation_source_summary(turns)
 
     project_discussed = _candidate_discussed_project(turns, project)
+    jd_hits = _turn_hits(turns, "jd_skill_hits")
+    resume_hits = _turn_hits(turns, "resume_skill_hits")
+    company_hits = _turn_hits(turns, "company_focus_hits")
+    role_hits = _turn_hits(turns, "role_alignment_hits")
+    llm_strengths = _turn_hits(turns, "strengths")
+    llm_weak_areas = _turn_hits(turns, "weak_areas")
+    if llm_strengths:
+        strengths.extend(llm_strengths[:4])
     if project and project_discussed:
         strengths.append(f"Explained project evidence related to {project}.")
-    if jd_skills:
-        strengths.append(f"Connected the round to JD signals: {', '.join(jd_skills[:5])}.")
-    if memory.get("company_style"):
-        strengths.append(f"Interview adapted to company style: {memory.get('company_style')}.")
+    if jd_hits:
+        strengths.append(f"Connected answers to JD signals actually mentioned: {', '.join(jd_hits[:5])}.")
+    if resume_hits:
+        strengths.append(f"Used resume/JD skill overlap as evidence: {', '.join(resume_hits[:5])}.")
+    if company_hits:
+        strengths.append(f"Addressed company focus areas in answers: {', '.join(company_hits[:5])}.")
+    if role_hits:
+        strengths.append(f"Connected experience to role context: {', '.join(role_hits[:4])}.")
     if star_completeness_pct >= 75:
         strengths.append(f"STAR framework used in {star_completeness_pct:.0f}% of turns.")
 
     if not turns:
         weak_areas.append("No Project + Behavioural answer turns were recorded.")
+    weak_areas.extend(llm_weak_areas[:4])
+    if resume_has_project and not project_discussed:
+        weak_areas.append(f"Resume project {project} was available as context but was not clearly proven in candidate answers.")
+    if jd_has_input and not jd_hits:
+        weak_areas.append("Job description was provided, but answers did not clearly connect to its required skills or responsibilities.")
+    if memory.get("round_config", {}).get("focus_areas") and not company_hits:
+        weak_areas.append("Company/round focus areas were available, but candidate answers did not clearly address them.")
     missing_star = [c for c, count in star_counts.items() if turns and count / len(turns) < 0.4]
     if missing_star:
         weak_areas.append(f"STAR components often missing: {', '.join(missing_star)}. Practice including all four.")
@@ -211,16 +234,21 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
         "resume_focus": memory.get("resume_focus", {}),
         "project_discussed": project_discussed,
         "jd_signals": memory.get("jd_signals", {}),
+        "demonstrated_jd_signals": jd_hits,
+        "demonstrated_resume_skills": resume_hits,
+        "demonstrated_company_focus": company_hits,
+        "demonstrated_role_alignment": role_hits,
         "turn_count": len(turns),
+        "evaluation_sources": evaluation_sources,
         "latest_scores": latest_scores,
         "latest_flags": latest_flags,
         "star_breakdown": star_counts,
         "star_completeness_pct": star_completeness_pct,
         "exaggeration_turns": exaggeration_turns,
         "contradiction_history": contradiction_history,
-        "strengths": strengths,
-        "weak_areas": weak_areas,
-        "evidence": turns[-5:],
+        "strengths": _dedupe(strengths),
+        "weak_areas": _dedupe(weak_areas),
+        "evidence": _project_report_evidence(turns[-5:]),
     }
 
 
@@ -230,15 +258,25 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
     scratchpad_history = memory.get("scratchpad_history", [])
-    score = _avg_question_scores(questions) if questions else (_avg_dict(latest_scores) * 10 if latest_scores else 0)
+    score = _avg_question_scores(questions) if questions else (_avg_scores_to_hundred(latest_scores) if latest_scores else 0)
     strengths = []
     weak_areas = list(latest_flags)
-    if memory.get("strong_topics"):
-        strengths.append(f"Strong topics: {', '.join(memory.get('strong_topics', [])[:4])}.")
+    evaluation_sources = _evaluation_source_summary(questions)
+    llm_strengths = _turn_hits(questions, "strengths")
+    llm_weak_areas = _turn_hits(questions, "weak_areas")
+    missing_concepts = _turn_hits(questions, "missing_concepts")
+    if llm_strengths:
+        strengths.extend(llm_strengths[:4])
+    strong_evidence = _cs_strength_evidence(questions)
+    if strong_evidence:
+        strengths.extend(strong_evidence[:3])
     if scratchpad_history:
         strengths.append(f"Used scratchpad evidence in {len(scratchpad_history)} turn{'s' if len(scratchpad_history) != 1 else ''}.")
     if memory.get("weak_topics"):
         weak_areas.append(f"Weak topics to revise: {', '.join(memory.get('weak_topics', [])[:4])}.")
+    weak_areas.extend(llm_weak_areas[:4])
+    if missing_concepts:
+        weak_areas.append(f"Missing CS concepts in answers: {', '.join(missing_concepts[:5])}.")
     if not questions:
         weak_areas.append("No CS Fundamentals answer turns were recorded.")
     misconception_count = sum(len(q.get("misconceptions", []) or []) for q in questions)
@@ -269,9 +307,12 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
         "latest_scores": latest_scores,
         "latest_flags": latest_flags,
         "scratchpad_observations": scratchpad_history[-5:],
+        "pending_question": memory.get("pending_question", {}),
+        "last_answered_topic": memory.get("last_answered_topic", ""),
+        "evaluation_sources": evaluation_sources,
         "strengths": strengths,
         "weak_areas": weak_areas,
-        "evidence": questions[-6:],
+        "evidence": _cs_report_evidence(questions[-6:]),
     }
 
 
@@ -287,7 +328,7 @@ def _project_parameter_scores(
 
     def avg_score(*keys: str) -> int:
         values = [
-            float(scores[key]) * 10
+            _score_to_hundred(scores[key])
             for scores in score_sets
             for key in keys
             if isinstance(scores.get(key), (int, float))
@@ -298,16 +339,18 @@ def _project_parameter_scores(
     contradiction_count = sum(1 for flag in flags if "contradiction" in str(flag).lower())
     exaggeration_count = sum(1 for item in source if item.get("exaggeration_risk"))
     accountability_count = sum(1 for flag in flags if "ownership" in str(flag).lower() or "personally" in str(flag).lower())
+    missing_context_count = sum(1 for flag in flags if "resume project" in str(flag).lower() or "job description" in str(flag).lower())
 
     ownership = _cap_score(avg_score("ownership"), 65 if accountability_count else 100)
     impact = _cap_score(avg_score("impact"), 60 if any("quantified" in str(flag).lower() for flag in flags) else 100)
+    context = _cap_score(avg_score("context_alignment"), 60 if missing_context_count else 100)
     authenticity = 100 - min(70, exaggeration_count * 25 + contradiction_count * 30)
 
     return [
         {
             "name": "Ownership & Impact",
-            "score": int(round((ownership * 0.55) + (impact * 0.45))),
-            "note": "Credit requires clear personal contribution and verifiable outcome; unclear 'we' language or unquantified impact caps this score.",
+            "score": int(round((ownership * 0.4) + (impact * 0.35) + (context * 0.25))),
+            "note": "Credit requires clear personal contribution, verifiable outcome, and grounding in the resume/JD context; unclear 'we' language, unquantified impact, or missing context caps this score.",
         },
         {
             "name": "STAR Structure",
@@ -332,9 +375,111 @@ def _project_parameter_scores(
     ]
 
 
+def _cs_strength_evidence(questions: list[dict[str, Any]]) -> list[str]:
+    strengths = []
+    for question in questions:
+        scores = question.get("scores", {}) or {}
+        topic = question.get("topic", "CS Fundamentals")
+        correctness = _score_to_ten(scores.get("correctness", 0))
+        application = _score_to_ten(scores.get("application", 0))
+        depth = _score_to_ten(scores.get("depth", 0))
+        if correctness >= 7.5 and application >= 6:
+            subtopic = question.get("asked_subtopic") or topic
+            strengths.append(f"Answered {topic} / {subtopic} with correct concept signals and practical application.")
+        elif correctness >= 7.5 and depth >= 6:
+            strengths.append(f"Showed solid conceptual correctness on {topic} with some depth/tradeoff evidence.")
+    return _dedupe(strengths)
+
+
+def _score_to_ten(value: Any) -> float:
+    if not isinstance(value, (int, float)):
+        return 0
+    score = float(value)
+    return score * 10 if 0 <= score <= 1 else score
+
+
+def _score_to_hundred(value: Any) -> float:
+    if not isinstance(value, (int, float)):
+        return 0
+    score = float(value)
+    if 0 <= score <= 1:
+        return score * 100
+    if score <= 10:
+        return score * 10
+    return score
+
+
+def _evaluation_source_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+    counts: dict[str, int] = {}
+    for item in items:
+        source = str(item.get("evaluation_source") or "unknown").strip() or "unknown"
+        counts[source] = counts.get(source, 0) + 1
+    primary = "none"
+    if counts:
+        primary = max(counts, key=counts.get)
+    return {
+        "primary": primary,
+        "counts": counts,
+        "llm_turns": counts.get("llm", 0),
+        "fallback_turns": counts.get("local_fallback", 0),
+        "mixed": len([source for source, count in counts.items() if count]) > 1,
+    }
+
+
+def _turn_hits(turns: list[dict[str, Any]], key: str) -> list[str]:
+    return _dedupe([
+        str(item).strip()
+        for turn in turns
+        for item in (turn.get(key, []) or [])
+        if str(item).strip()
+    ])
+
+
+def _project_report_evidence(turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    evidence = []
+    for turn in turns:
+        evidence.append({
+            **turn,
+            "answer_text": turn.get("answer_text") or turn.get("answer_excerpt", ""),
+            "context_alignment": {
+                "project_discussed": turn.get("project_discussed", False),
+                "jd_skill_hits": turn.get("jd_skill_hits", []),
+                "resume_skill_hits": turn.get("resume_skill_hits", []),
+                "company_focus_hits": turn.get("company_focus_hits", []),
+                "role_alignment_hits": turn.get("role_alignment_hits", []),
+            },
+            "evaluation_source": turn.get("evaluation_source", "unknown"),
+            "next_question": turn.get("next_question", ""),
+            "next_question_reason": turn.get("next_question_reason", ""),
+        })
+    return evidence
+
+
+def _cs_report_evidence(questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    evidence = []
+    for question in questions:
+        evidence.append({
+            **question,
+            "answer_text": question.get("answer_text") or question.get("answer_excerpt", ""),
+            "asked_subtopic": question.get("asked_subtopic", ""),
+            "asked_question_type": question.get("asked_question_type") or question.get("question_type", ""),
+            "asked_question": question.get("asked_question", ""),
+            "evaluation_source": question.get("evaluation_source", "unknown"),
+            "next_question_reason": question.get("next_question_reason", ""),
+        })
+    return evidence
+
+
 def _candidate_discussed_project(turns: list[dict[str, Any]], project: str) -> bool:
     if not turns or not project:
         return False
+    explicit_project_flags = [
+        turn.get("project_discussed")
+        for turn in turns
+        if "project_discussed" in turn
+    ]
+    if explicit_project_flags:
+        return any(flag is True for flag in explicit_project_flags)
     project_tokens = {
         token.lower()
         for token in re.findall(r"[a-zA-Z0-9]+", project)
@@ -347,8 +492,6 @@ def _candidate_discussed_project(turns: list[dict[str, Any]], project: str) -> b
             continue
         if project_tokens and any(token in answer for token in project_tokens):
             return True
-        if turn.get("evidence") or turn.get("scores"):
-            return True
     return False
 
 
@@ -359,7 +502,7 @@ def _cs_parameter_scores(questions: list[dict[str, Any]], latest_scores: dict[st
         return []
 
     def avg_score(key: str) -> int:
-        values = [float(scores[key]) * 10 for scores in score_sets if isinstance(scores.get(key), (int, float))]
+        values = [_score_to_hundred(scores[key]) for scores in score_sets if isinstance(scores.get(key), (int, float))]
         return int(round(sum(values) / len(values))) if values else 0
 
     correctness = avg_score("correctness")
@@ -405,7 +548,7 @@ def _topic_mastery_from_questions(questions: list[dict[str, Any]]) -> list[dict[
     mastery = []
     for topic, items in by_topic.items():
         correctness_values = [
-            float(item.get("scores", {}).get("correctness", 0)) * 10
+            _score_to_hundred(item.get("scores", {}).get("correctness", 0))
             for item in items
             if isinstance(item.get("scores", {}).get("correctness"), (int, float))
         ]
@@ -535,12 +678,17 @@ def _message_evidence(session: dict[str, Any], limit: int) -> list[dict[str, str
 
 
 def _avg_turn_scores(turns: list[dict[str, Any]]) -> float:
-    values = [_avg_dict(turn.get("scores", {})) * 10 for turn in turns if turn.get("scores")]
+    values = [_avg_scores_to_hundred(turn.get("scores", {})) for turn in turns if turn.get("scores")]
     return round(sum(values) / len(values), 1) if values else 0
 
 
 def _avg_question_scores(questions: list[dict[str, Any]]) -> float:
-    values = [_avg_dict(question.get("scores", {})) * 10 for question in questions if question.get("scores")]
+    values = [_avg_scores_to_hundred(question.get("scores", {})) for question in questions if question.get("scores")]
+    return round(sum(values) / len(values), 1) if values else 0
+
+
+def _avg_scores_to_hundred(scores: dict[str, Any]) -> float:
+    values = [_score_to_hundred(value) for value in scores.values() if isinstance(value, (int, float))]
     return round(sum(values) / len(values), 1) if values else 0
 
 
