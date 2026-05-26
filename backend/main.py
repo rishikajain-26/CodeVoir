@@ -384,6 +384,7 @@ async def start_session(payload: StartSessionRequest):
     if normalized_round_type == "cs_fundamentals":
         try:
             opening = _cs_opening_question(session)
+            _persist(session)
         except Exception:
             pass
     return {
@@ -395,6 +396,8 @@ async def start_session(payload: StartSessionRequest):
         "target_company": target_company,
         "languages": LANGUAGE_LABELS,
         "round_config": session.get("round_config", {}),
+        "project_behavioral": session.get("project_behavioral", {}),
+        "cs_fundamentals": session.get("cs_fundamentals", {}),
         "dsa_progress": dsa_progress,
         "ai_text": opening,
     }
@@ -469,6 +472,8 @@ async def interview_message(payload: MessageRequest):
         "exchange_count": session["exchange_count"],
         "behavioral_signals": session["behavioral_signals"],
         "weak_areas": session["weak_areas"][-5:],
+        "project_behavioral": session.get("project_behavioral", {}),
+        "cs_fundamentals": session.get("cs_fundamentals", {}),
         "dsa_progress": progress,
         "problem": session.get("problem") if problem_changed else None,
         "problem_changed": problem_changed,
@@ -760,6 +765,17 @@ def _cs_opening_question(session: dict[str, Any]) -> str:
     }
     subtopic = subtopic_map.get(first_topic, first_topic)
     company_text = f" for {session['target_company']}" if session.get("target_company") else ""
+    cs_memory = session.setdefault("cs_fundamentals", {})
+    cs_memory.update({
+        "current_topic": first_topic,
+        "topic_plan": topics,
+        "pending_question": {
+            "topic": first_topic,
+            "subtopic": subtopic,
+            "question_type": "concept",
+            "turn": 0,
+        },
+    })
 
     if session.get("llm_enabled") and llm_service.is_configured():
         prompt_ctx = {
