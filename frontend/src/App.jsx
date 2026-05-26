@@ -466,7 +466,8 @@ export default function App() {
     let hadRecoverableError = false
     let finalSpeechTimer = null
     let silenceTimer = null
-    const stopAfterSpeech = (delayMs = 1800) => {
+    const pauseMs = voicePauseMs(activeRound)
+    const stopAfterSpeech = (delayMs = pauseMs) => {
       if (silenceTimer) window.clearTimeout(silenceTimer)
       silenceTimer = window.setTimeout(() => {
         // Don't auto-stop during AI speech — candidate might be waiting to interrupt
@@ -500,12 +501,12 @@ export default function App() {
             if (speakingRef.current) return
             intentionalStopRef.current = false
             recognition.stop()
-          }, 1800)
+          }, pauseMs)
         } else interim += chunk
       }
       latestHeardText = `${finalText}${interim}`.trim()
       setLiveTranscript(latestHeardText)
-      if (latestHeardText) stopAfterSpeech(finalText.trim() ? 1800 : 2500)
+      if (latestHeardText) stopAfterSpeech(finalText.trim() ? pauseMs : Math.max(pauseMs, 4500))
     }
     recognition.onerror = (event) => {
       hadRecoverableError = ["aborted", "interrupted", "network", "no-speech"].includes(event.error)
@@ -1077,7 +1078,7 @@ function roundBreakdownItems(section) {
 function formatEvidence(item) {
   if (item.role && item.content) return `${item.role}: ${item.content}`
   if (item.topic) return `${item.topic} | ${item.question_type || "question"}\nAnswer: ${item.answer_excerpt || ""}\nScratchpad: ${item.scratchpad_excerpt || ""}`
-  if (item.phase) return `${item.phase}\nAnswer: ${item.answer_excerpt || ""}\nFlags: ${(item.flags || []).join("; ")}`
+  if (item.phase) return `${item.phase}\nAnswer: ${item.answer_text || item.answer_excerpt || ""}\nFlags: ${(item.flags || []).join("; ")}`
   return JSON.stringify(item, null, 2)
 }
 
@@ -1180,6 +1181,12 @@ function isLikelyEcho(candidateText, aiText) {
   // If >60% overlap, it's echo. Lowered from 72% to catch partial echoes
   // where AEC suppressed some words but not others
   return overlap / candidateWords.length > 0.6
+}
+
+function voicePauseMs(roundType) {
+  if (roundType === "project_behavioral" || roundType === "combined") return 6500
+  if (roundType === "cs_fundamentals") return 5000
+  return 3500
 }
 
 function normalizeSpeech(text) {
