@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from app.dsa.llm_text import generate_text
@@ -24,6 +25,9 @@ def build_feedback_report(session: dict[str, Any]) -> dict[str, Any]:
         "hiring_signal": _hiring_signal(overall),
         "summary": _summary(session, round_section, overall),
         "scores": scores,
+        "parameter_scores": round_section.get("parameter_scores", []),
+        "topic_mastery": round_section.get("topic_mastery", []),
+        "scoring_explanation": round_section.get("scoring_explanation", ""),
         "strengths": strengths or ["Completed the interview flow with enough evidence for feedback."],
         "weak_areas": weak_areas or ["Add more precise examples, measurable outcomes, and explicit tradeoff reasoning."],
         "round_breakdown": round_section,
@@ -136,7 +140,7 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
     turns = memory.get("turns", [])
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
-    avg_score = _avg_dict(latest_scores) * 10 if latest_scores else _avg_turn_scores(turns)
+    avg_score = _avg_turn_scores(turns) if turns else (_avg_dict(latest_scores) * 10 if latest_scores else 0)
     strengths = []
     weak_areas = list(latest_flags)
     jd_skills = memory.get("jd_signals", {}).get("skills", [])
@@ -156,8 +160,9 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
     exaggeration_turns = sum(1 for t in turns if t.get("exaggeration_risk"))
     contradiction_history = memory.get("contradiction_history", [])
 
-    if project:
-        strengths.append(f"Discussed resume project focus: {project}.")
+    project_discussed = _candidate_discussed_project(turns, project)
+    if project and project_discussed:
+        strengths.append(f"Explained project evidence related to {project}.")
     if jd_skills:
         strengths.append(f"Connected the round to JD signals: {', '.join(jd_skills[:5])}.")
     if memory.get("company_style"):
@@ -180,14 +185,24 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
         weak_areas.append(
             f"{len(contradiction_history)} potential metric contradiction{'s' if len(contradiction_history) != 1 else ''} detected across turns."
         )
+    parameter_scores = _project_parameter_scores(turns, latest_scores, latest_flags)
+    if parameter_scores:
+        avg_score = _avg_dict({item["name"]: item["score"] for item in parameter_scores})
 
     return {
         "type": "project_behavioral",
         "title": "Project + Behavioural Round",
-        "round_score": round(avg_score or 55, 1),
+        "round_score": round(avg_score or 35, 1),
+        "parameter_scores": parameter_scores,
+        "scoring_explanation": (
+            "Project + Behavioural scoring is based on interview evidence: personal ownership, verified impact, "
+            "STAR completeness, technical depth, communication, and authenticity. Unsupported claims, contradictions, "
+            "and unclear personal contribution cap the score even if the answer sounds fluent."
+        ),
         "company_style": memory.get("company_style", ""),
         "company_profile": memory.get("company_profile", ""),
         "resume_focus": memory.get("resume_focus", {}),
+        "project_discussed": project_discussed,
         "jd_signals": memory.get("jd_signals", {}),
         "turn_count": len(turns),
         "latest_scores": latest_scores,
@@ -208,7 +223,7 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
     scratchpad_history = memory.get("scratchpad_history", [])
-    score = _avg_dict(latest_scores) * 10 if latest_scores else _avg_question_scores(questions)
+    score = _avg_question_scores(questions) if questions else (_avg_dict(latest_scores) * 10 if latest_scores else 0)
     strengths = []
     weak_areas = list(latest_flags)
     if memory.get("strong_topics"):
@@ -219,10 +234,26 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
         weak_areas.append(f"Weak topics to revise: {', '.join(memory.get('weak_topics', [])[:4])}.")
     if not questions:
         weak_areas.append("No CS Fundamentals answer turns were recorded.")
+    misconception_count = sum(len(q.get("misconceptions", []) or []) for q in questions)
+    if misconception_count:
+        weak_areas.append(
+            f"{misconception_count} incorrect concept signal{'s' if misconception_count != 1 else ''} detected; wrong definitions receive little to no correctness credit."
+        )
+    parameter_scores = _cs_parameter_scores(questions, latest_scores)
+    if parameter_scores:
+        score = _avg_dict({item["name"]: item["score"] for item in parameter_scores})
+    topic_mastery = _topic_mastery_from_questions(questions)
     return {
         "type": "cs_fundamentals",
         "title": "CS Fundamentals Round",
-        "round_score": round(score or 55, 1),
+        "round_score": round(score or 35, 1),
+        "parameter_scores": parameter_scores,
+        "topic_mastery": topic_mastery,
+        "scoring_explanation": (
+            "CS Fundamentals scoring follows real interview judgment: correctness is the gate. "
+            "A clear but wrong answer is capped low, while high scores require correct definitions, practical application, "
+            "tradeoff depth, and readable communication across the topics actually asked."
+        ),
         "current_topic": memory.get("current_topic", ""),
         "topic_plan": memory.get("topic_plan", []),
         "topics_covered": memory.get("topics_covered", []),
@@ -235,6 +266,153 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
         "weak_areas": weak_areas,
         "evidence": questions[-6:],
     }
+
+
+def _project_parameter_scores(
+    turns: list[dict[str, Any]],
+    latest_scores: dict[str, Any],
+    latest_flags: list[str],
+) -> list[dict[str, Any]]:
+    source = turns or [{"scores": latest_scores, "flags": latest_flags}]
+    score_sets = [item.get("scores", {}) for item in source if item.get("scores")]
+    if not score_sets:
+        return []
+
+    def avg_score(*keys: str) -> int:
+        values = [
+            float(scores[key]) * 10
+            for scores in score_sets
+            for key in keys
+            if isinstance(scores.get(key), (int, float))
+        ]
+        return int(round(sum(values) / len(values))) if values else 0
+
+    flags = [flag for item in source for flag in (item.get("flags", []) or [])]
+    contradiction_count = sum(1 for flag in flags if "contradiction" in str(flag).lower())
+    exaggeration_count = sum(1 for item in source if item.get("exaggeration_risk"))
+    accountability_count = sum(1 for flag in flags if "ownership" in str(flag).lower() or "personally" in str(flag).lower())
+
+    ownership = _cap_score(avg_score("ownership"), 65 if accountability_count else 100)
+    impact = _cap_score(avg_score("impact"), 60 if any("quantified" in str(flag).lower() for flag in flags) else 100)
+    authenticity = 100 - min(70, exaggeration_count * 25 + contradiction_count * 30)
+
+    return [
+        {
+            "name": "Ownership & Impact",
+            "score": int(round((ownership * 0.55) + (impact * 0.45))),
+            "note": "Credit requires clear personal contribution and verifiable outcome; unclear 'we' language or unquantified impact caps this score.",
+        },
+        {
+            "name": "STAR Structure",
+            "score": avg_score("star_completeness"),
+            "note": "Measures whether answers included situation, task, candidate action, result, and reflection rather than only a project summary.",
+        },
+        {
+            "name": "Technical Depth",
+            "score": avg_score("technical_depth"),
+            "note": "Rewards architecture, tradeoffs, failure modes, scale, and implementation details that the candidate personally explained.",
+        },
+        {
+            "name": "Communication",
+            "score": avg_score("specificity", "reflection"),
+            "note": "Rewards concise, specific, structured answers; vague or over-long answers do not receive full credit.",
+        },
+        {
+            "name": "Authenticity",
+            "score": max(0, authenticity),
+            "note": "Starts high, then drops for unsupported high-impact claims, exaggeration risk, or metric contradictions.",
+        },
+    ]
+
+
+def _candidate_discussed_project(turns: list[dict[str, Any]], project: str) -> bool:
+    if not turns or not project:
+        return False
+    project_tokens = {
+        token.lower()
+        for token in re.findall(r"[a-zA-Z0-9]+", project)
+        if len(token) >= 4
+    }
+    for turn in turns:
+        answer = f"{turn.get('answer_text', '')} {turn.get('answer_excerpt', '')}".lower()
+        word_count = len(re.findall(r"[a-zA-Z0-9+.#-]+", answer))
+        if word_count < 25:
+            continue
+        if project_tokens and any(token in answer for token in project_tokens):
+            return True
+        if turn.get("evidence") or turn.get("scores"):
+            return True
+    return False
+
+
+def _cs_parameter_scores(questions: list[dict[str, Any]], latest_scores: dict[str, Any]) -> list[dict[str, Any]]:
+    source = questions or [{"scores": latest_scores}]
+    score_sets = [item.get("scores", {}) for item in source if item.get("scores")]
+    if not score_sets:
+        return []
+
+    def avg_score(key: str) -> int:
+        values = [float(scores[key]) * 10 for scores in score_sets if isinstance(scores.get(key), (int, float))]
+        return int(round(sum(values) / len(values))) if values else 0
+
+    correctness = avg_score("correctness")
+    correctness_cap = 45 if any(item.get("misconceptions") for item in source) else 100
+    correctness = _cap_score(correctness, correctness_cap)
+
+    return [
+        {
+            "name": "Conceptual Clarity",
+            "score": _cap_score(avg_score("clarity"), 70 if correctness < 45 else 100),
+            "note": "Rewards precise definitions in the candidate's own words; clarity is capped when the concept itself is wrong.",
+        },
+        {
+            "name": "Correctness",
+            "score": correctness,
+            "note": "Primary gate for CS rounds. Incorrect definitions or contradictions receive little credit even if the answer is fluent.",
+        },
+        {
+            "name": "Examples & Application",
+            "score": _cap_score(avg_score("application"), 55 if correctness < 45 else 100),
+            "note": "Requires a correct real-system example, query, protocol flow, or design situation tied to the concept.",
+        },
+        {
+            "name": "Depth of Understanding",
+            "score": _cap_score(avg_score("depth"), 55 if correctness < 45 else 100),
+            "note": "Rewards tradeoffs, edge cases, comparisons, and failure modes; wrong core concepts cap depth.",
+        },
+        {
+            "name": "Communication",
+            "score": avg_score("communication"),
+            "note": "Measures whether the answer was structured enough for an interviewer to follow without hiding gaps behind buzzwords.",
+        },
+    ]
+
+
+def _topic_mastery_from_questions(questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_topic: dict[str, list[dict[str, Any]]] = {}
+    for question in questions:
+        topic = str(question.get("topic", "")).strip()
+        if not topic:
+            continue
+        by_topic.setdefault(topic, []).append(question)
+    mastery = []
+    for topic, items in by_topic.items():
+        correctness_values = [
+            float(item.get("scores", {}).get("correctness", 0)) * 10
+            for item in items
+            if isinstance(item.get("scores", {}).get("correctness"), (int, float))
+        ]
+        score = int(round(sum(correctness_values) / len(correctness_values))) if correctness_values else 0
+        if any(item.get("misconceptions") for item in items):
+            score = min(score, 45)
+        flags = [flag for item in items for flag in (item.get("flags", []) or [])]
+        note = flags[0] if flags else f"Answered {len(items)} question{'s' if len(items) != 1 else ''} on this topic with no detected misconception."
+        mastery.append({"topic": topic, "mastery": score, "note": note})
+    return mastery
+
+
+def _cap_score(score: int | float, cap: int | float) -> int:
+    return int(round(max(0, min(float(score), float(cap)))))
 
 
 def _overall_score(scores: dict[str, float], integrity_score: int, round_score: float) -> float:
@@ -343,6 +521,12 @@ _ROUND_LABEL = {
 
 _SYS_REPORT = """You are a senior technical interviewer writing the post-interview report the candidate will read.
 Be SPECIFIC and EVIDENCE-BASED: ground every point in what THIS candidate actually said, wrote, or did in the transcript and code below. Paraphrase or quote their own words and reference concrete moments (a specific answer, a data structure they chose, a test case that failed, a complexity claim). Never use generic filler that could describe any candidate.
+Score like a real interviewer, not like a keyword matcher. Correctness and truthfulness are gates:
+- If the candidate gave a wrong answer, contradicted the question, or made a technically false claim, give little or no credit for that parameter even if the wording sounded confident.
+- Do not award points for mentioning a correct term when the surrounding explanation is wrong.
+- If the transcript does not prove a skill, score it conservatively and say the evidence is missing.
+- For Project & Behavioural, do not reward inflated or unsupported claims; ownership, impact, and authenticity require concrete first-person evidence.
+- For CS Fundamentals, correctness controls the score; application and depth must be capped low when the core concept is wrong.
 
 Return ONLY a JSON object (no markdown, no prose outside the JSON) with exactly this shape:
 {
@@ -359,6 +543,7 @@ Rules:
 - Use exactly the parameter names provided in parameter_names, one entry each.
 - topic_mastery: cover every distinct topic/concept that was actually probed (use topics_asked as a starting point and add any others the transcript reveals). Mastery reflects demonstrated command of THAT topic — high only if they reasoned correctly about it; low if they avoided, misunderstood, or failed it.
 - Scores must track the evidence: clear reasoning plus passing tests is high; vague answers and failing tests are low.
+- Any score above 80 requires positive evidence and no unresolved correctness/truthfulness issue for that parameter.
 - If engagement or evidence is thin, say so honestly and score conservatively — do NOT invent strengths or topic mastery."""
 
 
@@ -397,9 +582,11 @@ def _build_code_evidence(session: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _normalise_parameters(raw: Any) -> list[dict[str, Any]]:
+def _normalise_parameters(raw: Any, expected_names: list[str] | None = None) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
+    expected = expected_names or []
+    by_name: dict[str, dict[str, Any]] = {}
     out: list[dict[str, Any]] = []
     for item in raw:
         if not isinstance(item, dict):
@@ -411,8 +598,15 @@ def _normalise_parameters(raw: Any) -> list[dict[str, Any]]:
             score = max(0, min(100, int(round(float(item.get("score", 0))))))
         except (TypeError, ValueError):
             score = 0
-        out.append({"name": name, "score": score, "note": str(item.get("note", "")).strip()})
-    return out
+        normalised = {"name": name, "score": score, "note": str(item.get("note", "")).strip()}
+        by_name[name] = normalised
+        out.append(normalised)
+    if not expected:
+        return out
+    return [
+        by_name.get(name, {"name": name, "score": 0, "note": "No reliable evidence was available for this parameter."})
+        for name in expected
+    ]
 
 
 def _normalise_topic_mastery(raw: Any) -> list[dict[str, Any]]:
@@ -514,7 +708,8 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
     strengths = [str(s).strip() for s in synth.get("strengths", []) if str(s).strip()]
     weaknesses = [str(w).strip() for w in synth.get("weaknesses", []) if str(w).strip()]
     suggestions = [str(x).strip() for x in synth.get("suggestions", []) if str(x).strip()]
-    parameters = _normalise_parameters(synth.get("parameters", []))
+    expected_parameters = _ROUND_PARAMETERS.get(report.get("round_type", "dsa"), _ROUND_PARAMETERS["dsa"])
+    parameters = _normalise_parameters(synth.get("parameters", []), expected_parameters)
     topic_mastery = _normalise_topic_mastery(synth.get("topic_mastery", []))
 
     if summary:
@@ -529,7 +724,17 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
         report["study_plan"] = suggestions
     if parameters:
         report["parameter_scores"] = parameters
+        parameter_round_score = _avg_dict({item["name"]: item["score"] for item in parameters})
+        report["round_breakdown"]["round_score"] = round(parameter_round_score, 1)
+        report["round_breakdown"]["parameter_scores"] = parameters
+        report["overall_score"] = _overall_score(
+            report.get("scores", {}),
+            int(report.get("integrity", {}).get("score", 100)),
+            parameter_round_score,
+        )
+        report["hiring_signal"] = _hiring_signal(report["overall_score"])
     if topic_mastery:
         report["topic_mastery"] = topic_mastery
+        report["round_breakdown"]["topic_mastery"] = topic_mastery
     report["ai_generated"] = bool(summary or strengths or weaknesses or parameters)
     return report
