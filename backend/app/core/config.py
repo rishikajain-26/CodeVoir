@@ -1,14 +1,27 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     APP_NAME: str = "Verity"
 
+    OPENAI_API_KEY: str = ""
+
+    # Claude Sonnet (primary LLM when ANTHROPIC_API_KEY is set)
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-5"
+
     GEMINI_API_KEY: str = ""
 
-    LLM_PROVIDER: str = "gemini"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
+    GROQ_API_KEY: str = ""
+
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
+    LLM_PROVIDER: str = ""  # blank = auto-priority (Claude > Groq > Gemini)
 
     DATABASE_URL: str = (
         "postgresql://postgres:postgres@localhost:5432/ai_interview"
@@ -25,9 +38,6 @@ class Settings(BaseSettings):
     MEMORY_SUMMARY_TRIGGER: int = 15
 
     CONTRADICTION_CONFIDENCE_THRESHOLD: float = 0.7
-
-    class Config:
-        env_file = ".env"
 
 
 @lru_cache
