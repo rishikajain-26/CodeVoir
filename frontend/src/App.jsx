@@ -262,8 +262,21 @@ export default function App() {
       // Remove thinking indicator
       setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
       if (reply.dsa_progress) setDsaProgress(reply.dsa_progress)
+      setSession((prev) => {
+        if (!prev) return prev
+        const updates = {
+          phase: reply.phase,
+          question_count: reply.question_count,
+          exchange_count: reply.exchange_count,
+          behavioral_signals: reply.behavioral_signals,
+          weak_areas: reply.weak_areas,
+        }
+        if (reply.cs_fundamentals) updates.cs_fundamentals = reply.cs_fundamentals
+        if (reply.project_behavioral) updates.project_behavioral = reply.project_behavioral
+        if (reply.problem_changed && reply.problem) updates.problem = reply.problem
+        return { ...prev, ...updates }
+      })
       if (reply.problem_changed && reply.problem) {
-        setSession((prev) => ({ ...prev, problem: reply.problem }))
         const nextCode = getStarterCode(reply.problem, language)
         setCode(nextCode)
         codeRef.current = nextCode
