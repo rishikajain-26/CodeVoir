@@ -45,11 +45,25 @@ def main():
             "jd_signals": {"skills": ["FastAPI", "Docker"]},
             "latest_scores": {"specificity": 8, "ownership": 7, "technical_depth": 7, "impact": 5, "reflection": 6},
             "latest_flags": ["Impact is not quantified."],
-            "turns": [{"phase": "project_deep_dive", "answer_excerpt": "I owned the backend APIs.", "scores": {"ownership": 7}, "flags": []}],
+            "turns": [{"phase": "project_deep_dive", "answer_text": "In the AI Interview Platform, I owned the backend APIs for sessions and reports, connected the React flow, and tested repeated interview message paths.", "answer_excerpt": "In the AI Interview Platform, I owned the backend APIs for sessions and reports, connected the React flow, and tested repeated interview message paths.", "scores": {"ownership": 7}, "flags": []}],
         },
     ))
     assert_true(project_report["round_breakdown"]["type"] == "project_behavioral", "Project report should include project breakdown.")
-    assert_true("AI Interview Platform" in " ".join(project_report["strengths"]), "Project report should use resume project evidence.")
+    assert_true("AI Interview Platform" in " ".join(project_report["strengths"]), "Project report should use candidate project evidence, not resume-only evidence.")
+    assert_true(project_report["parameter_scores"], "Project report should expose realistic parameter scores.")
+
+    resume_only_project_report = build_feedback_report(session_with(
+        round_type="project_behavioral",
+        project_behavioral={
+            "resume_focus": {"selected_project": "Resume Only Project"},
+            "latest_scores": {"specificity": 3, "ownership": 3, "technical_depth": 3, "impact": 3, "reflection": 3},
+            "turns": [],
+        },
+    ))
+    assert_true(
+        "Resume Only Project" not in " ".join(resume_only_project_report["strengths"]),
+        "Resume project selection alone should not be reported as a strength.",
+    )
 
     cs_report = build_feedback_report(session_with(
         round_type="cs_fundamentals",
@@ -62,11 +76,33 @@ def main():
             "latest_scores": {"clarity": 8, "correctness": 7, "application": 6, "depth": 6, "communication": 8},
             "latest_flags": ["Answer needs a practical example."],
             "scratchpad_history": [{"topic": "DBMS", "mode": "sql", "content": "SELECT * FROM users;"}],
-            "questions_asked": [{"topic": "DBMS", "question_type": "concept", "answer_excerpt": "Transactions group operations.", "scores": {"clarity": 8}}],
+            "questions_asked": [{"topic": "DBMS", "question_type": "concept", "answer_excerpt": "Transactions group operations.", "scores": {"clarity": 8, "correctness": 7, "application": 6, "depth": 6, "communication": 8}}],
         },
     ))
     assert_true(cs_report["round_breakdown"]["type"] == "cs_fundamentals", "CS report should include CS breakdown.")
     assert_true(cs_report["round_breakdown"]["scratchpad_observations"], "CS report should include scratchpad evidence.")
+    assert_true(cs_report["parameter_scores"], "CS report should expose parameter scores.")
+
+    wrong_cs_report = build_feedback_report(session_with(
+        round_type="cs_fundamentals",
+        cs_fundamentals={
+            "current_topic": "Computer Networks",
+            "topic_plan": ["Computer Networks"],
+            "topics_covered": ["Computer Networks"],
+            "questions_asked": [{
+                "topic": "Computer Networks",
+                "question_type": "concept",
+                "answer_excerpt": "UDP guarantees delivery and TCP does not guarantee order.",
+                "scores": {"clarity": 8, "correctness": 3, "application": 4, "depth": 4, "communication": 8},
+                "flags": ["Incorrect concept: UDP does not guarantee delivery or ordering."],
+                "misconceptions": ["UDP does not guarantee delivery or ordering."],
+            }],
+        },
+    ))
+    correctness = next(item for item in wrong_cs_report["parameter_scores"] if item["name"] == "Correctness")
+    depth = next(item for item in wrong_cs_report["parameter_scores"] if item["name"] == "Depth of Understanding")
+    assert_true(correctness["score"] <= 45, "Wrong CS answers should not receive correctness credit.")
+    assert_true(depth["score"] <= 55, "Wrong CS answers should cap depth credit.")
 
     print("Report service baseline passed")
 

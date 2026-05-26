@@ -5,8 +5,8 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
 
+from app.orchestration.project_behavioral_llm import evaluate_project_behavioral_with_llm
 from app.services.interview_data_service import get_project_behavioral_config
-from app.services.llm_service import llm_service
 
 
 class ProjectBehavioralState(TypedDict, total=False):
@@ -48,7 +48,26 @@ def _context_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
 
 
 def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
-    evaluation = _evaluate_answer(state.get("user_text", ""), state.get("strategy", {}))
+    session = state.get("session", {})
+    turn = int(session.get("question_count", 0) or 0)
+    phase = _phase_for_turn(turn)
+    llm_evaluation = evaluate_project_behavioral_with_llm(
+        session=session,
+        memory=session.get("project_behavioral", {}),
+        company_profile=state.get("company_profile", {}),
+        jd_signals=state.get("jd_signals", {}),
+        resume_signals=state.get("resume_signals", {}),
+        user_text=state.get("user_text", ""),
+        phase=phase,
+    )
+    evaluation = llm_evaluation or _evaluate_answer(
+        state.get("user_text", ""),
+        state.get("strategy", {}),
+        state.get("resume_signals", {}),
+        state.get("jd_signals", {}),
+        state.get("company_profile", {}),
+        state.get("session", {}),
+    )
     return {**state, "answer_evaluation": evaluation}
 
 
@@ -58,36 +77,48 @@ def _strategy_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     profile = state.get("company_profile", {})
     evaluation = state.get("answer_evaluation", {})
 
-    if turn <= 1:
-        phase = "resume_walkthrough"
-        goal = "connect resume, job description, and strongest project"
-    elif turn <= 3:
-        phase = "project_deep_dive"
-        goal = "validate project ownership, architecture, and tradeoffs"
-    elif turn <= 5:
-        phase = "technical_tradeoffs"
-        goal = "probe scaling, reliability, failure modes, and redesign thinking"
-    elif turn <= 8:
-        phase = "behavioural_star"
-        goal = "collect STAR evidence for collaboration, conflict, pressure, or ambiguity"
-    elif turn <= 10:
-        phase = "pressure_validation"
-        goal = "stress-test weak areas and company-specific expectations"
-    else:
-        phase = "closing"
-        goal = "wrap up and prepare feedback"
+    phase = _phase_for_turn(turn)
+    goal = _goal_for_phase(phase)
 
     if evaluation.get("flags") and phase not in {"closing", "pressure_validation"}:
         goal = f"{goal}; repair weak evidence from the previous answer"
 
+    followup_intent = evaluation.get("followup_intent") or _select_followup_intent(evaluation)
     strategy = {
         "turn": turn,
         "phase": phase,
         "goal": goal,
         "company_style": profile.get("interview_style", "balanced"),
         "theme": _pick_theme(profile.get("focus_areas", []), turn),
+        "followup_intent": followup_intent,
     }
     return {**state, "strategy": strategy, "phase": phase}
+
+
+def _phase_for_turn(turn: int) -> str:
+    if turn <= 1:
+        return "resume_walkthrough"
+    if turn <= 3:
+        return "project_deep_dive"
+    if turn <= 5:
+        return "technical_tradeoffs"
+    if turn <= 8:
+        return "behavioural_star"
+    if turn <= 10:
+        return "pressure_validation"
+    return "closing"
+
+
+def _goal_for_phase(phase: str) -> str:
+    goals = {
+        "resume_walkthrough": "connect resume, job description, and strongest project",
+        "project_deep_dive": "validate project ownership, architecture, and tradeoffs",
+        "technical_tradeoffs": "probe scaling, reliability, failure modes, and redesign thinking",
+        "behavioural_star": "collect STAR evidence for collaboration, conflict, pressure, or ambiguity",
+        "pressure_validation": "stress-test weak areas and company-specific expectations",
+        "closing": "wrap up and prepare feedback",
+    }
+    return goals.get(phase, goals["project_deep_dive"])
 
 
 _BEHAVIORAL_SYSTEM_PROMPT = """You are a sharp, realistic Project + Behavioural interviewer. Your job is to extract evidence, not make the candidate feel good.
@@ -112,15 +143,8 @@ Plain text only. Maximum 3 sentences."""
 
 def _response_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     fallback = _fallback_question(state)
-    ai_text = fallback
-    if state["session"].get("llm_enabled"):
-        ai_text = llm_service.generate(
-            _BEHAVIORAL_SYSTEM_PROMPT,
-            _build_llm_payload(state),
-            fallback=fallback,
-            temperature=0.4,
-            max_tokens=240,
-        )
+    evaluation = state.get("answer_evaluation", {})
+    ai_text = evaluation.get("next_question") or fallback
     return {**state, "ai_text": ai_text}
 
 
@@ -161,12 +185,24 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
             *turns,
             {
                 "phase": strategy.get("phase", state.get("phase", "projects")),
-                "answer_excerpt": _clip(state.get("user_text", ""), 320),
+                "answer_text": _clip(state.get("user_text", ""), 3000),
+                "answer_excerpt": _clip(state.get("user_text", ""), 900),
                 "scores": evaluation.get("scores", {}),
+                "evaluation_source": evaluation.get("evaluation_source", "local_fallback"),
                 "flags": evaluation.get("flags", []),
                 "evidence": evaluation.get("evidence", []),
+                "strengths": evaluation.get("strengths", []),
+                "weak_areas": evaluation.get("weak_areas", []),
                 "star_components": evaluation.get("star_components", {}),
                 "exaggeration_risk": evaluation.get("exaggeration_risk", False),
+                "accountability_gap": evaluation.get("accountability_gap", False),
+                "project_discussed": evaluation.get("project_discussed", False),
+                "jd_skill_hits": evaluation.get("jd_skill_hits", []),
+                "resume_skill_hits": evaluation.get("resume_skill_hits", []),
+                "company_focus_hits": evaluation.get("company_focus_hits", []),
+                "role_alignment_hits": evaluation.get("role_alignment_hits", []),
+                "next_question": state.get("ai_text", ""),
+                "next_question_reason": evaluation.get("next_question_reason", ""),
             },
         ][-20:]
 
@@ -194,6 +230,7 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         "latest_scores": evaluation.get("scores", {}),
         "latest_flags": evaluation.get("flags", []),
         "latest_star": evaluation.get("star_components", {}),
+        "latest_context_alignment": evaluation.get("context_alignment", {}),
         "exaggeration_risk": evaluation.get("exaggeration_risk", False),
         "accountability_gap": evaluation.get("accountability_gap", False),
         "contradiction_history": contradiction_history,
@@ -204,17 +241,17 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
 
 def build_project_behavioral_graph():
     graph = StateGraph(ProjectBehavioralState)
-    graph.add_node("context", _context_node)
+    graph.add_node("load_context", _context_node)
     graph.add_node("evaluate_answer", _evaluation_node)
     graph.add_node("choose_strategy", _strategy_node)
-    graph.add_node("compose_response", _response_node)
+    graph.add_node("generate_question", _response_node)
     graph.add_node("update_memory", _memory_node)
 
-    graph.set_entry_point("context")
-    graph.add_edge("context", "evaluate_answer")
+    graph.set_entry_point("load_context")
+    graph.add_edge("load_context", "evaluate_answer")
     graph.add_edge("evaluate_answer", "choose_strategy")
-    graph.add_edge("choose_strategy", "compose_response")
-    graph.add_edge("compose_response", "update_memory")
+    graph.add_edge("choose_strategy", "generate_question")
+    graph.add_edge("generate_question", "update_memory")
     graph.add_edge("update_memory", END)
     return graph.compile()
 
@@ -259,12 +296,25 @@ def _extract_resume_signals(resume_data: dict[str, Any], jd_signals: dict[str, A
     }
 
 
-def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]:
+def _evaluate_answer(
+    user_text: str,
+    strategy: dict[str, Any],
+    resume_signals: dict[str, Any],
+    jd_signals: dict[str, Any],
+    company_profile: dict[str, Any],
+    session: dict[str, Any],
+) -> dict[str, Any]:
     text = user_text.strip()
     lower = text.lower()
     words = re.findall(r"[a-zA-Z0-9+.#-]+", text)
+    project_discussed = _candidate_referenced_resume_project(lower, resume_signals, len(words))
+    jd_skill_hits = _keyword_hits(lower, jd_signals.get("skills", []))
+    jd_responsibility_hits = _keyword_hits(lower, jd_signals.get("responsibilities", []))
+    resume_skill_hits = _keyword_hits(lower, resume_signals.get("resume_skill_matches", []))
+    company_focus_hits = _keyword_hits(lower, company_profile.get("focus_areas", []))
+    role_alignment_hits = _role_alignment_hits(lower, session.get("job_role", ""))
     has_metric = bool(re.search(
-        r"\b\d+%|\b\d+x|\b\d+\+|\b\d+\s*(users|ms|seconds|requests|apis|features|tests|people|days|weeks|engineers?)\b",
+        r"\b\d+%|\b\d+\s*percent\b|\b\d+x|\b\d+\+|\b\d+\s*(users|ms|seconds|requests|apis|features|tests|people|days|weeks|engineers?)\b",
         lower,
     ))
     first_person = len(re.findall(r"\bi\b|\bmy\b|\bme\b|\bbuilt\b|\bimplemented\b|\bdesigned\b|\bowned\b", lower))
@@ -295,9 +345,14 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
         "saved millions", "single-handedly", "entirely alone", "nobody else",
         "state of the art", "world-class",
     ])
+    unsupported_claims = _keyword_hits(lower, [
+        "10x", "saved millions", "zero downtime", "millions of users", "100% accurate",
+        "never failed", "completely secure", "fully scalable", "production grade",
+    ])
     accountability_gap = bool(
         re.search(r"\bwe\b", lower) and not re.search(r"\bi\b|\bmy\b|\bmy role\b|\bmy contribution\b", lower)
     )
+    credibility_risk = bool(vague_superlatives or (unsupported_claims and not has_metric))
 
     scores = {
         "specificity": _score(len(words), [35, 80, 140]),
@@ -306,10 +361,36 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
         "impact": 9 if (has_metric and result_signals) else (6 if has_metric else (5 if result_signals else 3)),
         "star_completeness": star_score,
         "reflection": min(10, 3 + len(result_signals)),
+        "context_alignment": min(
+            10,
+            2
+            + (2 if project_discussed else 0)
+            + min(3, len(jd_skill_hits) + len(jd_responsibility_hits))
+            + min(2, len(resume_skill_hits) + len(company_focus_hits))
+            + min(1, len(role_alignment_hits)),
+        ),
     }
+    if accountability_gap:
+        scores["ownership"] = min(scores["ownership"], 4)
+    if credibility_risk:
+        scores["impact"] = min(scores["impact"], 4)
+        scores["specificity"] = min(scores["specificity"], 5)
+    if resume_signals.get("project_count", 0) > 0 and not project_discussed:
+        scores["context_alignment"] = min(scores["context_alignment"], 4)
+    if jd_signals.get("has_jd") and not (jd_skill_hits or jd_responsibility_hits):
+        scores["context_alignment"] = min(scores["context_alignment"], 5)
+
     flags = []
     if len(words) < 35:
         flags.append("Answer is too brief for a realistic Project + Behavioural interview.")
+    if resume_signals.get("project_count", 0) > 0 and not project_discussed:
+        flags.append(
+            f"Resume project evidence is unclear; explicitly connect the answer to {resume_signals.get('selected_project', 'the selected project')}."
+        )
+    if jd_signals.get("has_jd") and not (jd_skill_hits or jd_responsibility_hits):
+        flags.append("Job description connection is missing; tie the answer to at least one required skill or responsibility.")
+    if company_profile.get("focus_areas") and not company_focus_hits:
+        flags.append("Company-specific focus is not evident; connect the answer to the round's expected focus areas.")
     if first_person < 2 or accountability_gap:
         flags.append("Personal ownership is unclear; explain what YOU specifically did, not just 'we'.")
     if not has_metric:
@@ -325,20 +406,40 @@ def _evaluate_answer(user_text: str, strategy: dict[str, Any]) -> dict[str, Any]
             f"Possible exaggeration detected ({', '.join(vague_superlatives[:2])}); "
             "use precise, verifiable claims."
         )
+    if unsupported_claims and not has_metric:
+        flags.append(
+            f"Unsupported high-impact claim detected ({', '.join(unsupported_claims[:2])}); interviewers need verifiable context before giving credit."
+        )
 
     return {
+        "evaluation_source": "local_fallback",
         "scores": scores,
         "flags": flags,
         "evidence": _extract_evidence_sentences(text),
         "technical_terms": technical_terms[:8],
         "has_metric": has_metric,
+        "context_alignment": {
+            "has_resume_project": resume_signals.get("project_count", 0) > 0,
+            "has_jd": jd_signals.get("has_jd", False),
+            "project_discussed": project_discussed,
+            "jd_skill_hits": jd_skill_hits[:8],
+            "jd_responsibility_hits": jd_responsibility_hits[:8],
+            "resume_skill_hits": resume_skill_hits[:8],
+            "company_focus_hits": company_focus_hits[:8],
+            "role_alignment_hits": role_alignment_hits[:6],
+        },
+        "project_discussed": project_discussed,
+        "jd_skill_hits": jd_skill_hits[:8],
+        "resume_skill_hits": resume_skill_hits[:8],
+        "company_focus_hits": company_focus_hits[:8],
+        "role_alignment_hits": role_alignment_hits[:6],
         "star_components": {
             "situation": bool(situation_signals),
             "task": bool(task_signals),
             "action": bool(action_signals),
             "result": bool(result_signals),
         },
-        "exaggeration_risk": len(vague_superlatives) > 0,
+        "exaggeration_risk": credibility_risk,
         "accountability_gap": accountability_gap,
     }
 
@@ -355,6 +456,11 @@ def _fallback_question(state: ProjectBehavioralState) -> str:
     role = session.get("job_role", "the role")
     theme = strategy.get("theme", "ownership")
     phase = strategy.get("phase", "project_deep_dive")
+    intent = strategy.get("followup_intent", "phase_default")
+
+    targeted = _targeted_followup(intent, evaluation, resume, jd, company, project, role)
+    if targeted:
+        return targeted
 
     if phase == "resume_walkthrough":
         jd_hint = ""
@@ -405,6 +511,49 @@ def _keyword_hits(text: str, keywords: list[str]) -> list[str]:
     return [keyword for keyword in keywords if keyword.lower() in lower]
 
 
+def _candidate_referenced_resume_project(lower_answer: str, resume_signals: dict[str, Any], word_count: int) -> bool:
+    if int(resume_signals.get("project_count", 0) or 0) <= 0:
+        return False
+
+    project_name = str(resume_signals.get("selected_project", "") or "")
+    project_tokens = [
+        token.lower()
+        for token in re.findall(r"[a-zA-Z0-9]+", project_name)
+        if len(token) >= 4 and token.lower() not in {"your", "strongest", "resume", "project"}
+    ]
+    if project_tokens and any(token in lower_answer for token in project_tokens):
+        return True
+
+    project_summary = str(resume_signals.get("project_summary", "") or "")
+    project_terms = [
+        token.lower()
+        for token in re.findall(r"[a-zA-Z0-9+.#-]+", project_summary)
+        if len(token) >= 4 and token.lower() not in {"with", "using", "built", "project", "system", "application"}
+    ]
+    overlap = sum(1 for token in set(project_terms) if token in lower_answer)
+    if overlap >= 2:
+        return True
+
+    project_language = _keyword_hits(lower_answer, ["project", "app", "application", "platform", "system", "dashboard", "api", "service"])
+    return word_count >= 45 and len(project_language) >= 1
+
+
+def _role_alignment_hits(lower_answer: str, job_role: str) -> list[str]:
+    role_tokens = [
+        token.lower()
+        for token in re.findall(r"[a-zA-Z0-9+.#-]+", job_role or "")
+        if len(token) >= 4 and token.lower() not in {"software", "engineer", "developer"}
+    ]
+    hits = [token for token in role_tokens if token in lower_answer]
+    if "backend" in lower_answer:
+        hits.append("backend")
+    if "frontend" in lower_answer:
+        hits.append("frontend")
+    if "full stack" in lower_answer or "fullstack" in lower_answer:
+        hits.append("full stack")
+    return list(dict.fromkeys(hits))
+
+
 def _pick_theme(themes: list[str], turn: int) -> str:
     if not themes:
         return "ownership"
@@ -428,7 +577,7 @@ def _extract_evidence_sentences(text: str) -> list[str]:
 
 
 def _weak_areas_from_eval(evaluation: dict[str, Any]) -> list[str]:
-    return evaluation.get("flags", [])[:3]
+    return [*evaluation.get("flags", []), *evaluation.get("weak_areas", [])][:3]
 
 
 def _repair_instruction(evaluation: dict[str, Any]) -> str:
@@ -436,6 +585,79 @@ def _repair_instruction(evaluation: dict[str, Any]) -> str:
     if not flags:
         return ""
     return f"Also fix this gap from your previous answer: {flags[0]}"
+
+
+def _select_followup_intent(evaluation: dict[str, Any]) -> str:
+    if not evaluation:
+        return "phase_default"
+
+    alignment = evaluation.get("context_alignment", {}) or {}
+    star = evaluation.get("star_components", {}) or {}
+    scores = evaluation.get("scores", {}) or {}
+
+    if alignment.get("has_resume_project") and not alignment.get("project_discussed"):
+        return "anchor_resume_project"
+    if alignment.get("has_jd") and not (alignment.get("jd_skill_hits") or alignment.get("jd_responsibility_hits")):
+        return "connect_jd"
+    if evaluation.get("accountability_gap"):
+        return "clarify_ownership"
+    if evaluation.get("exaggeration_risk"):
+        return "verify_claim"
+    if not evaluation.get("has_metric"):
+        return "quantify_impact"
+    if scores.get("technical_depth", 10) < 6:
+        return "technical_depth"
+
+    missing_star = [name for name, present in star.items() if not present]
+    if missing_star:
+        return f"star_{missing_star[0]}"
+
+    return "phase_default"
+
+
+def _targeted_followup(
+    intent: str,
+    evaluation: dict[str, Any],
+    resume: dict[str, Any],
+    jd: dict[str, Any],
+    company: str,
+    project: str,
+    role: str,
+) -> str:
+    if intent == "phase_default":
+        return ""
+
+    if intent == "anchor_resume_project":
+        return f"Anchor this to {project}. What exactly did you personally build, change, or own in that project?"
+
+    if intent == "connect_jd":
+        jd_targets = [*jd.get("skills", [])[:3], *jd.get("responsibilities", [])[:2]]
+        target_text = ", ".join(jd_targets) if jd_targets else f"the {role} requirements"
+        return f"Tie this answer to the job description. Which required skill or responsibility does {project} prove: {target_text}?"
+
+    if intent == "clarify_ownership":
+        return "You used broad team language. What did you personally own, what decision did you make, and what would have failed without your contribution?"
+
+    if intent == "verify_claim":
+        return "That claim needs verification. Give one concrete number, before-and-after comparison, or specific incident that proves the impact without exaggerating."
+
+    if intent == "quantify_impact":
+        return f"What measurable or observable result came from your work on {project}: latency, accuracy, users, time saved, defects reduced, or another honest outcome?"
+
+    if intent == "technical_depth":
+        return f"Go deeper technically on {project}. What architecture tradeoff, failure mode, scaling limit, or redesign decision did you personally handle?"
+
+    if intent.startswith("star_"):
+        missing = intent.replace("star_", "", 1)
+        prompts = {
+            "situation": "Give the Situation clearly: what was happening, who was involved, and why did it matter?",
+            "task": "Give the Task clearly: what responsibility or goal was specifically assigned to you?",
+            "action": "Give the Action clearly: what did you personally do step by step?",
+            "result": "Give the Result clearly: what changed, what metric or outcome proved it, and what did you learn?",
+        }
+        return prompts.get(missing, "Complete the missing STAR component with specific evidence.")
+
+    return ""
 
 
 def _clip(value: str, limit: int) -> str:
