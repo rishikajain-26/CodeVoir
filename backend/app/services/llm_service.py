@@ -11,7 +11,7 @@ class LLMService:
     """Small API-ready LLM gateway with deterministic no-key fallback behavior."""
 
     def is_configured(self) -> bool:
-        return bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"))
+        return bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
 
     def active_provider(self) -> str:
         if os.getenv("LLM_PROVIDER", "").lower() == "gemini" and os.getenv("GEMINI_API_KEY"):
@@ -54,13 +54,24 @@ class LLMService:
         temperature: float = 0.45,
         max_tokens: int = 220,
     ) -> str:
+        from app.services.llm import health
+
         provider = self.active_provider()
         if provider == "groq":
             text = self._generate_groq(system_prompt, user_payload, temperature, max_tokens)
+            if text:
+                health.record_ok()
+            else:
+                health.record_fail("groq_empty_or_error")
             return text or fallback
         if provider == "gemini":
             text = self._generate_gemini(system_prompt, user_payload, temperature, max_tokens)
+            if text:
+                health.record_ok()
+            else:
+                health.record_fail("gemini_empty_or_error")
             return text or fallback
+        health.record_fail("no_provider_configured")
         return fallback
 
     def _generate_groq(self, system_prompt: str, user_payload: dict[str, Any] | str, temperature: float, max_tokens: int) -> str:

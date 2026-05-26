@@ -28,6 +28,7 @@ from app.services.interview_data_service import (
     list_companies_for_round,
 )
 from app.services.llm_service import llm_service
+from app.services.llm.health import is_offline as _llm_is_offline, get_health as _llm_get_health
 from app.services.report_service import build_feedback_report_async
 from app.services.session_store import (
     load_all_sessions,
@@ -473,7 +474,17 @@ async def interview_message(payload: MessageRequest):
         "problem": session.get("problem") if problem_changed else None,
         "problem_changed": problem_changed,
         "degraded": degraded,
+        "llm_offline": _llm_is_offline(),
     }
+
+
+@app.get("/api/health/llm")
+async def llm_health():
+    """LLM reachability across all interview rounds, for the candidate-facing
+    'AI currently offline' indicator."""
+    h = _llm_get_health()
+    configured = llm_service.is_configured()
+    return {"offline": _llm_is_offline() and configured, "configured": configured, **h}
 
 
 @app.post("/api/interview/submit-code")

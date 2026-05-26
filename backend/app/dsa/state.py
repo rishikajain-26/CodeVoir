@@ -174,6 +174,9 @@ class UnderstandingProfile(BaseModel):
     edge_cases_identified_early: list[str] = Field(default_factory=list)
     misunderstood_constraints: list[str] = Field(default_factory=list)
     understanding_score: float = 0.0
+    # How well the latest reply answers the follow-up question that was asked,
+    # judged against the problem. 0 when no follow-up was pending.
+    answer_relevance: float = 0.0
 
 
 class ApproachProfile(BaseModel):
@@ -265,6 +268,7 @@ class TurnScore(BaseModel):
     debugging: float = 0.0
     communication: float = 0.0
     behavioural: float = 0.0
+    answer_relevance: float = 0.0  # quality of reply vs the follow-up asked (0 if none)
     weighted_total: float = 0.0
     missed_edge_cases: list[str] = Field(default_factory=list)
     suggested_followups: list[str] = Field(default_factory=list)
@@ -277,6 +281,7 @@ class SessionScores(BaseModel):
     communication: float = 0.0
     debugging: float = 0.0
     dsa_knowledge: float = 0.0
+    followup_handling: float = 0.0  # avg answer_relevance over turns that answered a follow-up
     overall: float = 0.0
     confidence_trend: list[float] = Field(default_factory=list)
     per_turn: list[float] = Field(default_factory=list)

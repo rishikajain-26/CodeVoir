@@ -111,7 +111,11 @@ async def run_dsa_turn_async(
 
     session["dsa"] = payload["dsa"]
     session["dsa_progress"] = progress
-    sync_progress_to_session(session, final_state)
+    # When a question was just advanced, apply_session_actions already wrote the correct
+    # current_question_index into session["dsa_progress"]. sync_progress_to_session would
+    # overwrite it with state.progress (still at the old question index) — skip it.
+    if not question_advanced:
+        sync_progress_to_session(session, final_state)
 
     if (
         final_state.progress.time_expired

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import Literal
+from typing import Any, Callable, Literal
 
 from app.dsa.llm_text import generate_text
 from app.dsa.state import DSAState, SessionScores
@@ -488,18 +488,41 @@ async def hint_calibrator(state: DSAState) -> dict:
 
 
 def score_reporter(state: DSAState) -> dict:
-    turns = state.memory.turns
-    totals = [record.score.weighted_total for record in turns]
-    avg = sum(totals) / max(len(totals), 1)
-    latest = state.turn_score
+    # score_reporter runs in output_bundle, BEFORE memory_update appends this turn —
+    # so memory.turns holds only prior turns. Include the current turn_score explicitly
+    # so the latest turn counts (otherwise SessionScores lag one turn and a single-turn
+    # session reads 0).
+    prior = list(state.memory.turns)
+    scores = [r.score for r in prior] + [state.turn_score]
+    totals = [s.weighted_total for s in scores]
+    avg_overall = round(sum(totals) / max(len(totals), 1), 3) if totals else 0.0
+
+    def _avg_skill(fn: Any) -> float:
+        vals = [fn(s) for s in scores]
+        return round(sum(vals) / max(len(vals), 1), 3) if vals else 0.0
+
+    # Follow-up handling: average answer_relevance over only the turns that actually
+    # answered an interviewer follow-up. A turn answered one iff the PREVIOUS turn
+    # recorded a non-empty followup_asked.
+    fu_vals: list[float] = []
+    prev_asked = ""
+    for rec in prior:
+        if prev_asked.strip():
+            fu_vals.append(rec.score.answer_relevance)
+        prev_asked = rec.followup_asked or ""
+    if prev_asked.strip():  # the current turn is answering the last recorded follow-up
+        fu_vals.append(state.turn_score.answer_relevance)
+    followup_handling = round(sum(fu_vals) / len(fu_vals), 3) if fu_vals else 0.0
+
     return {
         "session_scores": SessionScores(
-            problem_solving=round((latest.approach_quality + latest.understanding) / 2, 3),
-            coding=round(latest.implementation, 3),
-            communication=round(latest.communication, 3),
-            debugging=round(latest.debugging, 3),
-            dsa_knowledge=round((latest.approach_quality + latest.complexity_accuracy) / 2, 3),
-            overall=round(avg, 3),
+            problem_solving=_avg_skill(lambda s: (s.approach_quality + s.understanding) / 2),
+            coding=_avg_skill(lambda s: s.implementation),
+            communication=_avg_skill(lambda s: s.communication),
+            debugging=_avg_skill(lambda s: s.debugging),
+            dsa_knowledge=_avg_skill(lambda s: (s.approach_quality + s.complexity_accuracy) / 2),
+            followup_handling=followup_handling,
+            overall=avg_overall,
             confidence_trend=state.memory.confidence_trend[-10:],
             per_turn=totals,
         )
@@ -808,28 +831,65 @@ def _fallback_contextual_reply(state: DSAState) -> str:
             )
         return "You are right; I repeated myself instead of responding to your point. Let me reset: state your current logic in one line and I will check that exact reasoning."
 
-    # Use code_structure for richer fallbacks when LLM is down
+    # Use code_structure for richer fallbacks when the LLM is down — but NEVER repeat
+    # a probe already asked this session, and NEVER invent bugs when the code passed.
+    run = state.latest_code_run or {}
+    total = int(run.get("total_testcases", 0) or 0)
+    passed = int(run.get("passed_testcases", 0) or 0)
+    all_passed = total > 0 and passed == total
+    asked_before = {(r.followup_asked or "").strip() for r in state.memory.turns if r.followup_asked}
+
+    def _fresh(*candidates: str) -> str | None:
+        for c in candidates:
+            if c and c.strip() not in asked_before:
+                return c
+        return None
+
     if cs and intent.raw_intent in ("answering_followup", "idle", "explaining_approach"):
         if not cs.get("parses"):
             return f"I see a syntax error in your code: {cs.get('syntax_error', 'check your brackets and indentation')}. Fix that first, then we can discuss the logic."
         if not cs.get("code_complete") and cs.get("functions"):
-            return f"Your function `{cs['functions'][0]}` looks incomplete — add the return logic, then I can review the full solution."
-        if cs.get("loop_depth", 0) >= 2 and not cs.get("has_memoization"):
-            return f"I see nested loops (depth {cs['loop_depth']}), giving {cs.get('estimated_time', 'O(n²)')}. Can you reduce that with a better data structure or memoization?"
-        if not cs.get("has_boundary_check") and cs.get("code_complete"):
-            return "Your logic looks structurally complete, but I don't see an early guard for empty or single-element input. What happens at the boundary?"
+            msg = f"Your function `{cs['functions'][0]}` looks incomplete — add the return logic, then I can review the full solution."
+            if msg.strip() not in asked_before:
+                return msg
+        if all_passed:
+            # The code WORKS — acknowledge it and probe depth, don't nag about guards.
+            probe = _fresh(
+                f"Nice — that passes all {total} tests. What's the time and space complexity, and can you justify it?",
+                "Good, it works. Is there an input size where this would get slow, and how would you handle it?",
+                "It passes. If the input were 10x larger, what would you change?",
+                "Solid. Walk me through why your approach is correct for the tricky cases.",
+            )
+            if probe:
+                return probe
+        else:
+            probe = _fresh(
+                (f"I see nested loops (depth {cs['loop_depth']}), giving {cs.get('estimated_time', 'O(n²)')}. Can you reduce that with a better data structure or memoization?"
+                 if cs.get("loop_depth", 0) >= 2 and not cs.get("has_memoization") else ""),
+                ("Your logic looks structurally complete, but I don't see an early guard for empty or single-element input. What happens at the boundary?"
+                 if not cs.get("has_boundary_check") and cs.get("code_complete") else ""),
+            )
+            if probe:
+                return probe
 
     if intent.approach_correct is True:
         return "Yes, that reasoning is on the right track. Go ahead and turn that invariant into code, and I will review the edge cases after you run it."
     if intent.approach_correct is False:
         return "There is a flaw in that reasoning; try a smaller counterexample and check whether the same count still holds. Which case breaks your formula?"
-    if intent.should_clarify_problem:
+    if intent.should_clarify_problem and "Good question. Let's clarify the exact input and output contract first." not in asked_before:
         return "Good question. Let's clarify the exact input and output contract first."
     if state.hint:
         return state.hint
-    if state.followup_question:
+    if state.followup_question and state.followup_question.strip() not in asked_before:
         return state.followup_question
-    return intent.interviewer_focus or "Tell me what you are thinking right now, and I will respond to that directly."
+    # Last resort: advance to something not yet asked rather than repeating a probe
+    # or leaking an internal focus instruction.
+    return _fresh(
+        "You've covered the main points. What edge cases or optimizations would you still want to handle?",
+        "Let's go a level deeper — what's the complexity of your current solution and why?",
+        "If you're confident in this, walk me through one tricky test case end to end.",
+        "What part of your solution are you least sure about?",
+    ) or "Walk me through your current reasoning in one or two sentences and I'll respond to that specifically."
 
 
 def _fallback_followup(state: DSAState) -> str:

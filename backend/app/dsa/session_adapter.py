@@ -147,6 +147,7 @@ def dsa_state_to_session_result(state: DSAState) -> dict[str, Any]:
             "latest_comparison": state.comparison,
             "latest_followup": state.followup_question,
             "latest_interviewer_reply": state.interviewer_reply,
+            "session_scores": state.session_scores.model_dump(),
             "turn_scores": state.session_scores.per_turn,
             "confidence_trend": state.memory.confidence_trend,
             "known_weak_areas": state.memory.known_weak_areas,
