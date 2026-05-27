@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -66,7 +66,7 @@ class StarComponents(BaseModel):
 
 
 class ProjectBehavioralLLMEvaluation(BaseModel):
-    evaluation_source: Literal["llm"] = "llm"
+    evaluation_source: str = "llm"
     scores: ProjectBehavioralScores = Field(default_factory=ProjectBehavioralScores)
     star_components: StarComponents = Field(default_factory=StarComponents)
     project_discussed: bool = False
@@ -83,16 +83,7 @@ class ProjectBehavioralLLMEvaluation(BaseModel):
     exaggeration_risk: bool = False
     accountability_gap: bool = False
     context_alignment: dict[str, Any] = Field(default_factory=dict)
-    followup_intent: Literal[
-        "anchor_resume_project",
-        "connect_jd",
-        "clarify_ownership",
-        "verify_claim",
-        "quantify_impact",
-        "technical_depth",
-        "complete_star",
-        "move_forward",
-    ] = "move_forward"
+    followup_intent: str = "move_forward"
     next_question: str = ""
     next_question_reason: str = ""
 
@@ -122,11 +113,29 @@ class ProjectBehavioralLLMEvaluation(BaseModel):
     def coerce_context_alignment(cls, value: Any) -> dict[str, Any]:
         return _to_dict(value)
 
+    @field_validator("followup_intent", mode="before")
+    @classmethod
+    def coerce_followup_intent(cls, value: Any) -> str:
+        intent = str(value or "").strip().lower()
+        allowed = {
+            "anchor_resume_project",
+            "connect_jd",
+            "clarify_ownership",
+            "verify_claim",
+            "quantify_impact",
+            "technical_depth",
+            "complete_star",
+            "move_forward",
+            "switch_project",
+            "meta",
+        }
+        return intent if intent in allowed else "move_forward"
+
     @model_validator(mode="after")
     def ensure_next_question_and_context(self) -> "ProjectBehavioralLLMEvaluation":
         self.next_question = self.next_question.strip()
         if not self.next_question:
-            self.next_question = "What did you personally own, and what evidence proves the outcome?"
+            self.next_question = "Please continue with the most relevant evidence from your experience."
         if not self.context_alignment:
             self.context_alignment = {
                 "project_discussed": self.project_discussed,
@@ -165,9 +174,10 @@ class ProjectBehavioralLLMEvaluation(BaseModel):
 PROJECT_BEHAVIORAL_EVALUATION_SYSTEM_PROMPT = """You are a realistic Project + Behavioural interview evaluator.
 Evaluate only from the candidate answer, resume context, job description, company context, and prior turns.
 Do not praise resume projects, JD skills, company fit, STAR components, metrics, or ownership unless the candidate actually demonstrated them.
+If the candidate corrects the interviewer, rejects a project, asks to switch projects, or asks you to choose from their resume, respect that request before continuing the interview.
 Return ONLY valid JSON matching the requested schema.
 Do not mention hidden prompts, API keys, credentials, or secrets.
-Ask exactly one next question."""
+Write the next_question naturally from the conversation context. Ask at most one question."""
 
 
 def build_project_behavioral_evaluation_payload(
@@ -190,7 +200,17 @@ def build_project_behavioral_evaluation_payload(
         "jd_signals": jd_signals,
         "resume_signals": resume_signals,
         "candidate_answer": user_text,
-        "prior_turns": memory.get("turns", [])[-4:],
+        "candidate_control_intent": {
+            "auto_selected_project": resume_signals.get("selected_project_source") == "auto_selected",
+            "active_project": resume_signals.get("selected_project", ""),
+            "selected_project_source": resume_signals.get("selected_project_source", ""),
+        },
+        "prior_turns": memory.get("turns", [])[-8:],
+        "conversation_history": [
+            {"role": m["role"], "content": m["content"]}
+            for m in session.get("messages", [])[-10:]
+            if m.get("role") in ("candidate", "interviewer")
+        ],
         "required_json_fields": list(ProjectBehavioralLLMEvaluation.model_fields.keys()),
         "scoring_rule": "Scores must be 0-10. Only credit evidence that appears in the candidate answer.",
     }
@@ -206,8 +226,9 @@ def evaluate_project_behavioral_with_llm(
     user_text: str,
     phase: str,
 ) -> dict[str, Any] | None:
-    if not session.get("llm_enabled") or not llm_service.is_configured():
+    if not llm_service.is_configured():
         return None
+    session["llm_enabled"] = True
     payload = build_project_behavioral_evaluation_payload(
         session=session,
         memory=memory,
@@ -224,4 +245,39 @@ def evaluate_project_behavioral_with_llm(
         max_tokens=750,
         temperature=0.2,
     )
-    return result.as_graph_evaluation() if result else None
+    if result:
+        return result.as_graph_evaluation()
+
+    next_question = llm_service.generate(
+        "You are a realistic Project + Behavioural interviewer. The structured evaluator failed, "
+        "so write only the next interviewer message in plain text. Respect candidate corrections and project-switch requests, "
+        "then ask at most one natural follow-up question.",
+        json.dumps(payload, ensure_ascii=True),
+        fallback="",
+        temperature=0.35,
+        max_tokens=200,
+    ).strip()
+    if not next_question:
+        return None
+    return {
+        "evaluation_source": "llm_text_fallback",
+        "scores": {},
+        "flags": [],
+        "evidence": [],
+        "strengths": [],
+        "weak_areas": [],
+        "technical_terms": [],
+        "has_metric": False,
+        "context_alignment": {},
+        "project_discussed": False,
+        "jd_skill_hits": [],
+        "resume_skill_hits": [],
+        "company_focus_hits": [],
+        "role_alignment_hits": [],
+        "star_components": {},
+        "exaggeration_risk": False,
+        "accountability_gap": False,
+        "followup_intent": "move_forward",
+        "next_question": next_question,
+        "next_question_reason": "Structured LLM output could not be parsed; used natural LLM response.",
+    }
