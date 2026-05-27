@@ -12,6 +12,9 @@ def resolve_litellm_settings() -> dict[str, str]:
     """
     explicit = (settings.LLM_PROVIDER or "").strip().lower()
 
+    if explicit == "openai" and settings.OPENAI_API_KEY:
+        return _openai_settings()
+
     if explicit == "anthropic" and settings.ANTHROPIC_API_KEY:
         return _anthropic_settings()
 
@@ -21,7 +24,10 @@ def resolve_litellm_settings() -> dict[str, str]:
     if explicit == "groq" and settings.GROQ_API_KEY:
         return _groq_settings()
 
-    # Default priority: Claude > Groq > Gemini
+    # Default priority: OpenAI > Claude > Groq > Gemini
+    if settings.OPENAI_API_KEY:
+        return _openai_settings()
+
     if settings.ANTHROPIC_API_KEY:
         return _anthropic_settings()
 
@@ -36,6 +42,17 @@ def resolve_litellm_settings() -> dict[str, str]:
         "provider": "unconfigured",
         "model": model,
         "api_key": settings.GEMINI_API_KEY or "",
+    }
+
+
+def _openai_settings() -> dict[str, str]:
+    model = (settings.OPENAI_MODEL or settings.LITELLM_MODEL or settings.MODEL_NAME or "gpt-4o-mini").strip()
+    if model.startswith("openai/"):
+        model = model.removeprefix("openai/")
+    return {
+        "provider": "openai",
+        "model": model,
+        "api_key": settings.OPENAI_API_KEY,
     }
 
 

@@ -80,6 +80,12 @@ def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         state.get("company_profile", {}),
         state.get("session", {}),
     )
+    evaluation = _ground_project_behavioral_score(
+        evaluation,
+        state.get("user_text", ""),
+        state.get("session", {}),
+        phase,
+    )
     return {**state, "answer_evaluation": evaluation}
 
 
@@ -723,6 +729,152 @@ def _evaluate_answer(
         "exaggeration_risk": credibility_risk,
         "accountability_gap": accountability_gap,
     }
+
+
+def _ground_project_behavioral_score(
+    evaluation: dict[str, Any],
+    user_text: str,
+    session: dict[str, Any],
+    phase: str,
+) -> dict[str, Any]:
+    """Make PB scoring depend on whether the answer satisfies the actual prompt.
+
+    Project + Behavioural questions do not have one fixed answer, but each prompt
+    has expected evidence. A reply that does not answer that prompt should not
+    receive credit just because it contains confident words or resume keywords.
+    """
+    scores = dict(evaluation.get("scores") or {})
+    if not scores:
+        return evaluation
+
+    text = (user_text or "").strip()
+    words = re.findall(r"[a-zA-Z0-9+.#-]+", text)
+    prior_turns = (session.get("project_behavioral", {}) or {}).get("turns", [])
+    current_question = ""
+    if prior_turns:
+        current_question = str(prior_turns[-1].get("next_question") or "")
+    alignment = _project_answer_alignment_score(text, current_question, phase)
+
+    weighted = (
+        _score_to_ten(scores.get("ownership")) * 0.20
+        + _score_to_ten(scores.get("technical_depth")) * 0.20
+        + _score_to_ten(scores.get("impact")) * 0.18
+        + _score_to_ten(scores.get("star_completeness")) * 0.16
+        + _score_to_ten(scores.get("context_alignment")) * 0.16
+        + _score_to_ten(scores.get("communication", scores.get("specificity"))) * 0.10
+    )
+    question_score = min(weighted, alignment)
+
+    if len(words) < 8:
+        question_score = 0
+    elif len(words) < 18:
+        question_score = min(question_score, 2)
+    elif len(words) < 35:
+        question_score = min(question_score, 4)
+
+    if alignment <= 1:
+        cap = 0
+    elif alignment <= 3:
+        cap = 3
+    elif alignment <= 5:
+        cap = 5
+    else:
+        cap = 10
+
+    if cap < 10:
+        for key, value in list(scores.items()):
+            if isinstance(value, (int, float)):
+                scores[key] = min(_score_to_ten(value), cap)
+
+    scores["question_alignment"] = round(alignment, 2)
+    scores["question_score"] = round(question_score, 2)
+    flags = list(evaluation.get("flags") or [])
+    if alignment <= 3:
+        flags.append("Answer did not directly satisfy the interviewer question, so this turn receives little or no credit.")
+    elif question_score <= 5:
+        flags.append("Answer partially addressed the question but missed expected evidence such as ownership, tradeoffs, result, or STAR detail.")
+
+    return {**evaluation, "scores": scores, "flags": _dedupe(flags)}
+
+
+def _score_to_ten(value: Any) -> float:
+    if not isinstance(value, (int, float)):
+        return 0.0
+    score = float(value)
+    if 0 <= score <= 1:
+        return score * 10
+    if score > 10:
+        return score / 10
+    return max(0.0, min(10.0, score))
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for item in items:
+        key = str(item).strip()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(key)
+    return result
+
+
+def _project_answer_alignment_score(text: str, current_question: str, phase: str) -> float:
+    lower = (text or "").lower()
+    q = (current_question or "").lower()
+    words = re.findall(r"[a-zA-Z0-9+.#-]+", lower)
+    if len(words) < 8:
+        return 0.0
+
+    ownership = bool(re.search(r"\bi\b|\bmy\b|\bme\b|\bbuilt\b|\bimplemented\b|\bdesigned\b|\bowned\b|\bchanged\b|\bdecided\b", lower))
+    technical = bool(_keyword_hits(lower, [
+        "architecture", "api", "database", "cache", "latency", "scale", "backend", "frontend",
+        "model", "pipeline", "deployment", "tradeoff", "failure", "monitoring", "schema",
+        "algorithm", "optimization", "testing", "security", "distributed",
+    ]))
+    result = bool(_observable_result_hits(lower) or re.search(r"\b\d+%|\b\d+x|\b\d+\+|\busers\b|\baccuracy\b|\blatency\b|\bsaved\b|\breduced\b|\bimproved\b|\bshipped\b|\bdeployed\b", lower))
+    alternatives = bool(re.search(r"\balternative|rejected|instead|tradeoff|chose|decision|because|hardest\b", lower))
+    star_parts = sum(bool(token) for token in [
+        re.search(r"\bsituation|context|background|when\b", lower),
+        re.search(r"\btask|goal|needed|responsibility|challenge\b", lower),
+        re.search(r"\bi\s+(built|implemented|designed|changed|decided|led|wrote|created|owned)\b", lower),
+        re.search(r"\bresult|outcome|learned|improved|reduced|increased|shipped|deployed\b", lower),
+    ])
+
+    score = 0.0
+    if "personally" in q or "own" in q or "build" in q or "change" in q:
+        score += 4 if ownership else 0
+        score += 2 if technical else 0
+        score += 2 if result else 0
+        score += min(2, len(words) / 35 * 2)
+        return round(min(10, score), 2)
+    if "technical decision" in q or "alternatives" in q or "reject" in q:
+        score += 3 if technical else 0
+        score += 3 if alternatives else 0
+        score += 2 if ownership else 0
+        score += 2 if result else 0
+        return round(min(10, score), 2)
+    if "measurable" in q or "observable result" in q or "impact" in q:
+        score += 5 if result else 0
+        score += 2 if ownership else 0
+        score += 2 if technical else 0
+        score += min(1, len(words) / 40)
+        return round(min(10, score), 2)
+    if "star" in q or phase == "behavioural_star":
+        return round(min(10, star_parts * 2.5), 2)
+    if "10x" in q or "redesign" in q or "break first" in q:
+        score += 3 if technical else 0
+        score += 3 if re.search(r"\bscale|bottleneck|latency|database|cache|queue|load|throughput|failure\b", lower) else 0
+        score += 2 if result else 0
+        score += 2 if alternatives else 0
+        return round(min(10, score), 2)
+
+    score += 2 if ownership else 0
+    score += 2 if technical else 0
+    score += 2 if result else 0
+    score += min(2, star_parts * 0.5)
+    score += min(2, len(words) / 50 * 2)
+    return round(min(10, score), 2)
 
 
 def _fallback_question(state: ProjectBehavioralState) -> str:

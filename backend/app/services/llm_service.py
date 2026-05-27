@@ -52,6 +52,38 @@ class LLMService:
         health.record_fail("no_provider_configured")
         return fallback
 
+    def generate_structured(
+        self,
+        system_prompt: str,
+        user_payload: dict[str, Any] | str,
+        response_schema: Any,
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 750,
+    ) -> Any | None:
+        from app.services.llm import health
+        from app.utils.json_utils import clean_json_response, extract_json_object
+
+        text, failure_reason = self._generate_litellm(system_prompt, user_payload, temperature, max_tokens)
+        if not text:
+            health.record_fail(failure_reason or "structured_empty_or_error")
+            return None
+        try:
+            cleaned = clean_json_response(text)
+            parsed_json = json.loads(extract_json_object(cleaned))
+            if (
+                isinstance(parsed_json, dict)
+                and len(parsed_json) == 1
+                and not any(key in response_schema.model_fields for key in parsed_json)
+            ):
+                parsed_json = next(iter(parsed_json.values()))
+            result = response_schema.model_validate(parsed_json)
+            health.record_ok()
+            return result
+        except Exception as exc:
+            health.record_exception(exc)
+            return None
+
     def _generate_litellm(
         self,
         system_prompt: str,

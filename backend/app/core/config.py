@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "Verity"
 
     OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    LITELLM_MODEL: str = ""
 
     # Claude Sonnet (primary LLM when ANTHROPIC_API_KEY is set)
     ANTHROPIC_API_KEY: str = ""
@@ -21,7 +23,7 @@ class Settings(BaseSettings):
 
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
-    LLM_PROVIDER: str = ""  # blank = auto-priority (Claude > Groq > Gemini)
+    LLM_PROVIDER: str = ""  # blank = auto-priority (OpenAI > Claude > Groq > Gemini)
 
     DATABASE_URL: str = (
         "postgresql://postgres:postgres@localhost:5432/ai_interview"
