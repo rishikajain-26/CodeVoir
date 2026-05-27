@@ -44,17 +44,15 @@ class InterviewDataService:
 
     def list_companies_for_round(self, round_type: str | None) -> list[str]:
         normalized_round = self.normalize_round_type(round_type)
-        if normalized_round == "project_behavioral":
-            return self.list_companies()
+        return sorted(company for company in self._companies() if self.has_round_data(company, normalized_round))
+
+    def list_companies_with_rounds(self) -> list[dict[str, Any]]:
         companies = []
-        for company, profile in self._companies().items():
-            config = profile.get("rounds", {}).get(normalized_round, {})
-            if normalized_round == "dsa":
-                if config.get("enabled", True):
-                    companies.append(company)
-            elif config.get("enabled"):
-                companies.append(company)
-        return sorted(companies)
+        for company in self.list_companies():
+            rounds = self.available_rounds_for_company(company)
+            if rounds:
+                companies.append({"company": company, "rounds": rounds})
+        return companies
 
     def resolve_company(self, company_name: str | None) -> str:
         if not company_name:
@@ -97,6 +95,50 @@ class InterviewDataService:
 
             result = normalize_dsa_round_config(result, self._defaults())
         return result
+
+    def has_round_data(self, company_name: str | None, round_type: str) -> bool:
+        company = self.resolve_company(company_name)
+        if not company:
+            return False
+        normalized_round = self.normalize_round_type(round_type)
+        profile = self._companies().get(company, {})
+        config = profile.get("rounds", {}).get(normalized_round)
+        if not isinstance(config, dict):
+            return False
+        if normalized_round == "dsa":
+            bank = config.get("problem_bank", {}) if isinstance(config.get("problem_bank"), dict) else {}
+            return bool(config.get("enabled", True) and bank.get("has_company_tagged_problems") and int(bank.get("matched_problem_count") or 0) > 0)
+        if normalized_round == "cs_fundamentals":
+            return bool(config.get("enabled") and (config.get("topics") or config.get("fallback_topics")))
+        if normalized_round == "project_behavioral":
+            return bool(config.get("focus_areas") or config.get("common_question_intents") or config.get("evaluation_signals"))
+        return bool(config.get("enabled"))
+
+    def available_rounds_for_company(self, company_name: str | None) -> list[dict[str, Any]]:
+        company = self.resolve_company(company_name)
+        if not company:
+            return []
+        labels = {
+            "dsa": "DSA",
+            "project_behavioral": "Project + Behavioural",
+            "cs_fundamentals": "CS Fundamentals",
+        }
+        available = []
+        for round_type in ["dsa", "project_behavioral", "cs_fundamentals"]:
+            if not self.has_round_data(company, round_type):
+                continue
+            config = self.get_round_config(company, round_type)
+            available.append({
+                "id": round_type,
+                "label": labels.get(round_type, round_type),
+                "company": company,
+                "confidence": config.get("confidence") or config.get("source_type") or config.get("project_depth") or "",
+                "minutes": config.get("minutes") or config.get("suggested_minutes"),
+                "question_count": config.get("question_count") or config.get("suggested_question_count") or config.get("questions"),
+                "requires_resume": round_type == "project_behavioral",
+                "requires_job_description": round_type == "project_behavioral",
+            })
+        return available
 
     def get_dsa_config(self, company_name: str | None) -> dict[str, Any]:
         return self.get_round_config(company_name, "dsa")
@@ -171,12 +213,24 @@ def list_companies_for_round(round_type: str | None) -> list[str]:
     return interview_data_service.list_companies_for_round(round_type)
 
 
+def list_companies_with_rounds() -> list[dict[str, Any]]:
+    return interview_data_service.list_companies_with_rounds()
+
+
 def resolve_company(company_name: str | None) -> str:
     return interview_data_service.resolve_company(company_name)
 
 
 def get_round_config(company_name: str | None, round_type: str) -> dict[str, Any]:
     return interview_data_service.get_round_config(company_name, round_type)
+
+
+def has_round_data(company_name: str | None, round_type: str) -> bool:
+    return interview_data_service.has_round_data(company_name, round_type)
+
+
+def available_rounds_for_company(company_name: str | None) -> list[dict[str, Any]]:
+    return interview_data_service.available_rounds_for_company(company_name)
 
 
 def get_dsa_config(company_name: str | None) -> dict[str, Any]:

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
-import { AlertTriangle, Bot, Camera, Code2, FileText, Mic, Play, Send, Shield, Square, Upload } from "lucide-react"
+import { AlertTriangle, ArrowLeft, BarChart3, Bot, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, Play, Send, Shield, Sparkles, Square, Target, TrendingUp, Upload } from "lucide-react"
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 // Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
 // Dead ports (8010) removed — they caused "session not found" errors to be swallowed.
 const API_BASES = [...new Set(["", API])]
@@ -47,6 +47,31 @@ const languageLabels = {
 const defaultCode = `# Select a language and start solving.
 `
 
+const defaultDashboard = {
+  stats: { total_interviews: 0, completed_interviews: 0, companies_practiced: 0, average_score: 0, best_score: 0, xp: 0, level: 1, completed_company_sets: 0 },
+  xp: { total_xp: 0, level: 1, title: "Interview Rookie", level_progress: 0, xp_to_next_level: 450, completed_company_sets: 0, company_cards: [], next_goals: [], rules: [] },
+  companies: [],
+  interviews: [],
+}
+
+function getStoredProfile() {
+  if (typeof window === "undefined") return { authenticated: false, user_id: "local-user", name: "Candidate", email: "" }
+  if (!window.localStorage.getItem("codevoir_auth_token")) return { authenticated: false, user_id: "local-user", name: "Candidate", email: "" }
+  const stored = window.localStorage.getItem("codevoir_user_profile")
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored)
+      if (parsed?.authenticated && parsed?.user_id) return { name: parsed.name || "Candidate", user_id: parsed.user_id, email: parsed.email || "", authenticated: true }
+    } catch {}
+  }
+  return { authenticated: false, user_id: "local-user", name: "Candidate", email: "" }
+}
+
+function authToken() {
+  if (typeof window === "undefined") return ""
+  return window.localStorage.getItem("codevoir_auth_token") || ""
+}
+
 function testValue(value) {
   if (value === undefined || value === null || value === "") return "—"
   if (typeof value === "string") return value
@@ -58,7 +83,11 @@ function testValue(value) {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState("setup")
+  const [userProfile, setUserProfile] = useState(getStoredProfile)
+  const [screen, setScreen] = useState(() => getStoredProfile().authenticated ? "dashboard" : "welcome")
+  const [dashboard, setDashboard] = useState(defaultDashboard)
+  const [dashboardLoading, setDashboardLoading] = useState(false)
+  const [selectedReport, setSelectedReport] = useState(null)
   const [session, setSession] = useState(null)
   const [form, setForm] = useState({ job_role: "Software Engineer", experience_level: "fresher", target_company: "", job_description: "", round_type: "dsa", difficulty: "medium", timer_minutes: 35 })
   const [resume, setResume] = useState(null)
@@ -81,6 +110,9 @@ export default function App() {
   const [autoVoice, setAutoVoice] = useState(false)
   const [liveTranscript, setLiveTranscript] = useState("")
   const [companies, setCompanies] = useState([])
+  const [companyDirectory, setCompanyDirectory] = useState([])
+  const [companyRounds, setCompanyRounds] = useState({ company: "", resolved: false, rounds: [] })
+  const [companyLoading, setCompanyLoading] = useState(false)
   const [roundOptions, setRoundOptions] = useState([])
   const [isBusy, setIsBusy] = useState(false)
   const [dsaProgress, setDsaProgress] = useState(null)
@@ -109,6 +141,9 @@ export default function App() {
   const isProjectRound = !isDsaRound && !isCsRound
   const roundTitle = isDsaRound ? "DSA + Code Interview" : isCsRound ? "CS Fundamentals Interview" : "Project + Behavioural Interview"
   const selectedRoundOption = roundOptions.find((round) => round.id === activeRound || round.legacy_ids?.includes(activeRound))
+  const availableSetupRounds = companyRounds.resolved ? companyRounds.rounds || [] : []
+  const selectedSetupRound = availableSetupRounds.find((round) => round.id === form.round_type)
+  const canStartConfiguredInterview = Boolean(companyRounds.resolved && selectedSetupRound && !companyLoading && form.target_company.trim())
   const lastAiMessage = useMemo(() => [...messages].reverse().find((m) => m.role === "interviewer")?.content ?? "", [messages])
 
   useEffect(() => {
@@ -119,16 +154,62 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    apiFetch(`/api/interview/companies?round_type=${encodeURIComponent(form.round_type)}`)
+    apiFetch("/api/interview/company-directory")
       .then((res) => res.ok ? res.json() : null)
-      .then((meta) => setCompanies(meta?.companies || []))
+      .then((meta) => {
+        const entries = meta?.companies || []
+        setCompanyDirectory(entries)
+        setCompanies(entries.map((item) => item.company))
+      })
       .catch(() => {
         apiFetch("/api/problems/companies")
           .then((res) => res.ok ? res.json() : null)
           .then((meta) => setCompanies(meta?.companies || []))
           .catch(() => {})
       })
-  }, [form.round_type])
+  }, [])
+
+  useEffect(() => {
+    const company = form.target_company.trim()
+    if (!company) {
+      setCompanyRounds({ company: "", resolved: false, rounds: [] })
+      return
+    }
+    let cancelled = false
+    setCompanyLoading(true)
+    apiFetch(`/api/interview/company-rounds?company=${encodeURIComponent(company)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((meta) => {
+        if (cancelled || !meta) return
+        const rounds = meta.rounds || []
+        setCompanyRounds(meta)
+        if (meta.resolved && rounds.length) {
+          setForm((prev) => {
+            if (rounds.some((round) => round.id === prev.round_type)) return prev
+            return { ...prev, round_type: rounds[0].id, difficulty: rounds[0].id === "dsa" ? prev.difficulty : "medium" }
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCompanyRounds({ company, resolved: false, rounds: [] })
+      })
+      .finally(() => {
+        if (!cancelled) setCompanyLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [form.target_company])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get("auth_token")
+    if (token) {
+      window.localStorage.setItem("codevoir_auth_token", token)
+      window.history.replaceState({}, "", window.location.pathname)
+      loadAuthenticatedProfile(token)
+      return
+    }
+    if (authToken()) loadAuthenticatedProfile()
+  }, [])
 
   useEffect(() => {
     if (!currentProblem) return
@@ -166,6 +247,11 @@ export default function App() {
   }, [session?.session_id, isDsaRound])
 
   useEffect(() => {
+    if (screen !== "dashboard" || !userProfile.authenticated) return
+    loadDashboard()
+  }, [screen, userProfile.authenticated, userProfile.user_id])
+
+  useEffect(() => {
     if (screen !== "interview" || !session) return
     const onVisibility = () => document.hidden && reportViolation("tab_hidden", { title: document.title })
     const onBlur = () => window.setTimeout(() => !document.hasFocus() && reportViolation("window_blur", {}), 1800)
@@ -201,10 +287,14 @@ export default function App() {
   }, [liveTranscript])
 
   async function startSession() {
+    if (!canStartConfiguredInterview) {
+      setError("Select a company from the available data and choose one of its supported rounds.")
+      return
+    }
     setIsBusy(true)
     setError("")
     try {
-      const created = await postJson("/api/session/start", form)
+      const created = await postJson("/api/session/start", { ...form, user_id: userProfile.user_id })
       if (resume) {
         const fd = new FormData()
         fd.append("session_id", created.session_id)
@@ -367,7 +457,85 @@ export default function App() {
     if (!session) return
     const report = await apiFetch(`/api/feedback/${session.session_id}`).then((r) => r.json())
     setFeedback(report)
+    setSelectedReport(report)
+    loadDashboard()
     setScreen("feedback")
+  }
+
+  async function loadDashboard() {
+    setDashboardLoading(true)
+    try {
+      const payload = await apiFetch(`/api/dashboard?user_id=${encodeURIComponent(userProfile.user_id)}`).then((r) => r.json())
+      setDashboard({ ...defaultDashboard, ...payload })
+    } catch (err) {
+      setError(friendlyError(err))
+      window.setTimeout(() => setError(""), 6000)
+    } finally {
+      setDashboardLoading(false)
+    }
+  }
+
+  async function openReport(sessionId) {
+    setIsBusy(true)
+    setError("")
+    try {
+      const report = await apiFetch(`/api/feedback/${sessionId}`).then((r) => r.json())
+      setSelectedReport(report)
+      setFeedback(report)
+      setScreen("feedback")
+    } catch (err) {
+      setError(friendlyError(err))
+      window.setTimeout(() => setError(""), 6000)
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function loadAuthenticatedProfile(token = authToken()) {
+    try {
+      const profile = await apiFetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json())
+      window.localStorage.setItem("codevoir_user_profile", JSON.stringify(profile))
+      setUserProfile(profile)
+      setScreen("dashboard")
+    } catch {
+      window.localStorage.removeItem("codevoir_auth_token")
+      window.localStorage.removeItem("codevoir_user_profile")
+      setUserProfile({ authenticated: false, user_id: "local-user", name: "Candidate", email: "" })
+      setScreen("welcome")
+    }
+  }
+
+  async function authenticate() {
+    try {
+      const config = await apiFetch("/api/auth/config").then((r) => r.json())
+      if (!config.configured) {
+        setError("OAuth is not configured on the backend. Add OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET, then restart the backend.")
+        window.setTimeout(() => setError(""), 7000)
+        return
+      }
+      window.location.href = `${API}/api/auth/login`
+    } catch (err) {
+      setError(friendlyError(err))
+      window.setTimeout(() => setError(""), 7000)
+    }
+  }
+
+  function logout() {
+    apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {})
+    window.localStorage.removeItem("codevoir_auth_token")
+    window.localStorage.removeItem("codevoir_user_profile")
+    setUserProfile({ authenticated: false, user_id: "local-user", name: "Candidate", email: "" })
+    setDashboard(defaultDashboard)
+    setSelectedReport(null)
+    setFeedback(null)
+    setScreen("welcome")
+  }
+
+  function startRound(roundType = "dsa") {
+    setForm((prev) => ({ ...prev, round_type: roundType, difficulty: roundType === "dsa" ? prev.difficulty : "medium" }))
+    setScreen("setup")
   }
 
   async function reportViolation(event_type, detail) {
@@ -664,7 +832,25 @@ export default function App() {
     window.removeEventListener("pointerup", stopCameraDrag)
   }
 
-  if (screen === "feedback" && feedback) return <Feedback report={feedback} onRestart={() => window.location.reload()} />
+  if (screen === "welcome") {
+    return <WelcomePage error={error} onAuthenticate={authenticate} />
+  }
+
+  if (screen === "dashboard") {
+    return <DashboardHistory
+      userProfile={userProfile}
+      dashboard={dashboard}
+      loading={dashboardLoading}
+      error={error}
+      onStart={startRound}
+      onRefresh={loadDashboard}
+      onOpenReport={openReport}
+      onLogout={logout}
+      isBusy={isBusy}
+    />
+  }
+
+  if (screen === "feedback" && feedback) return <Feedback report={selectedReport || feedback} onRestart={() => startRound("dsa")} onBack={() => setScreen("dashboard")} />
 
   if (screen === "setup") {
     return (
@@ -673,7 +859,8 @@ export default function App() {
         <section className="border-b border-slate-800 bg-slate-900">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded bg-cyan-500 text-slate-950"><Bot size={22} /></div>
+              <button onClick={() => setScreen("dashboard")} className="grid h-10 w-10 place-items-center rounded border border-slate-700 bg-slate-950 text-slate-200" title="Back to dashboard"><ArrowLeft size={20} /></button>
+              <div className="grid h-10 w-10 place-items-center rounded bg-cyan-400 text-slate-950"><Bot size={22} /></div>
               <div>
                 <h1 className="text-xl font-semibold">Clio Interview Lab</h1>
                 <p className="text-sm text-slate-400">Voice-first mock interviews with DSA, resume probing, and proctoring.</p>
@@ -685,16 +872,32 @@ export default function App() {
 
         <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[1.15fr_.85fr]">
           <div className="rounded border border-slate-800 bg-slate-900 p-5">
-            <h2 className="mb-4 text-lg font-semibold">Start Live Interview</h2>
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Code2 size={19} className="text-cyan-300" /> Start Live Interview</h2>
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Round type"><select value={form.round_type} onChange={(e) => setForm({ ...form, round_type: e.target.value })}>{(roundOptions.length ? roundOptions : [{ id: "dsa", label: "DSA + Code" }, { id: "combined", label: "Projects + Behavioural" }, { id: "cs_fundamentals", label: "CS Fundamentals" }]).map((round) => <option key={round.id} value={round.id}>{round.label}</option>)}</select></Field>
-              <Field label="Target company"><input list="company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Amazon, Google, Meta..." /><datalist id="company-options">{companies.map((company) => <option key={company} value={company} />)}</datalist></Field>
+              <Field label="Target company">
+                <input list="company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Search company with interview data" />
+                <datalist id="company-options">
+                  {(companyDirectory.length ? companyDirectory : companies.map((company) => ({ company, rounds: [] }))).map((item) => <option key={item.company} value={item.company} label={item.rounds?.map((round) => round.label).join(", ")} />)}
+                </datalist>
+              </Field>
+              <Field label="Available round">
+                <select value={selectedSetupRound ? form.round_type : ""} onChange={(e) => setForm({ ...form, round_type: e.target.value, difficulty: e.target.value === "dsa" ? form.difficulty : "medium" })} disabled={!availableSetupRounds.length}>
+                  {!availableSetupRounds.length && <option value="">Select a company first</option>}
+                  {availableSetupRounds.map((round) => <option key={round.id} value={round.id}>{round.label}</option>)}
+                </select>
+              </Field>
               <Field label="Job role"><input value={form.job_role} onChange={(e) => setForm({ ...form, job_role: e.target.value })} /></Field>
               <Field label="Experience"><select value={form.experience_level} onChange={(e) => setForm({ ...form, experience_level: e.target.value })}><option>fresher</option><option>mid</option><option>senior</option></select></Field>
               {form.round_type === "dsa" && <Field label="Difficulty"><select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}><option>easy</option><option>medium</option><option>hard</option></select></Field>}
               <Field label="Timer minutes"><input type="number" min="10" max="90" value={form.timer_minutes} onChange={(e) => setForm({ ...form, timer_minutes: Number(e.target.value) })} /></Field>
             </div>
-            {selectedRoundOption && <div className="mt-4 rounded bg-slate-950 p-3 text-xs text-slate-400">{selectedRoundOption.company_count?.toLocaleString?.() || selectedRoundOption.company_count || companies.length} companies available for {selectedRoundOption.label}. {selectedRoundOption.requires_resume ? "Resume recommended." : "Resume optional."} {selectedRoundOption.requires_job_description ? "Job description recommended." : ""}</div>}
+            <div className="mt-4 rounded bg-slate-950 p-3 text-xs text-slate-400">
+              {!form.target_company.trim() && `${companies.length.toLocaleString()} companies have at least one supported interview round. Search and select a company to see only the rounds backed by data.`}
+              {form.target_company.trim() && companyLoading && "Checking company interview data..."}
+              {form.target_company.trim() && !companyLoading && !companyRounds.resolved && "No interview data found for this company. Pick one from the suggestions."}
+              {form.target_company.trim() && !companyLoading && companyRounds.resolved && availableSetupRounds.length > 0 && `${companyRounds.company} supports ${availableSetupRounds.map((round) => round.label).join(", ")}. Only these rounds can be started for this company.`}
+              {form.target_company.trim() && !companyLoading && companyRounds.resolved && !availableSetupRounds.length && `${companyRounds.company} has no supported interview rounds in the dataset.`}
+            </div>
             {isProjectRound && <label className="mt-4 grid gap-2 text-sm text-slate-300">
               <span>Job description</span>
               <textarea value={form.job_description} onChange={(e) => setForm({ ...form, job_description: e.target.value })} placeholder="Paste the job description for Project + Behavioural interview personalization" className="h-28 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-cyan-400" />
@@ -704,13 +907,13 @@ export default function App() {
               <span>{resume ? resume.name : "Upload resume for personalised project and behavioural questions"}</span>
               <input className="hidden" type="file" accept=".pdf,.txt" onChange={(e) => setResume(e.target.files?.[0] || null)} />
             </label>}
-            <button className="mt-5 inline-flex items-center gap-2 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50" onClick={startSession} disabled={isBusy}>
+            <button className="mt-5 inline-flex items-center gap-2 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50" onClick={startSession} disabled={isBusy || !canStartConfiguredInterview}>
               <Play size={18} /> Start interview
             </button>
           </div>
 
           <div className="rounded border border-slate-800 bg-slate-900 p-5">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><FileText size={19} /> Critical Resume Review</h2>
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><FileText size={19} className="text-cyan-300" /> Critical Resume Review</h2>
             <label className="flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
               <Upload size={18} />
               <span>{resumeReviewFile ? resumeReviewFile.name : "Upload resume for instant critique"}</span>
@@ -732,6 +935,7 @@ export default function App() {
       {error && <div className="fixed left-1/2 top-4 z-50 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
       <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3">
         <div className="flex items-center gap-3">
+          <button onClick={() => setScreen("dashboard")} className="rounded border border-slate-700 bg-slate-950 px-2 py-2 text-slate-200" title="Back to dashboard"><ArrowLeft size={18} /></button>
           <Bot className="text-cyan-300" />
           <div>
             <div className="font-semibold">{roundTitle}</div>
@@ -807,6 +1011,7 @@ export default function App() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <button onClick={runTests} disabled={isBusy} className="inline-flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-4 py-2 font-semibold text-slate-100 disabled:opacity-50"><Play size={17} /> Run</button>
+                    <button onClick={submitCode} disabled={isBusy} className="inline-flex items-center gap-2 rounded bg-amber-300 px-4 py-2 font-semibold text-[#07120f] disabled:opacity-50"><Send size={17} /> Submit</button>
                   </div>
                   {codeResult && <span className="text-sm text-slate-300">{codeResult.passed_testcases}/{codeResult.total_testcases} tests passed · {codeResult.overall_score}% · {codeResult.language}</span>}
                 </div>
@@ -862,6 +1067,887 @@ export default function App() {
       </section>
     </main>
   )
+}
+
+function WelcomePage({ error, onAuthenticate }) {
+  return (
+    <main className="min-h-screen overflow-hidden bg-[#06110f] text-white">
+      {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-300 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
+      <section className="relative min-h-screen">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(251,191,36,.22),transparent_28%),radial-gradient(circle_at_82%_12%,rgba(45,212,191,.18),transparent_30%),linear-gradient(135deg,#06110f_0%,#10241f_48%,#1d1526_100%)]" />
+        <div className="relative mx-auto grid min-h-screen max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
+          <div className="max-w-3xl">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100">
+              <Sparkles size={16} /> AI interview prep built around real company rounds
+            </div>
+            <h1 className="text-5xl font-black leading-tight tracking-normal text-white md:text-7xl">CodeVoir<span className="block text-amber-300">Interview Arena</span></h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-emerald-50/80">Practice DSA, CS fundamentals, and project-behavioural rounds with live AI feedback, code execution, integrity signals, and a performance dashboard that remembers every company attempt.</p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <WelcomeStat icon={<Code2 size={20} />} label="DSA rounds" value="Company tagged" />
+              <WelcomeStat icon={<Brain size={20} />} label="AI reports" value="Evidence based" />
+              <WelcomeStat icon={<BarChart3 size={20} />} label="Dashboard" value="Score trends" />
+            </div>
+          </div>
+
+          <section className="rounded border border-emerald-300/20 bg-[#07120f]/85 p-6 shadow-2xl shadow-black/40 backdrop-blur">
+            <h2 className="text-2xl font-bold">Sign in with OAuth</h2>
+            <p className="mt-2 text-sm leading-6 text-emerald-50/70">CodeVoir now uses backend OAuth. You will be redirected to the configured identity provider, then returned to this dashboard.</p>
+            <button type="button" onClick={onAuthenticate} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded bg-amber-300 px-4 py-3 font-bold text-[#07120f] shadow-lg shadow-amber-900/20">
+              <LogIn size={18} /> Continue with OAuth
+            </button>
+            <p className="mt-4 text-xs leading-5 text-emerald-50/55">Backend setup required: set OAuth client id, secret, callback URL, and frontend URL in the backend environment.</p>
+          </section>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function WelcomeStat({ icon, label, value }) {
+  return <div className="rounded border border-white/10 bg-white/10 p-4 backdrop-blur">
+    <div className="text-amber-200">{icon}</div>
+    <div className="mt-3 text-sm text-emerald-50/60">{label}</div>
+    <div className="font-semibold text-white">{value}</div>
+  </div>
+}
+
+/*
+function ResumeQuestZone({ error, form, setForm, companies, companyDirectory, companyRounds, companyLoading, file, setFile, result, savedResume, workspace, setWorkspace, onUploadSavedResume, onSaveWorkspace, onRescoreWorkspace, onExportPdf, onRun, onBack, isBusy }) {
+  const resolved = companyRounds.resolved
+  const canQuest = (file || savedResume) && resolved && form.job_description.trim().length >= 80
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
+      <section className="border-b border-slate-800 bg-slate-900">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} className="grid h-10 w-10 place-items-center rounded border border-slate-700 bg-slate-950 text-slate-200" title="Back to dashboard"><ArrowLeft size={20} /></button>
+            <div>
+              <h1 className="text-xl font-semibold">Resume Quest Zone</h1>
+              <p className="text-sm text-slate-400">Company-specific resume enhancement before the interview loop.</p>
+            </div>
+          </div>
+          <div className="hidden items-center gap-2 text-sm text-emerald-300 md:flex"><Sparkles size={16} /> Earn resume XP</div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[.85fr_1.15fr]">
+        <div className="grid gap-6">
+        <div className="rounded border border-slate-800 bg-slate-900 p-5">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><FileText size={19} className="text-emerald-300" /> Saved Resume</h2>
+          {savedResume ? (
+            <div className="rounded border border-slate-800 bg-slate-950 p-4">
+              <div className="font-semibold text-slate-100">{savedResume.filename}</div>
+              <div className="mt-1 text-sm text-slate-500">Version {savedResume.version} · updated {formatDate(savedResume.updated_at)}</div>
+              <div className="mt-3 text-xs text-emerald-300">This resume is reused whenever you log in. Upload a new file to replace it.</div>
+            </div>
+          ) : (
+            <div className="rounded border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">Upload your resume once. It will stay with your account and power future quests.</div>
+          )}
+          <label className="mt-4 flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
+            <Upload size={18} />
+            <span>{savedResume ? "Replace saved resume PDF/TXT" : "Upload resume PDF/TXT"}</span>
+            <input className="hidden" type="file" accept=".pdf,.txt" onChange={(e) => onUploadSavedResume(e.target.files?.[0] || null)} />
+          </label>
+        </div>
+
+        <div className="rounded border border-slate-800 bg-slate-900 p-5">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Sparkles size={19} className="text-emerald-300" /> Start Resume Quest</h2>
+          <div className="grid gap-4">
+            <Field label="Target company">
+              <input list="resume-company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Search company with interview data" />
+              <datalist id="resume-company-options">
+                {(companyDirectory.length ? companyDirectory : companies.map((company) => ({ company }))).map((item) => <option key={item.company} value={item.company} />)}
+              </datalist>
+            </Field>
+            <Field label="Job role"><input value={form.job_role} onChange={(e) => setForm({ ...form, job_role: e.target.value })} /></Field>
+            <label className="grid gap-2 text-sm text-slate-300">
+              <span>Company job description</span>
+              <textarea value={form.job_description} onChange={(e) => setForm({ ...form, job_description: e.target.value })} placeholder="Paste the exact JD for this company role..." className="h-44 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-emerald-400" />
+            </label>
+            <label className="flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
+              <Upload size={18} />
+              <span>{file ? file.name : savedResume ? "Optional: use a different resume only for this quest" : "Upload current resume PDF/TXT"}</span>
+              <input className="hidden" type="file" accept=".pdf,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            </label>
+          </div>
+          <div className="mt-4 rounded bg-slate-950 p-3 text-xs text-slate-400">
+            {!form.target_company.trim() && "Select a company to personalize the resume quest."}
+            {form.target_company.trim() && companyLoading && "Checking company data..."}
+            {form.target_company.trim() && !companyLoading && !resolved && "Company not found in the interview data."}
+            {form.target_company.trim() && !companyLoading && resolved && `${companyRounds.company} is ready for a company-specific resume quest.`}
+          </div>
+          <button onClick={onRun} disabled={isBusy || !canQuest} className="mt-5 inline-flex items-center gap-2 rounded bg-emerald-400 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50">
+            <Sparkles size={18} /> Generate quest
+          </button>
+        </div>
+        </div>
+
+        <div className="rounded border border-slate-800 bg-slate-900 p-5">
+          <h2 className="mb-4 text-lg font-semibold">Quest Result</h2>
+          {result ? <ResumeQuestResult quest={result.quest || result} workspace={workspace} setWorkspace={setWorkspace} onSave={onSaveWorkspace} onRescore={onRescoreWorkspace} onExportPdf={onExportPdf} isBusy={isBusy} /> : (
+            <div className="grid gap-4">
+              <div className="rounded border border-slate-800 bg-slate-950 p-6 text-sm leading-6 text-slate-400">Your quest result will show resume alignment score, XP earned, missing JD keywords, missions to complete, and suggested bullet rewrites.</div>
+              {workspace && <ResumeWorkspaceEditor workspace={workspace} setWorkspace={setWorkspace} onSave={onSaveWorkspace} onExportPdf={onExportPdf} isBusy={isBusy} />}
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function ResumeQuestResult({ quest, workspace, setWorkspace, onSave, onRescore, onExportPdf, isBusy }) {
+  const suggestions = quest.quest?.suggested_bullets || quest.suggested_bullets || []
+  function applySuggestions() {
+    if (!workspace) return
+    const projects = workspace.projects?.length ? [...workspace.projects] : [{ name: "Selected Project", tech: [], bullets: [] }]
+    projects[0] = { ...projects[0], bullets: [...(projects[0].bullets || []), ...suggestions].slice(0, 8) }
+    setWorkspace({ ...workspace, projects })
+  }
+  return (
+    <div className="grid gap-4">
+      <div className="rounded border border-slate-800 bg-slate-950 p-4">
+        <div className="text-sm text-slate-500">{quest.target_company || quest.company} · {quest.job_role}</div>
+        <div className="mt-2 flex flex-wrap items-end gap-4">
+          <div className="text-4xl font-semibold text-emerald-300">{quest.quest?.score ?? quest.score}/100</div>
+          <div className="pb-1 text-cyan-300">{quest.quest?.xp ?? quest.xp} XP earned</div>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-400">{quest.quest?.summary || quest.summary}</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <ResumeQuestList title="Matched JD signals" items={quest.quest?.matched_keywords || quest.matched_keywords || []} tone="emerald" />
+        <ResumeQuestList title="Keyword gaps" items={quest.quest?.missing_keywords || quest.missing_keywords || []} tone="amber" />
+      </div>
+      <div className="rounded border border-slate-800 bg-slate-950 p-4">
+        <h3 className="text-sm font-semibold uppercase text-slate-400">Enhancement missions</h3>
+        <div className="mt-3 grid gap-3">
+          {(quest.quest?.missions || quest.missions || []).map((mission) => <div key={mission.title} className="rounded bg-slate-900 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="font-semibold text-slate-100">{mission.title}</div>
+              <div className="text-xs text-emerald-300">{mission.xp} XP</div>
+            </div>
+            <p className="mt-1 text-sm text-slate-400">{mission.detail}</p>
+          </div>)}
+        </div>
+      </div>
+      <ResumeQuestList title="Suggested bullet rewrites" items={quest.quest?.suggested_bullets || quest.suggested_bullets || []} tone="cyan" />
+      {workspace && (
+        <div className="rounded border border-slate-800 bg-slate-950 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-slate-100">Editable Resume Workspace</h3>
+              <p className="mt-1 text-sm text-slate-500">Apply suggestions, edit the resume, re-score it, then export a polished PDF.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={applySuggestions} disabled={!suggestions.length || isBusy} className="rounded border border-cyan-600 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 disabled:opacity-50">Apply suggestions</button>
+              <button onClick={() => onRescore(workspace)} disabled={isBusy} className="rounded border border-emerald-600 bg-emerald-950 px-3 py-2 text-sm text-emerald-100 disabled:opacity-50">Save + re-score</button>
+              <button onClick={() => onExportPdf(workspace)} disabled={isBusy} className="rounded bg-emerald-400 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">Export PDF</button>
+            </div>
+          </div>
+          <div className="mt-4">
+            <ResumeWorkspaceEditor workspace={workspace} setWorkspace={setWorkspace} onSave={onSave} onExportPdf={onExportPdf} isBusy={isBusy} compact />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ResumeWorkspaceEditor({ workspace, setWorkspace, onSave, onExportPdf, isBusy, compact = false }) {
+  const projects = workspace.projects || []
+  const skillsText = (workspace.skills || []).join(", ")
+  const firstProject = projects[0] || { name: "", tech: [], bullets: [] }
+  const projectBullets = (firstProject.bullets || []).join("\n")
+
+  function patch(next) {
+    setWorkspace({ ...workspace, ...next })
+  }
+
+  function patchHeader(field, value) {
+    setWorkspace({ ...workspace, header: { ...(workspace.header || {}), [field]: value } })
+  }
+
+  function patchProject(field, value) {
+    const nextProjects = projects.length ? [...projects] : [{ name: "", tech: [], bullets: [] }]
+    nextProjects[0] = { ...nextProjects[0], [field]: value }
+    setWorkspace({ ...workspace, projects: nextProjects })
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Name"><input value={workspace.header?.name || ""} onChange={(e) => patchHeader("name", e.target.value)} /></Field>
+        <Field label="Email"><input value={workspace.header?.email || ""} onChange={(e) => patchHeader("email", e.target.value)} /></Field>
+      </div>
+      <Field label="Professional summary">
+        <textarea value={workspace.summary || ""} onChange={(e) => patch({ summary: e.target.value })} className={`${compact ? "h-24" : "h-28"} w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-emerald-400`} />
+      </Field>
+      <Field label="Skills">
+        <textarea value={skillsText} onChange={(e) => patch({ skills: e.target.value.split(",").map((item) => item.trim()).filter(Boolean) })} className="h-20 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-emerald-400" />
+      </Field>
+      <div className="rounded border border-slate-800 bg-slate-900 p-3">
+        <div className="mb-3 text-sm font-semibold text-slate-300">Primary project</div>
+        <div className="grid gap-3">
+          <Field label="Project name"><input value={firstProject.name || ""} onChange={(e) => patchProject("name", e.target.value)} /></Field>
+          <Field label="Tech"><input value={(firstProject.tech || []).join(", ")} onChange={(e) => patchProject("tech", e.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></Field>
+          <Field label="Bullets">
+            <textarea value={projectBullets} onChange={(e) => patchProject("bullets", e.target.value.split("\n").map((item) => item.trim()).filter(Boolean))} className="h-36 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-emerald-400" />
+          </Field>
+        </div>
+      </div>
+      {!compact && (
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => onSave(workspace)} disabled={isBusy} className="rounded border border-emerald-600 bg-emerald-950 px-3 py-2 text-sm text-emerald-100 disabled:opacity-50">Save workspace</button>
+          <button onClick={() => onExportPdf(workspace)} disabled={isBusy} className="rounded bg-emerald-400 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">Export polished PDF</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ResumeQuestList({ title, items, tone }) {
+  const color = tone === "emerald" ? "text-emerald-300" : tone === "amber" ? "text-amber-300" : "text-cyan-300"
+  return <div className="rounded border border-slate-800 bg-slate-950 p-4">
+    <h3 className={`text-sm font-semibold uppercase ${color}`}>{title}</h3>
+    <div className="mt-3 flex flex-wrap gap-2">
+      {items.length ? items.map((item) => <span key={typeof item === "string" ? item : item.title} className="rounded bg-slate-900 px-2 py-1 text-xs text-slate-300">{typeof item === "string" ? item : item.title}</span>) : <span className="text-sm text-slate-500">No items yet.</span>}
+    </div>
+  </div>
+}
+
+*/
+function DashboardHistory({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, isBusy }) {
+  const stats = dashboard.stats || defaultDashboard.stats
+  const xp = dashboard.xp || defaultDashboard.xp
+  const interviews = dashboard.interviews || []
+  const completed = interviews.filter((item) => item.has_report)
+  const topicInsights = buildTopicInsights(completed.filter((item) => item.round_type !== "cs_fundamentals"))
+  const csReports = completed.filter((item) => item.round_type === "cs_fundamentals")
+  const csTopicInsights = buildTopicInsights(csReports)
+  const csSkillInsights = buildParameterInsights(csReports)
+  const behaviorInsights = buildBehaviorInsights(completed)
+  const grouped = interviews.reduce((acc, item) => {
+    const company = item.target_company || "General"
+    acc[company] = acc[company] || []
+    acc[company].push(item)
+    return acc
+  }, {})
+  const companyNames = Object.keys(grouped).sort((a, b) => a.localeCompare(b))
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
+      <section className="border-b border-slate-800 bg-slate-900">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+          <div>
+            <h1 className="text-xl font-semibold">Dashboard</h1>
+            <p className="text-sm text-slate-400">{userProfile.name} - company interviews and past results</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={onRefresh} disabled={loading} className="rounded border border-slate-700 px-3 py-2 text-sm text-slate-200 disabled:opacity-50">Refresh</button>
+            <button onClick={() => onStart("dsa")} className="inline-flex items-center gap-2 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950"><Play size={18} /> Take new interview</button>
+            <button onClick={onLogout} className="inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-300"><LogOut size={16} /> Logout</button>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6">
+        <div className="grid gap-4 md:grid-cols-5">
+          <DashboardMetric icon={<Briefcase size={18} />} label="Interviews taken" value={stats.total_interviews} />
+          <DashboardMetric icon={<FileText size={18} />} label="Results ready" value={stats.completed_interviews} />
+          <DashboardMetric icon={<Target size={18} />} label="Companies" value={stats.companies_practiced} />
+          <DashboardMetric icon={<TrendingUp size={18} />} label="Average score" value={`${stats.average_score || 0}/100`} />
+          <DashboardMetric icon={<Sparkles size={18} />} label="XP level" value={`L${xp.level || 1}`} />
+        </div>
+
+        <DashboardXp xp={xp} />
+
+        <DashboardAnalytics topics={topicInsights} csTopics={csTopicInsights} csSkills={csSkillInsights} behavior={behaviorInsights} />
+
+        <div className="rounded border border-slate-800 bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-5 py-4">
+            <div>
+              <h2 className="text-lg font-semibold">Interview History By Company</h2>
+              <p className="mt-1 text-sm text-slate-500">This section only shows interviews you have already taken and their generated results.</p>
+            </div>
+            <div className="text-sm text-slate-500">{completed.length} result{completed.length === 1 ? "" : "s"} ready</div>
+          </div>
+
+          {companyNames.length ? (
+            <div className="divide-y divide-slate-800">
+              {companyNames.map((company) => {
+                const items = grouped[company]
+                const ready = items.filter((item) => item.has_report)
+                const average = ready.length ? Math.round(ready.reduce((sum, item) => sum + (Number(item.overall_score) || 0), 0) / ready.length) : 0
+                return (
+                  <section key={company} className="p-5">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-100">{company}</h3>
+                        <p className="text-sm text-slate-500">{items.length} interview{items.length === 1 ? "" : "s"} taken</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 text-right">
+                        <CompanyXpMini company={dashboard.companies?.find((entry) => entry.company === company)} />
+                        <div>
+                          <div className="text-xl font-semibold text-cyan-300">{average}</div>
+                          <div className="text-xs text-slate-500">avg score</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3">
+                      {items.map((item) => (
+                        <div key={item.session_id} className="grid gap-4 rounded border border-slate-800 bg-slate-950 p-4 lg:grid-cols-[1fr_auto]">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              <span className="inline-flex items-center gap-1"><Calendar size={14} /> {formatDate(item.completed_at || item.created_at)}</span>
+                              <span>{prettyRound(item.round_type)}</span>
+                              {item.problem_title && <span>{item.problem_title}</span>}
+                            </div>
+                            <h4 className="mt-2 font-semibold">{item.job_role || "Software Engineer"}</h4>
+                            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">{item.summary || "Interview started. End the interview to generate a result report."}</p>
+                          </div>
+                          <div className="flex min-w-40 flex-col items-start gap-2 lg:items-end">
+                            <ScoreBadge score={item.overall_score} />
+                            <div className="text-sm text-slate-400">{item.hiring_signal || "In progress"}</div>
+                            {item.has_report ? (
+                              <button onClick={() => onOpenReport(item.session_id)} disabled={isBusy} className="rounded border border-cyan-600 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 disabled:opacity-50">View result</button>
+                            ) : (
+                              <span className="rounded border border-slate-700 px-3 py-2 text-sm text-slate-500">No result yet</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="p-8">
+              <h3 className="text-xl font-semibold">No interviews taken yet.</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">After you complete an interview, this dashboard will show the company, round type, score, report status, and result details here.</p>
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function DashboardXp({ xp }) {
+  const progress = Math.max(0, Math.min(100, Number(xp.level_progress) || 0))
+  const cards = xp.company_cards || []
+  const goals = xp.next_goals || []
+  return (
+    <section className="grid gap-4 lg:grid-cols-[.9fr_1.1fr]">
+      <div className="rounded border border-cyan-700/50 bg-slate-900 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded bg-cyan-950 px-3 py-1 text-xs font-semibold uppercase text-cyan-200"><Sparkles size={14} /> XP System</div>
+            <h2 className="mt-4 text-3xl font-semibold text-white">Level {xp.level || 1}</h2>
+            <p className="mt-1 text-sm text-slate-400">{xp.title || "Interview Rookie"} · {(xp.total_xp || 0).toLocaleString()} XP earned</p>
+          </div>
+          <div className="rounded border border-slate-800 bg-slate-950 px-4 py-3 text-right">
+            <div className="text-2xl font-semibold text-cyan-300">{xp.completed_company_sets || 0}</div>
+            <div className="text-xs text-slate-500">company sets</div>
+          </div>
+        </div>
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+            <span>Level progress</span>
+            <span>{xp.xp_to_next_level || 0} XP to next level</span>
+          </div>
+          <div className="h-3 overflow-hidden rounded bg-slate-950">
+            <div className="h-full rounded bg-cyan-400" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 text-xs text-slate-400">
+          {(xp.rules || []).slice(0, 3).map((rule) => <div key={rule} className="rounded border border-slate-800 bg-slate-950 px-3 py-2">{rule}</div>)}
+        </div>
+      </div>
+
+      <div className="rounded border border-slate-800 bg-slate-900 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Company Mastery</h2>
+            <p className="mt-1 text-sm text-slate-500">Finish every available round for a company to unlock the larger XP bonus.</p>
+          </div>
+          <Shield className="text-cyan-300" size={20} />
+        </div>
+        {cards.length ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {cards.slice(0, 4).map((card) => <CompanyXpCard key={card.company} card={card} />)}
+          </div>
+        ) : (
+          <AnalyticsEmpty text="Complete your first company interview to begin earning XP." />
+        )}
+        {goals.length > 0 && (
+          <div className="mt-4 rounded border border-slate-800 bg-slate-950 p-3">
+            <div className="text-xs font-semibold uppercase text-slate-500">Next best targets</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {goals.map((goal) => <span key={goal.company} className="rounded bg-slate-900 px-2 py-1 text-xs text-slate-300">{goal.company}: {goal.missing_rounds.map((round) => round.label).join(", ")}</span>)}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function CompanyXpCard({ card }) {
+  const total = Math.max(1, Number(card.available_round_count) || 1)
+  const done = Math.min(total, Number(card.completed_round_count) || 0)
+  const progress = Math.round((done / total) * 100)
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-100">{card.company}</h3>
+          <p className="mt-1 text-xs text-slate-500">{done}/{total} rounds complete</p>
+        </div>
+        <div className={`rounded px-2 py-1 text-xs font-semibold ${card.complete ? "bg-emerald-950 text-emerald-300" : "bg-cyan-950 text-cyan-300"}`}>{card.xp || 0} XP</div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded bg-slate-900">
+        <div className={`h-full rounded ${card.complete ? "bg-emerald-400" : "bg-cyan-400"}`} style={{ width: `${progress}%` }} />
+      </div>
+      <p className="mt-3 text-xs text-slate-500">{card.complete ? "Mastery bonus unlocked." : `Next: ${card.missing_rounds?.[0]?.label || "another round"}`}</p>
+    </div>
+  )
+}
+
+function CompanyXpMini({ company }) {
+  if (!company?.available_round_count) return null
+  const total = Math.max(1, Number(company.available_round_count) || 1)
+  const done = Math.min(total, Number(company.completed_round_count) || 0)
+  return (
+    <div className="min-w-32 text-right">
+      <div className="text-sm font-semibold text-slate-200">{company.xp || 0} XP</div>
+      <div className="text-xs text-slate-500">{done}/{total} rounds</div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded bg-slate-800">
+        <div className={`h-full ${company.company_complete ? "bg-emerald-400" : "bg-cyan-400"}`} style={{ width: `${Math.round((done / total) * 100)}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function ResumeQuestDashboard({ quests, onStart }) {
+  const latest = quests?.[0]
+  return (
+    <section className="rounded border border-emerald-800/60 bg-slate-900 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded bg-emerald-950 px-3 py-1 text-xs font-semibold uppercase text-emerald-200"><FileText size={14} /> Resume Quest Zone</div>
+          <h2 className="mt-3 text-xl font-semibold">Tailor your resume for a specific company JD</h2>
+          <p className="mt-1 text-sm text-slate-500">Upload your resume, paste the job description, and get quest missions, keyword gaps, suggested bullets, and resume XP.</p>
+        </div>
+        <button onClick={onStart} className="rounded bg-emerald-400 px-4 py-2 font-semibold text-slate-950">Enter quest zone</button>
+      </div>
+      {latest ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-[.7fr_1.3fr]">
+          <div className="rounded border border-slate-800 bg-slate-950 p-4">
+            <div className="text-sm text-slate-500">Latest quest</div>
+            <div className="mt-1 font-semibold text-slate-100">{latest.company} · {latest.job_role}</div>
+            <div className="mt-3 flex items-end gap-3">
+              <div className="text-3xl font-semibold text-emerald-300">{latest.score}</div>
+              <div className="pb-1 text-sm text-slate-500">resume score</div>
+            </div>
+            <div className="mt-2 text-sm text-cyan-300">{latest.xp} XP earned</div>
+          </div>
+          <div className="rounded border border-slate-800 bg-slate-950 p-4">
+            <div className="text-sm font-semibold text-slate-300">Priority missions</div>
+            <div className="mt-3 grid gap-2">
+              {(latest.missions || []).slice(0, 3).map((mission) => <div key={mission.title} className="rounded bg-slate-900 p-3 text-sm text-slate-300">{mission.title}</div>)}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 rounded border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">No resume quests completed yet.</div>
+      )}
+    </section>
+  )
+}
+
+function DashboardAnalytics({ topics, csTopics, csSkills, behavior }) {
+  const strongTopics = topics.filter((topic) => topic.average >= 70).slice(0, 6)
+  const weakTopics = topics.filter((topic) => topic.average < 70).slice(0, 6)
+  const hasTopics = topics.length > 0
+  const csGraph = csTopics.length ? csTopics : csSkills
+  const strongCsTopics = csGraph.filter((topic) => topic.average >= 70).slice(0, 6)
+  const weakCsTopics = csGraph.filter((topic) => topic.average < 70).slice(0, 6)
+  const hasCsGraph = csGraph.length > 0
+  const csGraphLabel = csTopics.length ? "CS topics" : "CS skills"
+  const hasBehavior = behavior.length > 0
+
+  return (
+    <section className="grid gap-4">
+      <div className="rounded border border-slate-800 bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">CS Fundamentals Topics</h2>
+            <p className="mt-1 text-sm text-slate-500">Overall CS strengths and weaknesses from DBMS, OS, CN, OOP, and related rounds.</p>
+          </div>
+          <Brain className="text-cyan-300" size={20} />
+        </div>
+        {hasCsGraph ? (
+          <div className="grid gap-5 p-5 xl:grid-cols-2">
+            <TopicColumn title={`Strong ${csGraphLabel}`} topics={strongCsTopics} empty={`No strong ${csGraphLabel} yet.`} tone="strong" />
+            <TopicColumn title={`${csGraphLabel} to revise`} topics={weakCsTopics} empty={`No weak ${csGraphLabel} detected yet.`} tone="weak" />
+          </div>
+        ) : (
+          <AnalyticsEmpty text="Complete CS Fundamentals interviews and generate reports to unlock this graph." />
+        )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+      <div className="rounded border border-slate-800 bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Topic Strengths & Gaps</h2>
+            <p className="mt-1 text-sm text-slate-500">Aggregated from topics asked across completed interview reports.</p>
+          </div>
+          <BarChart3 className="text-cyan-300" size={20} />
+        </div>
+        {hasTopics ? (
+          <div className="grid gap-5 p-5 xl:grid-cols-2">
+            <TopicColumn title="Strong topics" topics={strongTopics} empty="No strong topics yet." tone="strong" />
+            <TopicColumn title="Topics to work on" topics={weakTopics} empty="No weak topics detected yet." tone="weak" />
+          </div>
+        ) : (
+          <AnalyticsEmpty text="Complete interviews with generated reports to unlock topic analytics." />
+        )}
+      </div>
+
+      <div className="rounded border border-slate-800 bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Behavioural Focus</h2>
+            <p className="mt-1 text-sm text-slate-500">Traits to strengthen for project and behavioural rounds.</p>
+          </div>
+          <Brain className="text-cyan-300" size={20} />
+        </div>
+        {hasBehavior ? (
+          <div className="space-y-3 p-5">
+            {behavior.slice(0, 5).map((trait) => <TraitBar key={trait.name} trait={trait} />)}
+          </div>
+        ) : (
+          <AnalyticsEmpty text="Take a Project + Behavioural interview to see personality and communication focus areas." />
+        )}
+      </div>
+      </div>
+    </section>
+  )
+}
+
+function TopicColumn({ title, topics, empty, tone }) {
+  return <div>
+    <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
+    <div className="space-y-3">
+      {topics.length ? topics.map((topic) => <TopicBar key={topic.name} topic={topic} tone={tone} />) : <div className="rounded border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">{empty}</div>}
+    </div>
+  </div>
+}
+
+function TopicBar({ topic, tone }) {
+  const color = tone === "strong" ? "bg-emerald-400" : "bg-amber-400"
+  const text = tone === "strong" ? "text-emerald-300" : "text-amber-300"
+  return <div className="rounded border border-slate-800 bg-slate-950 p-3">
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-slate-100">{topic.name}</div>
+        <div className="text-xs text-slate-500">{topic.count} report{topic.count === 1 ? "" : "s"}</div>
+      </div>
+      <div className={`text-lg font-semibold ${text}`}>{topic.average}</div>
+    </div>
+    <div className="mt-3 h-2 rounded bg-slate-800">
+      <div className={`h-2 rounded ${color}`} style={{ width: `${Math.max(4, topic.average)}%` }} />
+    </div>
+  </div>
+}
+
+function TraitBar({ trait }) {
+  const needsWork = trait.average < 70
+  const color = needsWork ? "bg-amber-400" : "bg-emerald-400"
+  return <div className="rounded border border-slate-800 bg-slate-950 p-3">
+    <div className="mb-2 flex items-center justify-between gap-3">
+      <div>
+        <div className="text-sm font-medium text-slate-100">{trait.name}</div>
+        <div className="text-xs text-slate-500">{needsWork ? "Focus area" : "Currently solid"} · {trait.count} signal{trait.count === 1 ? "" : "s"}</div>
+      </div>
+      <div className={needsWork ? "text-lg font-semibold text-amber-300" : "text-lg font-semibold text-emerald-300"}>{trait.average}</div>
+    </div>
+    <div className="h-2 rounded bg-slate-800"><div className={`h-2 rounded ${color}`} style={{ width: `${Math.max(4, trait.average)}%` }} /></div>
+  </div>
+}
+
+function AnalyticsEmpty({ text }) {
+  return <div className="p-5">
+    <div className="rounded border border-dashed border-slate-700 bg-slate-950 p-5 text-sm leading-6 text-slate-500">{text}</div>
+  </div>
+}
+
+function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, isBusy }) {
+  const stats = dashboard.stats || defaultDashboard.stats
+  const interviews = dashboard.interviews || []
+  const companies = dashboard.companies || []
+  const latest = interviews[0]
+  const completed = interviews.filter((item) => item.has_report)
+  const dsaReports = interviews.filter((item) => item.round_type === "dsa")
+  const completedDsa = dsaReports.filter((item) => item.has_report)
+  const dsaAverage = completedDsa.length ? Math.round(completedDsa.reduce((sum, item) => sum + (Number(item.overall_score) || 0), 0) / completedDsa.length) : 0
+
+  return (
+    <main className="min-h-screen bg-[#07120f] text-slate-100">
+      {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
+      <section className="border-b border-emerald-900/50 bg-[#0b1b17]">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded bg-amber-300 text-[#07120f]"><BarChart3 size={22} /></div>
+            <div>
+              <h1 className="text-xl font-semibold">Candidate Dashboard</h1>
+              <p className="text-sm text-slate-400">{userProfile.name} · interview performance across company rounds</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onRefresh} disabled={loading} className="rounded border border-emerald-800 px-3 py-2 text-sm text-emerald-100 disabled:opacity-50">Refresh</button>
+            <button onClick={() => onStart("dsa")} className="inline-flex items-center gap-2 rounded bg-amber-300 px-4 py-2 font-semibold text-[#07120f]"><Code2 size={18} /> Start DSA</button>
+            <button onClick={onLogout} className="inline-flex items-center gap-2 rounded border border-rose-500/50 px-3 py-2 text-sm text-rose-100"><LogOut size={16} /> Logout</button>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+          <div className="rounded border border-amber-300/30 bg-[#10241f] p-5 shadow-2xl shadow-emerald-950/20">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase text-amber-200">DSA Interview Track</div>
+                <h2 className="mt-2 text-2xl font-bold">Company-style coding rounds are ready.</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/70">Pick a company, solve runnable DSA questions in the Monaco editor, run tests, submit code, and generate a report that appears here.</p>
+              </div>
+              <button onClick={() => onStart("dsa")} className="inline-flex items-center gap-2 rounded bg-amber-300 px-4 py-2 font-bold text-[#07120f]"><Play size={18} /> Practice DSA</button>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <MiniStat label="DSA attempts" value={dsaReports.length} />
+              <MiniStat label="DSA reports" value={completedDsa.length} />
+              <MiniStat label="DSA average" value={`${dsaAverage}/100`} />
+            </div>
+          </div>
+          <div className="rounded border border-rose-300/20 bg-[#171423] p-5">
+            <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles size={18} className="text-rose-200" /> Round shortcuts</h2>
+            <div className="mt-4 grid gap-2">
+              <button onClick={() => onStart("dsa")} className="rounded border border-amber-300/40 bg-amber-300/10 px-3 py-3 text-left text-sm text-amber-100">DSA + code execution</button>
+              <button onClick={() => onStart("cs_fundamentals")} className="rounded border border-teal-300/30 bg-teal-300/10 px-3 py-3 text-left text-sm text-teal-100">CS fundamentals</button>
+              <button onClick={() => onStart("project_behavioral")} className="rounded border border-rose-300/30 bg-rose-300/10 px-3 py-3 text-left text-sm text-rose-100">Project + behavioural</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <DashboardMetric icon={<Briefcase size={18} />} label="Interviews" value={stats.total_interviews} />
+          <DashboardMetric icon={<Shield size={18} />} label="Reports" value={stats.completed_interviews} />
+          <DashboardMetric icon={<Target size={18} />} label="Companies" value={stats.companies_practiced} />
+          <DashboardMetric icon={<TrendingUp size={18} />} label="Average" value={`${stats.average_score || 0}/100`} />
+          <DashboardMetric icon={<BarChart3 size={18} />} label="Best" value={`${stats.best_score || 0}/100`} />
+        </div>
+
+        {latest ? (
+          <div className="grid gap-4 lg:grid-cols-[1fr_.8fr]">
+            <div className="rounded border border-slate-800 bg-slate-900 p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase text-cyan-300">Latest interview</div>
+                  <h2 className="mt-1 text-xl font-semibold">{latest.target_company || "General"} · {prettyRound(latest.round_type)}</h2>
+                </div>
+                <ScoreBadge score={latest.overall_score} />
+              </div>
+              <p className="min-h-12 text-sm leading-6 text-slate-300">{latest.summary || (latest.has_report ? "Report generated." : "Interview is in progress or has not produced enough report evidence yet.")}</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <MiniStat label="Signal" value={latest.hiring_signal || "In progress"} />
+                <MiniStat label="Round score" value={`${latest.round_score || 0}/100`} />
+                <MiniStat label="Integrity" value={`${latest.integrity_score ?? 100}/100`} />
+              </div>
+              {latest.has_report && <button onClick={() => onOpenReport(latest.session_id)} disabled={isBusy} className="mt-4 rounded bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">Open full report</button>}
+            </div>
+
+            <div className="rounded border border-slate-800 bg-slate-900 p-5">
+              <h2 className="mb-4 text-lg font-semibold">Company Performance</h2>
+              <div className="space-y-3">
+                {(companies.length ? companies.slice(0, 5) : [{ company: "No company data yet", completed_count: 0, interview_count: 0, average_score: 0 }]).map((company) => (
+                  <div key={company.company} className="rounded border border-slate-800 bg-slate-950 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-slate-100">{company.company}</div>
+                        <div className="text-xs text-slate-500">{company.completed_count}/{company.interview_count} reports complete</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-semibold text-cyan-300">{company.average_score || 0}</div>
+                        <div className="text-xs text-slate-500">avg score</div>
+                      </div>
+                    </div>
+                    <ProgressBar value={company.average_score || 0} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded border border-slate-800 bg-slate-900 p-8">
+            <div className="max-w-2xl">
+              <div className="text-xs uppercase text-cyan-300">No interviews yet</div>
+              <h2 className="mt-2 text-2xl font-semibold">Start a company-specific AI interview to build your dashboard.</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-400">Your completed rounds, scores, company trends, strengths, weak areas, and generated reports will appear here automatically.</p>
+              <button onClick={onStart} className="mt-5 inline-flex items-center gap-2 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950"><Play size={18} /> Start interview</button>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded border border-slate-800 bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <h2 className="text-lg font-semibold">Interview Reports</h2>
+            <div className="text-sm text-slate-500">{completed.length} completed</div>
+          </div>
+          <div className="divide-y divide-slate-800">
+            {(interviews.length ? interviews : []).map((item) => (
+              <div key={item.session_id} className="grid gap-4 p-5 lg:grid-cols-[1fr_auto]">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1"><Calendar size={14} /> {formatDate(item.completed_at || item.created_at)}</span>
+                    <span>{prettyRound(item.round_type)}</span>
+                    {item.problem_title && <span>{item.problem_title}</span>}
+                  </div>
+                  <h3 className="mt-2 text-lg font-semibold">{item.target_company || "General"} · {item.job_role || "Software Engineer"}</h3>
+                  <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">{item.summary || "No report generated yet. End the interview to produce a full analysis."}</p>
+                  <DashboardHighlights title="Strengths" items={item.strengths} tone="emerald" />
+                  <DashboardHighlights title="Focus areas" items={item.weak_areas} tone="amber" />
+                </div>
+                <div className="flex min-w-40 flex-col items-start gap-3 lg:items-end">
+                  <ScoreBadge score={item.overall_score} />
+                  <div className="text-sm text-slate-400">{item.hiring_signal || "In progress"}</div>
+                  {item.has_report ? (
+                    <button onClick={() => onOpenReport(item.session_id)} disabled={isBusy} className="rounded border border-cyan-600 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 disabled:opacity-50">View report</button>
+                  ) : (
+                    <span className="rounded border border-slate-700 px-3 py-2 text-sm text-slate-500">In progress</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {!interviews.length && <div className="p-5 text-sm text-slate-400">No interview history for this user yet.</div>}
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function DashboardMetric({ icon, label, value }) {
+  return <div className="rounded border border-emerald-900/50 bg-[#0d1f1b] p-4">
+    <div className="flex items-center gap-2 text-xs uppercase text-emerald-100/50">{icon}{label}</div>
+    <div className="mt-3 text-2xl font-semibold text-amber-100">{value}</div>
+  </div>
+}
+
+function MiniStat({ label, value }) {
+  return <div className="rounded border border-white/10 bg-[#07120f] p-3">
+    <div className="text-xs uppercase text-emerald-100/50">{label}</div>
+    <div className="mt-1 text-sm font-semibold text-slate-100">{value}</div>
+  </div>
+}
+
+function ScoreBadge({ score }) {
+  const value = Math.round(Number(score) || 0)
+  const tone = value >= 75 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : value >= 55 ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"
+  return <div className={`rounded border px-3 py-2 text-right ${tone}`}>
+    <div className="text-2xl font-semibold">{value}</div>
+    <div className="text-xs opacity-80">score</div>
+  </div>
+}
+
+function ProgressBar({ value }) {
+  const width = Math.max(0, Math.min(100, Number(value) || 0))
+  const color = width >= 75 ? "bg-emerald-400" : width >= 55 ? "bg-cyan-400" : "bg-amber-400"
+  return <div className="mt-3 h-1.5 rounded bg-slate-800"><div className={`h-1.5 rounded ${color}`} style={{ width: `${width}%` }} /></div>
+}
+
+function DashboardHighlights({ title, items, tone }) {
+  const visible = (items || []).filter(Boolean).slice(0, 2)
+  if (!visible.length) return null
+  const color = tone === "emerald" ? "text-emerald-300" : "text-amber-300"
+  return <div className="mt-3">
+    <div className={`mb-1 text-xs uppercase ${color}`}>{title}</div>
+    <div className="grid gap-1">
+      {visible.map((item, index) => <p key={`${title}-${index}`} className="text-xs leading-5 text-slate-400">{item}</p>)}
+    </div>
+  </div>
+}
+
+function formatDate(value) {
+  if (!value) return "Not dated"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+}
+
+function buildTopicInsights(reports) {
+  const byTopic = {}
+  reports.forEach((report) => {
+    const topics = Array.isArray(report.topic_mastery) ? report.topic_mastery : []
+    topics.forEach((topic) => {
+      const name = String(topic.topic || topic.name || "").trim()
+      if (!name) return
+      const score = clampScore(topic.mastery ?? topic.score)
+      byTopic[name] = byTopic[name] || { name, total: 0, count: 0 }
+      byTopic[name].total += score
+      byTopic[name].count += 1
+    })
+  })
+  return Object.values(byTopic)
+    .map((topic) => ({ ...topic, average: Math.round(topic.total / Math.max(1, topic.count)) }))
+    .sort((a, b) => b.count - a.count || b.average - a.average || a.name.localeCompare(b.name))
+}
+
+function buildBehaviorInsights(reports) {
+  const behavioralReports = reports.filter((report) => report.round_type === "project_behavioral")
+  const byTrait = {}
+  behavioralReports.forEach((report) => {
+    const params = Array.isArray(report.parameter_scores) ? report.parameter_scores : []
+    params.forEach((param) => {
+      const name = String(param.name || "").trim()
+      if (!name) return
+      const score = clampScore(param.score)
+      byTrait[name] = byTrait[name] || { name, total: 0, count: 0 }
+      byTrait[name].total += score
+      byTrait[name].count += 1
+    })
+  })
+  return Object.values(byTrait)
+    .map((trait) => ({ ...trait, average: Math.round(trait.total / Math.max(1, trait.count)) }))
+    .sort((a, b) => a.average - b.average || b.count - a.count || a.name.localeCompare(b.name))
+}
+
+function buildParameterInsights(reports) {
+  const byParameter = {}
+  reports.forEach((report) => {
+    const params = Array.isArray(report.parameter_scores) ? report.parameter_scores : []
+    params.forEach((param) => {
+      const name = String(param.name || "").trim()
+      if (!name) return
+      const score = clampScore(param.score)
+      byParameter[name] = byParameter[name] || { name, total: 0, count: 0 }
+      byParameter[name].total += score
+      byParameter[name].count += 1
+    })
+  })
+  return Object.values(byParameter)
+    .map((param) => ({ ...param, average: Math.round(param.total / Math.max(1, param.count)) }))
+    .sort((a, b) => b.count - a.count || b.average - a.average || a.name.localeCompare(b.name))
+}
+
+function clampScore(value) {
+  const score = Number(value)
+  if (!Number.isFinite(score)) return 0
+  return Math.max(0, Math.min(100, Math.round(score)))
 }
 
 function Field({ label, children }) {
@@ -965,7 +2051,7 @@ function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, a
   </div>
 }
 
-function Feedback({ report, onRestart }) {
+function Feedback({ report, onRestart, onBack }) {
   const breakdown = report.round_breakdown || {}
   const roundItems = roundBreakdownItems(breakdown)
   const integrity = report.integrity || {}
@@ -974,6 +2060,7 @@ function Feedback({ report, onRestart }) {
     <section className="mx-auto max-w-6xl rounded border border-slate-800 bg-slate-900 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
+          <button onClick={onBack} className="mb-4 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>
           <div className="text-sm uppercase text-cyan-300">{prettyRound(report.round_type)} Report</div>
           <h1 className="mt-1 text-2xl font-semibold">{report.hiring_signal}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{report.summary}</p>
@@ -1029,7 +2116,7 @@ function Feedback({ report, onRestart }) {
         </div>
       </div>
 
-      <button onClick={onRestart} className="mt-6 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950">Start another interview</button>
+      <button onClick={onRestart} className="mt-6 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950">Start DSA interview</button>
     </section>
   </main>
 }
@@ -1115,7 +2202,13 @@ async function apiFetch(path, options = {}) {
   let lastError = null
   for (const base of API_BASES) {
     try {
-      const res = await fetch(`${base}${path}`, options)
+      const headers = new Headers(options.headers || {})
+      if (authToken() && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${authToken()}`)
+      const res = await fetch(`${base}${path}`, { ...options, headers })
+      if (!res.ok && base === "" && [405, 501].includes(res.status)) {
+        lastError = new Error(`${res.status} from local static server for ${path}`)
+        continue
+      }
       // Application-level 404 (e.g. "Session not found", "Problem not found"):
       // the body is a JSON {"detail":"..."} — return immediately, don't retry other bases.
       if (res.status === 404) {

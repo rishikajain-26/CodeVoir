@@ -1,34 +1,44 @@
 import io
+import base64
+import hashlib
 import json
 import os
 import random
 import re
+import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.error
 import urllib.request
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from html import unescape
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
+
+from jose import JWTError, jwt
 
 from app.services.interview_data_service import (
     get_cs_fundamentals_config,
     get_dsa_config,
     get_project_behavioral_config,
     interview_data_service,
+    available_rounds_for_company,
+    has_round_data,
+    list_companies_with_rounds,
     list_companies_for_round,
 )
 from app.services.llm_service import llm_service
-from app.services.report_service import build_feedback_report_async
+from app.services.report_service import build_feedback_report, build_feedback_report_async
 from app.services.session_store import (
     load_all_sessions,
     save_session as _db_save_session,
@@ -62,6 +72,10 @@ except Exception:
 
 APP_VERSION = "1.1.0-mvp"
 SESSIONS: dict[str, dict[str, Any]] = load_all_sessions()
+OAUTH_DEFAULT_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+OAUTH_DEFAULT_TOKEN_URL = "https://oauth2.googleapis.com/token"
+OAUTH_DEFAULT_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid email profile")
 
 
 def _persist(session: dict[str, Any]) -> None:
@@ -185,6 +199,7 @@ _load_local_env()
 
 
 class StartSessionRequest(BaseModel):
+    user_id: str = ""
     job_role: str = "Software Engineer"
     experience_level: str = "fresher"
     target_company: str = ""
@@ -316,9 +331,34 @@ async def interview_companies(round_type: str = "dsa"):
     }
 
 
+@app.get("/api/interview/company-directory")
+async def interview_company_directory():
+    companies = list_companies_with_rounds()
+    return {
+        "companies": companies,
+        "company_count": len(companies),
+    }
+
+
+@app.get("/api/interview/company-rounds")
+async def interview_company_rounds(company: str):
+    resolved = interview_data_service.resolve_company(company)
+    rounds = available_rounds_for_company(company)
+    return {
+        "company": resolved or company,
+        "resolved": bool(resolved),
+        "rounds": rounds,
+        "round_count": len(rounds),
+    }
+
+
 @app.get("/api/interview/company-config")
 async def interview_company_config(company: str, round_type: str = "dsa"):
     normalized_round = interview_data_service.normalize_round_type(round_type)
+    if not has_round_data(company, normalized_round):
+        resolved = interview_data_service.resolve_company(company)
+        detail = "Company was not found in the interview data." if not resolved else f"{resolved} does not have {normalized_round} interview data available."
+        raise HTTPException(status_code=404, detail=detail)
     return {
         "round_type": normalized_round,
         "company": interview_data_service.resolve_company(company) or company,
@@ -331,22 +371,87 @@ async def llm_status():
     return llm_service.status()
 
 
+@app.get("/api/auth/config")
+async def auth_config():
+    return {
+        "provider": os.getenv("OAUTH_PROVIDER_NAME", "Google"),
+        "configured": bool(os.getenv("OAUTH_CLIENT_ID") and os.getenv("OAUTH_CLIENT_SECRET")),
+    }
+
+
+@app.get("/api/auth/login")
+async def oauth_login():
+    client_id = os.getenv("OAUTH_CLIENT_ID")
+    if not client_id or not os.getenv("OAUTH_CLIENT_SECRET"):
+        raise HTTPException(status_code=501, detail="OAuth is not configured. Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in backend/.env.")
+    state = secrets.token_urlsafe(24)
+    verifier = secrets.token_urlsafe(48)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("utf-8")).digest()).decode("ascii").rstrip("=")
+    params = {
+        "client_id": client_id,
+        "redirect_uri": _oauth_redirect_uri(),
+        "response_type": "code",
+        "scope": OAUTH_SCOPES,
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "access_type": "offline",
+        "prompt": "select_account",
+    }
+    response = RedirectResponse(f"{os.getenv('OAUTH_AUTHORIZE_URL', OAUTH_DEFAULT_AUTHORIZE_URL)}?{urllib.parse.urlencode(params)}")
+    response.set_cookie("oauth_state", state, httponly=True, samesite="lax", max_age=600)
+    response.set_cookie("oauth_verifier", verifier, httponly=True, samesite="lax", max_age=600)
+    return response
+
+
+@app.get("/api/auth/callback")
+async def oauth_callback(request: Request, code: str = "", state: str = ""):
+    if not code:
+        raise HTTPException(status_code=400, detail="OAuth callback is missing code.")
+    if not state or state != request.cookies.get("oauth_state"):
+        raise HTTPException(status_code=400, detail="OAuth state check failed.")
+    token_payload = _oauth_exchange_code(code, request.cookies.get("oauth_verifier", ""))
+    userinfo = _oauth_userinfo(token_payload.get("access_token", ""))
+    profile = _profile_from_userinfo(userinfo)
+    app_token = _create_auth_token(profile)
+    redirect = RedirectResponse(f"{_frontend_url()}?auth_token={urllib.parse.quote(app_token)}")
+    redirect.delete_cookie("oauth_state")
+    redirect.delete_cookie("oauth_verifier")
+    return redirect
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    return _profile_from_request(request)
+
+
+@app.post("/api/auth/logout")
+async def auth_logout():
+    return {"status": "ok"}
+
+
 @app.post("/api/session/start")
 async def start_session(payload: StartSessionRequest):
     session_id = str(uuid.uuid4())
     normalized_round_type = interview_data_service.normalize_round_type(payload.round_type)
-    target_company = _resolve_company(payload.target_company) if normalized_round_type == "dsa" else (interview_data_service.resolve_company(payload.target_company) or payload.target_company)
+    target_company = interview_data_service.resolve_company(payload.target_company)
+    if not target_company:
+        raise HTTPException(status_code=422, detail="Select a company from the available interview data before starting.")
+    if not has_round_data(target_company, normalized_round_type):
+        available = ", ".join(round_item["label"] for round_item in available_rounds_for_company(target_company)) or "no rounds"
+        raise HTTPException(status_code=422, detail=f"{target_company} does not have data for this round. Available rounds: {available}.")
     problem = _select_problem(payload.difficulty, target_company)
     SESSIONS[session_id] = {
         "session_id": session_id,
+        "user_id": _normalize_user_id(payload.user_id),
         "created_at": _now(),
         "job_role": payload.job_role,
         "experience_level": payload.experience_level,
-        "target_company": target_company or payload.target_company,
+        "target_company": target_company,
         "job_description": payload.job_description,
         "round_type": normalized_round_type,
         "requested_round_type": payload.round_type,
-        "round_config": _round_config_for_session(normalized_round_type, target_company or payload.target_company),
+        "round_config": _round_config_for_session(normalized_round_type, target_company),
         "difficulty": payload.difficulty,
         "timer_minutes": payload.timer_minutes,
         "phase": "dsa" if normalized_round_type == "dsa" else "warmup",
@@ -584,6 +689,7 @@ async def list_sessions():
     return [
         {
             "session_id": s.get("session_id"),
+            "user_id": s.get("user_id", ""),
             "created_at": s.get("created_at"),
             "round_type": s.get("round_type"),
             "target_company": s.get("target_company"),
@@ -594,10 +700,188 @@ async def list_sessions():
     ]
 
 
+@app.get("/api/dashboard")
+async def user_dashboard(user_id: str = ""):
+    normalized_user_id = _normalize_user_id(user_id)
+    sessions = [
+        session
+        for session in SESSIONS.values()
+        if _session_belongs_to_user(session, normalized_user_id)
+        and session.get("record_type", "interview") == "interview"
+    ]
+    summaries = [_dashboard_interview_summary(session) for session in sessions]
+    summaries.sort(key=lambda item: item.get("completed_at") or item.get("created_at") or "", reverse=True)
+    completed = [item for item in summaries if item.get("has_report")]
+    companies = sorted({item["target_company"] for item in summaries if item.get("target_company")})
+    best_score = max([item.get("overall_score", 0) or 0 for item in completed], default=0)
+    avg_score = round(
+        sum(item.get("overall_score", 0) or 0 for item in completed) / len(completed),
+        1,
+    ) if completed else 0
+    by_company: dict[str, dict[str, Any]] = {}
+    for item in summaries:
+        company = item.get("target_company") or "General"
+        bucket = by_company.setdefault(company, {"company": company, "interview_count": 0, "completed_count": 0, "average_score": 0, "latest_score": 0})
+        bucket["interview_count"] += 1
+        if item.get("has_report"):
+            bucket["completed_count"] += 1
+    for company, bucket in by_company.items():
+        company_completed = [item for item in summaries if (item.get("target_company") or "General") == company and item.get("has_report")]
+        if company_completed:
+            bucket["latest_score"] = company_completed[0].get("overall_score", 0) or 0
+            bucket["average_score"] = round(sum(item.get("overall_score", 0) or 0 for item in company_completed) / len(company_completed), 1)
+        xp_company = _company_xp_summary(company, [item for item in summaries if (item.get("target_company") or "General") == company])
+        bucket.update(xp_company)
+    xp = _dashboard_xp_summary(summaries, by_company)
+    return {
+        "user_id": normalized_user_id,
+        "stats": {
+            "total_interviews": len(summaries),
+            "completed_interviews": len(completed),
+            "companies_practiced": len(companies),
+            "average_score": avg_score,
+            "best_score": best_score,
+            "xp": xp["total_xp"],
+            "level": xp["level"],
+            "completed_company_sets": xp["completed_company_sets"],
+        },
+        "xp": xp,
+        "companies": sorted(by_company.values(), key=lambda item: (-item["completed_count"], item["company"])),
+        "interviews": summaries,
+    }
+
+
+XP_ROUND_BASE = {
+    "dsa": 110,
+    "cs_fundamentals": 120,
+    "project_behavioral": 130,
+}
+
+
+def _company_xp_summary(company: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    available_rounds = available_rounds_for_company(company)
+    available_ids = [round_item["id"] for round_item in available_rounds]
+    completed_items = [item for item in items if item.get("has_report")]
+    completed_ids = sorted({item.get("round_type", "") for item in completed_items if item.get("round_type") in available_ids})
+    is_complete = bool(available_ids) and set(available_ids).issubset(set(completed_ids))
+    missing_rounds = [
+        {"id": round_item["id"], "label": round_item["label"]}
+        for round_item in available_rounds
+        if round_item["id"] not in completed_ids
+    ]
+    earned_xp = _xp_for_company_attempts(company, completed_items, available_ids)
+    if is_complete:
+        earned_xp += _company_completion_bonus(available_ids)
+    return {
+        "available_rounds": available_rounds,
+        "available_round_count": len(available_ids),
+        "completed_rounds": completed_ids,
+        "completed_round_count": len(completed_ids),
+        "missing_rounds": missing_rounds,
+        "company_complete": is_complete,
+        "xp": earned_xp,
+        "completion_bonus": _company_completion_bonus(available_ids) if is_complete else 0,
+    }
+
+
+def _dashboard_xp_summary(summaries: list[dict[str, Any]], by_company: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    total_xp = 0
+    completed_sets = 0
+    company_cards = []
+    for company, bucket in by_company.items():
+        total_xp += int(bucket.get("xp", 0) or 0)
+        if bucket.get("company_complete"):
+            completed_sets += 1
+        if bucket.get("available_round_count"):
+            company_cards.append({
+                "company": company,
+                "xp": bucket.get("xp", 0),
+                "complete": bucket.get("company_complete", False),
+                "completed_round_count": bucket.get("completed_round_count", 0),
+                "available_round_count": bucket.get("available_round_count", 0),
+                "missing_rounds": bucket.get("missing_rounds", []),
+            })
+    company_cards.sort(key=lambda item: (item["complete"], item["completed_round_count"], item["xp"]), reverse=True)
+    level = _xp_level(total_xp)
+    current_floor = _xp_for_level(level)
+    next_floor = _xp_for_level(level + 1)
+    next_goals = [
+        card for card in company_cards
+        if not card["complete"] and card["completed_round_count"] > 0
+    ][:3]
+    return {
+        "total_xp": total_xp,
+        "level": level,
+        "title": _xp_title(level),
+        "current_level_xp": current_floor,
+        "next_level_xp": next_floor,
+        "level_progress": round(((total_xp - current_floor) / max(1, next_floor - current_floor)) * 100),
+        "xp_to_next_level": max(0, next_floor - total_xp),
+        "completed_company_sets": completed_sets,
+        "company_cards": company_cards[:6],
+        "next_goals": next_goals,
+        "rules": [
+            "Best completed result per company round earns full XP.",
+            "Repeat attempts earn smaller improvement XP.",
+            "Completing every available round for a company unlocks a company mastery bonus.",
+        ],
+    }
+
+
+def _xp_for_company_attempts(company: str, completed_items: list[dict[str, Any]], available_ids: list[str]) -> int:
+    by_round: dict[str, list[dict[str, Any]]] = {}
+    for item in completed_items:
+        round_type = item.get("round_type", "")
+        if round_type not in available_ids:
+            continue
+        by_round.setdefault(round_type, []).append(item)
+    xp = 0
+    for round_type, attempts in by_round.items():
+        attempts.sort(key=lambda item: item.get("overall_score", 0) or 0, reverse=True)
+        best = attempts[0]
+        best_score = float(best.get("overall_score", 0) or 0)
+        xp += XP_ROUND_BASE.get(round_type, 100) + round(best_score * 1.2)
+        for repeat in attempts[1:4]:
+            repeat_score = float(repeat.get("overall_score", 0) or 0)
+            xp += 25 + round(repeat_score * 0.25)
+    return int(xp)
+
+
+def _company_completion_bonus(available_ids: list[str]) -> int:
+    return 180 + (len(available_ids) * 70) if available_ids else 0
+
+
+def _xp_for_level(level: int) -> int:
+    safe_level = max(1, int(level))
+    return 450 * (safe_level - 1) * safe_level // 2
+
+
+def _xp_level(total_xp: int) -> int:
+    level = 1
+    while total_xp >= _xp_for_level(level + 1):
+        level += 1
+    return level
+
+
+def _xp_title(level: int) -> str:
+    if level >= 10:
+        return "Interview Master"
+    if level >= 7:
+        return "Company Finisher"
+    if level >= 4:
+        return "Round Specialist"
+    return "Interview Rookie"
+
+
 @app.get("/api/feedback/{session_id}")
 async def get_feedback(session_id: str):
     session = _require_session(session_id)
-    return await _feedback_report(session)
+    report = await _feedback_report(session)
+    session["report"] = report
+    session["phase"] = "complete"
+    session.setdefault("completed_at", _now())
+    _persist(session)
+    return report
 
 
 @app.post("/api/livekit/token")
@@ -618,6 +902,215 @@ def _require_session(session_id: str) -> dict[str, Any]:
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
+
+
+def _normalize_user_id(user_id: str | None) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9_.:@-]+", "", (user_id or "").strip())
+    return clean[:96] or "local-user"
+
+
+def _frontend_url() -> str:
+    return os.getenv("FRONTEND_URL", "http://127.0.0.1:5173").rstrip("/")
+
+
+def _oauth_redirect_uri() -> str:
+    return os.getenv("OAUTH_REDIRECT_URI", "http://127.0.0.1:8000/api/auth/callback")
+
+
+def _auth_secret() -> str:
+    return os.getenv("APP_AUTH_SECRET", "codevoir-local-dev-secret-change-me")
+
+
+def _create_auth_token(profile: dict[str, Any]) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": profile["user_id"],
+        "name": profile.get("name", ""),
+        "email": profile.get("email", ""),
+        "picture": profile.get("picture", ""),
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(days=7)).timestamp()),
+    }
+    return jwt.encode(payload, _auth_secret(), algorithm="HS256")
+
+
+def _profile_from_request(request: Request) -> dict[str, Any]:
+    auth_header = request.headers.get("authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip() if auth_header.lower().startswith("bearer ") else ""
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, _auth_secret(), algorithms=["HS256"])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired auth token")
+    return {
+        "authenticated": True,
+        "user_id": _normalize_user_id(payload.get("sub", "")),
+        "name": payload.get("name") or payload.get("email") or "Candidate",
+        "email": payload.get("email", ""),
+        "picture": payload.get("picture", ""),
+    }
+
+
+def _oauth_exchange_code(code: str, verifier: str) -> dict[str, Any]:
+    data = urllib.parse.urlencode({
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": _oauth_redirect_uri(),
+        "client_id": os.getenv("OAUTH_CLIENT_ID", ""),
+        "client_secret": os.getenv("OAUTH_CLIENT_SECRET", ""),
+        "code_verifier": verifier,
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        os.getenv("OAUTH_TOKEN_URL", OAUTH_DEFAULT_TOKEN_URL),
+        data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"OAuth token exchange failed: {detail[:300]}")
+    except urllib.error.URLError as exc:
+        raise HTTPException(status_code=502, detail=f"OAuth token exchange failed: {exc}")
+
+
+def _oauth_userinfo(access_token: str) -> dict[str, Any]:
+    if not access_token:
+        raise HTTPException(status_code=502, detail="OAuth provider did not return an access token.")
+    request = urllib.request.Request(
+        os.getenv("OAUTH_USERINFO_URL", OAUTH_DEFAULT_USERINFO_URL),
+        headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"OAuth userinfo request failed: {detail[:300]}")
+    except urllib.error.URLError as exc:
+        raise HTTPException(status_code=502, detail=f"OAuth userinfo request failed: {exc}")
+
+
+def _profile_from_userinfo(userinfo: dict[str, Any]) -> dict[str, Any]:
+    email = str(userinfo.get("email", "")).strip().lower()
+    subject = str(userinfo.get("sub") or email or uuid.uuid4()).strip()
+    return {
+        "authenticated": True,
+        "user_id": _normalize_user_id(f"oauth:{subject}"),
+        "name": userinfo.get("name") or email.split("@")[0] or "Candidate",
+        "email": email,
+        "picture": userinfo.get("picture", ""),
+    }
+
+
+def _session_belongs_to_user(session: dict[str, Any], user_id: str) -> bool:
+    session_user = _normalize_user_id(session.get("user_id") or "")
+    if session_user == user_id:
+        return True
+    return user_id == "local-user" and not session.get("user_id")
+
+
+def _dashboard_interview_summary(session: dict[str, Any]) -> dict[str, Any]:
+    report = session.get("report")
+    has_report = isinstance(report, dict)
+    if not has_report and _has_interview_evidence(session):
+        report = build_feedback_report(session)
+        has_report = True
+    report = report if isinstance(report, dict) else {}
+    breakdown = report.get("round_breakdown", {}) if isinstance(report.get("round_breakdown"), dict) else {}
+    integrity = report.get("integrity", {}) if isinstance(report.get("integrity"), dict) else {}
+    parameter_scores = report.get("parameter_scores") or breakdown.get("parameter_scores", [])
+    topic_mastery = report.get("topic_mastery") or breakdown.get("topic_mastery", [])
+    if session.get("round_type") == "cs_fundamentals" and not topic_mastery:
+        topic_mastery = _dashboard_cs_topic_fallback(session)
+    return {
+        "session_id": session.get("session_id", ""),
+        "created_at": session.get("created_at", ""),
+        "completed_at": session.get("completed_at", "") or (session.get("created_at", "") if has_report else ""),
+        "round_type": session.get("round_type", "dsa"),
+        "target_company": session.get("target_company", "") or "General",
+        "job_role": session.get("job_role", ""),
+        "phase": session.get("phase", ""),
+        "has_report": has_report,
+        "overall_score": report.get("overall_score", 0),
+        "hiring_signal": report.get("hiring_signal", "In progress"),
+        "summary": report.get("summary", ""),
+        "strengths": (report.get("strengths") or [])[:3],
+        "weak_areas": (report.get("weak_areas") or [])[:3],
+        "study_plan": (report.get("study_plan") or [])[:3],
+        "parameter_scores": parameter_scores,
+        "topic_mastery": topic_mastery,
+        "round_score": breakdown.get("round_score", 0),
+        "integrity_score": integrity.get("score", 100),
+        "exchange_count": session.get("exchange_count", 0),
+        "problem_title": ((breakdown.get("problem") or {}).get("title") if isinstance(breakdown.get("problem"), dict) else "") or (session.get("problem") or {}).get("title", ""),
+        "evidence_count": len(breakdown.get("evidence", []) or []),
+    }
+
+
+def _dashboard_cs_topic_fallback(session: dict[str, Any]) -> list[dict[str, Any]]:
+    memory = session.get("cs_fundamentals", {}) if isinstance(session.get("cs_fundamentals"), dict) else {}
+    scores: dict[str, int] = {}
+
+    for topic in memory.get("strong_topics", []) or []:
+        name = _topic_name(topic)
+        if name:
+            scores[name] = max(scores.get(name, 0), 78)
+
+    for topic in memory.get("weak_topics", []) or []:
+        name = _topic_name(topic)
+        if name:
+            scores[name] = min(scores.get(name, 35), 35)
+
+    latest_scores = memory.get("latest_scores", {}) if isinstance(memory.get("latest_scores"), dict) else {}
+    latest_average = _dashboard_score_average(latest_scores)
+    for topic in memory.get("topics_covered", []) or []:
+        name = _topic_name(topic)
+        if name and name not in scores:
+            scores[name] = latest_average or 55
+
+    pending = memory.get("pending_question", {}) if isinstance(memory.get("pending_question"), dict) else {}
+    for topic in [memory.get("current_topic"), pending.get("topic"), *(memory.get("topic_plan", []) or [])]:
+        name = _topic_name(topic)
+        if name and name not in scores:
+            scores[name] = 35
+
+    return [
+        {
+            "topic": name,
+            "mastery": score,
+            "note": "No scored answer evidence yet; revise this CS fundamentals area.",
+        }
+        for name, score in scores.items()
+    ]
+
+
+def _topic_name(topic: Any) -> str:
+    if isinstance(topic, dict):
+        topic = topic.get("topic") or topic.get("name") or topic.get("title")
+    return str(topic or "").strip()
+
+
+def _dashboard_score_average(scores: dict[str, Any]) -> int:
+    values = []
+    for value in scores.values():
+        if isinstance(value, (int, float)):
+            numeric = float(value)
+            values.append(numeric * 10 if numeric <= 10 else numeric)
+    return round(sum(values) / len(values)) if values else 0
+
+
+def _has_interview_evidence(session: dict[str, Any]) -> bool:
+    return bool(
+        session.get("phase") == "complete"
+        or session.get("code_runs")
+        or session.get("messages")
+        or session.get("project_behavioral", {}).get("turns")
+        or session.get("cs_fundamentals", {}).get("questions_asked")
+    )
 
 
 def _round_config_for_session(round_type: str, company: str) -> dict[str, Any]:
@@ -835,6 +1328,19 @@ def _parse_resume(text: str) -> dict[str, Any]:
         "experience": [line for line in lines if re.search(r"\b(intern|engineer|developer|analyst|founder)\b", line, re.I)][:5],
         "education": [line for line in lines if re.search(r"\b(university|college|b\.?tech|degree|school)\b", line, re.I)][:5],
     }
+
+
+def _split_resume_bullets(text: str) -> list[str]:
+    parts = re.split(r"(?:\n|•|- |\u2022)", text)
+    return [part.strip(" .") for part in parts if len(part.strip()) > 12]
+
+
+def _infer_resume_summary(parsed: dict[str, Any], skills: list[str]) -> str:
+    name = parsed.get("name", "Candidate")
+    top_skills = ", ".join(skills[:5])
+    if top_skills:
+        return f"{name} is a software engineering candidate with experience across {top_skills}."
+    return f"{name} is a software engineering candidate focused on building reliable technical projects."
 
 
 def _claims(text: str) -> list[str]:
@@ -1674,7 +2180,7 @@ def _run_cpp_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Pat
             continue
         source.write_text(harness, encoding="utf-8")
         try:
-            compiled = subprocess.run([compiler, str(source), "-std=c++17", "-O2", "-o", str(exe)], capture_output=True, text=True, timeout=30, env=_tool_env())
+            compiled = subprocess.run(_cpp_compile_command(compiler, source, exe), capture_output=True, text=True, timeout=30, env=_tool_env())
         except subprocess.TimeoutExpired:
             results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": "", "stderr": "C++ compilation timed out after 30 seconds.", "passed": False, "visible": testcase.get("visible", True), "execution_time_ms": 0})
             continue
@@ -1758,7 +2264,7 @@ def _run_c_leetcode_tests(code: str, testcases: list[dict[str, str]], tmp: Path,
             results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": "", "stderr": str(exc), "passed": False, "visible": testcase.get("visible", True), "execution_time_ms": 0})
             continue
         source.write_text(harness, encoding="utf-8")
-        compiled = subprocess.run([compiler, str(source), "-std=c11", "-O2", "-o", str(exe)], capture_output=True, text=True, timeout=20, env=_tool_env())
+        compiled = subprocess.run(_c_compile_command(compiler, source, exe), capture_output=True, text=True, timeout=20, env=_tool_env())
         if compiled.returncode != 0:
             results.append({"input": testcase["input"], "expected_output": testcase["expected_output"], "actual_output": "", "stderr": compiled.stderr.strip() or "C compilation failed.", "passed": False, "visible": testcase.get("visible", True), "execution_time_ms": 0})
             continue
@@ -1798,7 +2304,7 @@ def _prepare_language_command(code: str, language: str, tmp: Path) -> dict[str, 
         exe = tmp / "solution.exe"
         source.write_text(code, encoding="utf-8")
         try:
-            compiled = subprocess.run([compiler, str(source), "-std=c++17", "-O2", "-o", str(exe)], capture_output=True, text=True, timeout=30, env=_tool_env())
+            compiled = subprocess.run(_cpp_compile_command(compiler, source, exe), capture_output=True, text=True, timeout=30, env=_tool_env())
         except subprocess.TimeoutExpired:
             return {"error": "C++ compilation timed out after 30 seconds."}
         if compiled.returncode != 0:
@@ -1811,7 +2317,7 @@ def _prepare_language_command(code: str, language: str, tmp: Path) -> dict[str, 
         source = tmp / "solution.c"
         exe = tmp / "solution.exe"
         source.write_text(code, encoding="utf-8")
-        compiled = subprocess.run([compiler, str(source), "-std=c11", "-O2", "-o", str(exe)], capture_output=True, text=True, timeout=10, env=_tool_env())
+        compiled = subprocess.run(_c_compile_command(compiler, source, exe), capture_output=True, text=True, timeout=10, env=_tool_env())
         if compiled.returncode != 0:
             return {"error": compiled.stderr.strip() or "C compilation failed."}
         return {"path": source, "command": [str(exe)]}
@@ -2608,6 +3114,31 @@ def _tool_env() -> dict[str, str]:
     if PORTABLE_TOOLCHAIN_BIN.exists():
         env["PATH"] = f"{PORTABLE_TOOLCHAIN_BIN}{os.pathsep}{env.get('PATH', '')}"
     return env
+
+
+def _cpp_compile_command(compiler: str, source: Path, exe: Path) -> list[str]:
+    return [
+        compiler,
+        str(source),
+        "-std=c++17",
+        "-O2",
+        "-static-libstdc++",
+        "-static-libgcc",
+        "-o",
+        str(exe),
+    ]
+
+
+def _c_compile_command(compiler: str, source: Path, exe: Path) -> list[str]:
+    return [
+        compiler,
+        str(source),
+        "-std=c11",
+        "-O2",
+        "-static-libgcc",
+        "-o",
+        str(exe),
+    ]
 
 
 def _coerce_java_main(code: str) -> str:
