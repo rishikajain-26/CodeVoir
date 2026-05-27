@@ -69,7 +69,9 @@ class GeminiProvider(BaseLLMProvider):
             llm = resolve_litellm_settings()
             if not llm.get("api_key"):
                 health.record_fail("no_api_key")
-                raise LLMGenerationError("No LLM API key configured (set GROQ_API_KEY or GEMINI_API_KEY).")
+                raise LLMGenerationError(
+                    "No LLM API key configured (set OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY)."
+                )
 
             messages = [
                 {"role": "system", "content": system_prompt},

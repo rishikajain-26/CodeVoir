@@ -540,8 +540,9 @@ async def start_session(payload: StartSessionRequest):
         try:
             opening = _cs_opening_question(session)
             _persist(session)
-        except Exception:
-            pass
+        except Exception as exc:
+            session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "cs_opening", "error": str(exc)[:300]})
+            opening = _llm_unavailable_round_message()
     return {
         "session_id": session_id,
         "status": "created",
@@ -1308,15 +1309,14 @@ def _cs_opening_question(session: dict[str, Any]) -> str:
         for topic in raw_topics
         if (topic.get("topic") if isinstance(topic, dict) else str(topic))
     ] or config.get("fallback_topics", ["DBMS", "OOP", "Operating Systems", "Computer Networks"])
-    first_topic = random.choice(topics) if topics else "DBMS"
+    first_topic = topics[0] if topics else "DBMS"
 
-    subtopic_map = {
-        "DBMS": "ACID properties and transactions",
-        "OOP": "polymorphism and interfaces",
-        "Operating Systems": "processes, threads, and scheduling",
-        "Computer Networks": "HTTP, TCP, and how a request travels from browser to server",
-    }
-    subtopic = subtopic_map.get(first_topic, first_topic)
+    first_topic_item = next(
+        (item for item in raw_topics if isinstance(item, dict) and item.get("topic") == first_topic),
+        {},
+    )
+    first_subtopics = first_topic_item.get("subtopics", []) if isinstance(first_topic_item, dict) else []
+    subtopic = str(first_subtopics[0]) if first_subtopics else first_topic
     company_text = f" for {session['target_company']}" if session.get("target_company") else ""
     cs_memory = session.setdefault("cs_fundamentals", {})
     cs_memory.update({
@@ -1335,10 +1335,10 @@ def _cs_opening_question(session: dict[str, Any]) -> str:
             "round": f"CS Fundamentals{company_text}",
             "role": session.get("job_role"),
             "experience": session.get("experience_level"),
-            "topic": first_topic,
-            "subtopic": subtopic,
-            "question_type": "concept",
-            "goal": f"establish baseline clarity in {first_topic}",
+            "available_topics": raw_topics or topics,
+            "initial_topic": first_topic,
+            "initial_subtopic": subtopic,
+            "goal": "open the CS fundamentals round with a natural first question based on the available company/topic context",
         }
         question = llm_service.generate(
             "You are a concise CS fundamentals interviewer opening the interview. Ask exactly ONE focused concept question to establish the candidate's baseline. Be direct — no intro, just the question.",
@@ -1350,11 +1350,7 @@ def _cs_opening_question(session: dict[str, Any]) -> str:
         if question.strip():
             return f"{question.strip()} You may use the scratchpad for SQL, pseudocode, diagrams, or examples; I will evaluate it as candidate-written text."
 
-    return (
-        f"Let's begin with {first_topic}. Explain {subtopic}: "
-        "what it means, why it matters in practice, and give one real system or scenario where it has direct impact. "
-        "You may use the scratchpad for SQL, pseudocode, diagrams, or examples; I will evaluate it as candidate-written text."
-    )
+    return _llm_unavailable_round_message()
 
 
 def _extract_resume_text(contents: bytes, filename: str) -> str:
@@ -1497,31 +1493,19 @@ async def _next_interview_turn(
         if run_cs_fundamentals_turn:
             try:
                 result = run_cs_fundamentals_turn(session, user_text, scratchpad or {})
-                return result.get("ai_text", _cs_fallback_turn(session))
+                return result.get("ai_text") or _llm_unavailable_round_message()
             except Exception as exc:
                 session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "cs_graph", "error": str(exc)[:300]})
         session["phase"] = "cs_fundamentals"
-        return _cs_fallback_turn(session)
+        return _llm_unavailable_round_message()
 
     if run_project_behavioral_turn:
         try:
             result = run_project_behavioral_turn(session, user_text)
-            return result.get("ai_text", "Tell me more about your strongest project, your exact ownership, and one measurable result.")
+            return result.get("ai_text") or _llm_unavailable_round_message()
         except Exception as exc:
             session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "pb_graph", "error": str(exc)[:300]})
-
-    projects = session.get("resume_data", {}).get("projects", [])
-    if session["question_count"] <= 2:
-        session["phase"] = "projects"
-        project = projects[0]["name"] if projects else "your strongest project"
-        return f"Let's go deeper on {project}. What was the hardest technical decision, what alternatives did you reject, and what measurable result did it create?"
-    if session["question_count"] <= 5:
-        return "I want specifics. Describe one production failure or limitation in that project and how you would redesign it today."
-    if session["question_count"] <= 8:
-        session["phase"] = "behavioural"
-        return "Now answer in STAR format: tell me about a conflict, deadline pressure, or ambiguous requirement from your actual experience."
-    session["phase"] = "closing"
-    return "We are near the end. Ask me two thoughtful questions you would ask a real interviewer, then I will generate your feedback report."
+    return _llm_unavailable_round_message()
 
 
 def _dsa_select_next_problem(session: dict[str, Any]) -> dict[str, Any]:
@@ -1680,7 +1664,8 @@ def _varied_dsa_fallback(session: dict[str, Any], user_text: str, lower: str) ->
     return prompts[exchange % len(prompts)]
 
 
-def _cs_fallback_turn(session: dict[str, Any]) -> str:
+def _legacy_cs_unavailable_turn(session: dict[str, Any]) -> str:
+    return _llm_unavailable_round_message()
     """Return a rotating real CS question so the interview never repeats itself without LLM."""
     exchange = int(session.get("exchange_count", session.get("question_count", 0)) or 0)
     questions = [
@@ -1696,6 +1681,13 @@ def _cs_fallback_turn(session: dict[str, Any]) -> str:
         "Describe encapsulation and its practical benefit. How does hiding internal state prevent bugs in a multi-developer codebase?",
     ]
     return questions[exchange % len(questions)]
+
+
+def _llm_unavailable_round_message() -> str:
+    return (
+        "The AI model is unavailable for this turn, so I will not continue with a scripted local interview response. "
+        "Please retry once the LLM connection is healthy."
+    )
 
 
 def _hint_for_problem(problem: dict[str, Any], hint_count: int) -> str:

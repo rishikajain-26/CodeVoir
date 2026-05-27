@@ -634,13 +634,54 @@ export default function App() {
 
   function _speakBrowserTTS(text, onDone) {
     if (!("speechSynthesis" in window)) { onDone(); return }
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 1.02
-    utterance.onend = onDone
-    utterance.onerror = onDone
-    window.speechSynthesis.speak(utterance)
-    // Safety timeout: 60ms per char + 500ms buffer, capped at 30s
-    ttsTimeoutRef.current = window.setTimeout(onDone, Math.min(30000, text.length * 60 + 500))
+    const chunks = chunkSpeechText(text)
+    if (!chunks.length) { onDone(); return }
+    let index = 0
+    let finished = false
+    let utteranceId = 0
+
+    const complete = () => {
+      if (finished) return
+      finished = true
+      if (ttsTimeoutRef.current) {
+        window.clearTimeout(ttsTimeoutRef.current)
+        ttsTimeoutRef.current = null
+      }
+      onDone()
+    }
+
+    const speakNext = () => {
+      if (finished) return
+      if (ttsTimeoutRef.current) {
+        window.clearTimeout(ttsTimeoutRef.current)
+        ttsTimeoutRef.current = null
+      }
+      const chunk = chunks[index]
+      if (!chunk) { complete(); return }
+      const currentId = ++utteranceId
+      const utterance = new SpeechSynthesisUtterance(chunk)
+      utterance.rate = 1.02
+      utterance.onend = () => {
+        if (currentId !== utteranceId) return
+        index += 1
+        speakNext()
+      }
+      utterance.onerror = () => {
+        if (currentId === utteranceId) complete()
+      }
+      window.speechSynthesis.resume?.()
+      window.speechSynthesis.speak(utterance)
+      // Chrome can silently drop longer interviewer turns; advance instead of hanging.
+      ttsTimeoutRef.current = window.setTimeout(() => {
+        if (currentId !== utteranceId) return
+        utteranceId += 1
+        window.speechSynthesis.cancel()
+        index += 1
+        speakNext()
+      }, Math.min(16000, chunk.length * 75 + 900))
+    }
+
+    speakNext()
   }
 
   // ── Push-to-talk voice capture ───────────────────────────────────────────
@@ -4111,6 +4152,46 @@ function voicePauseMs(roundType) {
   if (roundType === "project_behavioral" || roundType === "combined") return 6500
   if (roundType === "cs_fundamentals") return 5000
   return 3500
+}
+
+function chunkSpeechText(text, maxLength = 180) {
+  const spoken = (text || "")
+    .replace(/```[\s\S]*?```/g, " code omitted ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*|__/g, "")
+    .replace(/[#>*_~\[\]()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!spoken) return []
+
+  const sentences = spoken.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [spoken]
+  const chunks = []
+  let current = ""
+  sentences.forEach((sentence) => {
+    const part = sentence.trim()
+    if (!part) return
+    if ((current ? current.length + 1 : 0) + part.length <= maxLength) {
+      current = current ? `${current} ${part}` : part
+      return
+    }
+    if (current) chunks.push(current)
+    if (part.length <= maxLength) {
+      current = part
+      return
+    }
+    const words = part.split(" ")
+    current = ""
+    words.forEach((word) => {
+      if ((current ? current.length + 1 : 0) + word.length <= maxLength) {
+        current = current ? `${current} ${word}` : word
+      } else {
+        if (current) chunks.push(current)
+        current = word
+      }
+    })
+  })
+  if (current) chunks.push(current)
+  return chunks
 }
 
 function normalizeSpeech(text) {
