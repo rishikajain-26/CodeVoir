@@ -31,7 +31,12 @@ provider = get_llm_provider()
 
 _SYS_UNDERSTAND = """You are a senior DSA interviewer assessing candidate understanding.
 Return JSON with: time_to_first_clarification_s, clarifying_questions, constraint_interpretation_correct,
-edge_cases_identified_early, misunderstood_constraints, score (0-1)."""
+edge_cases_identified_early, misunderstood_constraints, score (0-1), answer_relevance.
+
+answer_relevance (0-1): ONLY when an INTERVIEWER FOLLOW-UP is present, rate how directly and
+correctly the candidate's reply answers THAT specific question, judged against the problem.
+1.0 = fully and correctly addresses the exact question; 0.5 = partial/vague; 0.0 = ignores it,
+deflects, or is wrong. If NO follow-up was asked, return answer_relevance = -1 (not applicable)."""
 
 _SYS_APPROACH = """You are a senior DSA interviewer. Evaluate approach quality.
 Return JSON with: brute_force_identified, brute_force_time, optimised_identified, approaches_attempted,
@@ -53,19 +58,37 @@ _SYS_DEBUG = """You are assessing debugging quality. Return JSON with: time_to_f
 iterations, localisation_quality, strategy, fixes_root_cause, uses_logging_well."""
 
 
+def _pending_followup(state: DSAState) -> str:
+    """The interviewer question the candidate's current reply is answering.
+
+    At evaluation time memory.turns holds only PRIOR turns, so the last recorded
+    turn's followup_asked is exactly the question now being answered.
+    """
+    if state.memory.turns:
+        return (state.memory.turns[-1].followup_asked or "").strip()
+    return ""
+
+
 async def explanation_listener(state: DSAState) -> dict:
+    asked = _pending_followup(state)
+    followup_block = f"\n\nINTERVIEWER FOLLOW-UP (the candidate is answering this):\n{asked}" if asked else ""
     try:
         result = await provider.generate_structured_output(
             system_prompt=_SYS_UNDERSTAND,
             user_prompt=(
                 f"PROBLEM:\n{state.config.problem_statement}\n\n"
                 f"EXPLANATION:\n{state.candidate_explanation}"
+                f"{followup_block}"
             ),
             response_schema=UnderstandingLLM,
         )
     except Exception as exc:
         logger.warning("DSA understanding eval failed: %s", exc)
-        result = UnderstandingLLM(score=_heuristic_understanding(state))
+        result = UnderstandingLLM(score=_heuristic_understanding(state),
+                                  answer_relevance=_heuristic_answer_relevance(state, asked))
+    # Normalise answer_relevance: clamp to 0–1, treat the -1 "not applicable" sentinel as 0.
+    rel = result.answer_relevance
+    answer_relevance = max(0.0, min(1.0, rel)) if (asked and rel is not None and rel >= 0) else 0.0
     return {
         "understanding": UnderstandingProfile(
             clarifying_questions_asked=result.clarifying_questions,
@@ -74,8 +97,30 @@ async def explanation_listener(state: DSAState) -> dict:
             misunderstood_constraints=result.misunderstood_constraints,
             understanding_score=result.score,
             time_to_first_clarification_s=result.time_to_first_clarification_s,
+            answer_relevance=answer_relevance,
         )
     }
+
+
+def _heuristic_answer_relevance(state: DSAState, asked: str) -> float:
+    """Keyword fallback for answer relevance when the LLM is unavailable.
+
+    Rewards term overlap between the asked question and the reply, plus a small
+    bonus for a substantive reply. Conservative — real grading needs the LLM.
+    """
+    if not asked:
+        return -1.0
+    reply = state.candidate_explanation.lower()
+    if len(reply.split()) < 3:
+        return 0.0
+    import re as _re
+    stop = {"the", "a", "an", "is", "are", "of", "to", "in", "for", "and", "or",
+            "what", "how", "why", "would", "your", "you", "this", "that", "do", "does", "can", "if"}
+    q_terms = {w for w in _re.findall(r"\b\w+\b", asked.lower()) if w not in stop and len(w) > 2}
+    if not q_terms:
+        return 0.4
+    overlap = len(q_terms & set(_re.findall(r"\b\w+\b", reply))) / len(q_terms)
+    return round(min(1.0, 0.2 + overlap * 0.8), 3)
 
 
 async def dsa_evaluator(state: DSAState) -> dict:
@@ -109,6 +154,12 @@ async def dsa_evaluator(state: DSAState) -> dict:
 
 
 async def approach_comparator(state: DSAState) -> dict:
+    if not state.candidate_code.strip() and not state.complexity.stated_time:
+        return {
+            "complexity": ComplexityProfile(
+                complexity_accuracy_score=_heuristic_complexity(state)
+            )
+        }
     # Build LLM prompt — enrich with tree-sitter structural facts when available
     cs = state.code_structure
     structural_hint = ""
@@ -189,6 +240,8 @@ def _complexity_matches(actual: str, expected: str) -> bool:
 
 
 async def understanding_scorer(state: DSAState) -> dict:
+    if not state.candidate_code.strip():
+        return {"testing": TestingProfile()}
     try:
         result = await provider.generate_structured_output(
             system_prompt=_SYS_TESTING,
@@ -212,6 +265,8 @@ async def understanding_scorer(state: DSAState) -> dict:
 
 
 async def edge_case_checker(state: DSAState) -> dict:
+    if not state.candidate_code.strip():
+        return {"implementation": ImplementationQuality()}
     try:
         result = await provider.generate_structured_output(
             system_prompt=_SYS_IMPLEMENTATION,
@@ -236,7 +291,7 @@ async def edge_case_checker(state: DSAState) -> dict:
                 boundary_checks=fields["boundary_checks_handled"],
             )
         else:
-            result = ImplementationLLM(readability_score=0.5 if state.candidate_code.strip() else 0.2)
+            result = ImplementationLLM(readability_score=0.5 if state.candidate_code.strip() else 0.0)
     return {
         "implementation": ImplementationQuality(
             compilation_success=result.compilation_success,
@@ -260,6 +315,13 @@ async def edge_case_checker(state: DSAState) -> dict:
 
 async def complexity_tracker(state: DSAState) -> dict:
     editor = state.editor_signals
+    if editor.run_count == 0 and editor.time_debugging_s < 1:
+        return {
+            "debug_profile": DebugProfile(
+                debug_iterations=0,
+                bug_localisation_quality=min(1.0, editor.run_count * 0.08),
+            )
+        }
     try:
         result = await provider.generate_structured_output(
             system_prompt=_SYS_DEBUG,
@@ -275,7 +337,7 @@ async def complexity_tracker(state: DSAState) -> dict:
     except Exception as exc:
         logger.warning("DSA debug eval failed: %s", exc)
         result = DebugLLM(
-            localisation_quality=min(1.0, 0.3 + editor.run_count * 0.08),
+            localisation_quality=min(1.0, editor.run_count * 0.08),
             iterations=editor.run_count,
         )
     return {
@@ -430,15 +492,33 @@ def eval_aggregator(state: DSAState) -> dict:
         + (1.0 if state.behaviour_profile.speech.explains_intuition else 0.0) * 0.6
     )
     behavioural = state.behaviour_profile.overall_confidence
-    weighted = (
-        understanding * 0.15
-        + approach * 0.30
-        + complexity * 0.15
-        + implementation * 0.20
-        + debugging * 0.10
-        + communication * 0.05
-        + behavioural * 0.05
-    )
+    answer_relevance = state.understanding.answer_relevance
+
+    # When the candidate is answering an interviewer follow-up, how well they
+    # addressed THAT question is a first-class signal — give it real weight by
+    # rebalancing the standard weights so they still sum to 1.0.
+    answered_followup = bool(_pending_followup(state))
+    if answered_followup:
+        weighted = (
+            understanding * 0.12
+            + approach * 0.25
+            + complexity * 0.13
+            + implementation * 0.18
+            + debugging * 0.08
+            + communication * 0.04
+            + behavioural * 0.05
+            + answer_relevance * 0.15
+        )
+    else:
+        weighted = (
+            understanding * 0.15
+            + approach * 0.30
+            + complexity * 0.15
+            + implementation * 0.20
+            + debugging * 0.10
+            + communication * 0.05
+            + behavioural * 0.05
+        )
     turn_score = TurnScore(
         understanding=round(understanding, 3),
         approach_quality=round(approach, 3),
@@ -447,6 +527,7 @@ def eval_aggregator(state: DSAState) -> dict:
         debugging=round(debugging, 3),
         communication=round(communication, 3),
         behavioural=round(behavioural, 3),
+        answer_relevance=round(answer_relevance, 3),
         weighted_total=round(weighted, 3),
         missed_edge_cases=state.understanding.misunderstood_constraints,
         suggested_followups=[],
@@ -477,22 +558,57 @@ def eval_aggregator(state: DSAState) -> dict:
 
 def _heuristic_understanding(state: DSAState) -> float:
     text = state.candidate_explanation.lower()
-    score = 0.35
+    score = 0.0
     if "?" in text or "clarif" in text:
         score += 0.2
     if any(term in text for term in ("constraint", "edge", "input", "output")):
         score += 0.2
     if len(text.split()) > 30:
-        score += 0.15
+        score += 0.1
+    if len(text.split()) > 60:
+        score += 0.1
     return round(min(1.0, score), 3)
 
 
+_ALGO_TERMS = (
+    "hash map", "hash table", "sliding window", "two pointer", "two pointers",
+    "dynamic programming", "memoization", "dp", "bfs", "dfs", "binary search",
+    "stack", "queue", "heap", "priority queue", "trie", "prefix sum",
+    "monotonic", "greedy", "backtracking", "divide and conquer",
+)
+_DEPTH_PHRASES = (
+    "because", "since", "so that", "in order to", "this gives", "which means",
+    "therefore", "as a result", "to avoid", "the idea is", "key insight",
+)
+_COMPLEXITY_TERMS = ("o(n", "o(log", "o(1)", "linear time", "constant time",
+                     "quadratic", "n squared", "n^2", "log n", "n log n")
+
+
 def _heuristic_approach(state: DSAState) -> float:
-    text = (state.candidate_explanation + state.candidate_code).lower()
-    score = 0.3
-    for term in ("hash", "map", "dp", "bfs", "dfs", "two pointer", "sliding", "stack", "queue", "tree", "graph"):
-        if term in text:
-            score += 0.12
+    expl = state.candidate_explanation.lower()
+    combined = (expl + " " + state.candidate_code.lower())
+    words = expl.split()
+    score = 0.0
+
+    # Reward matching specific algorithm patterns — but only once per family
+    algo_hits = sum(1 for t in _ALGO_TERMS if t in combined)
+    score += min(0.40, algo_hits * 0.12)
+
+    # Reward causal reasoning — "I'd use X because Y" shows actual understanding
+    if any(p in expl for p in _DEPTH_PHRASES):
+        score += 0.15
+
+    # Reward complexity discussion
+    if any(t in expl for t in _COMPLEXITY_TERMS):
+        score += 0.15
+
+    # Reward length proportional to 50 words — longer coherent explanations score higher
+    score += min(0.15, len(words) / 50 * 0.15)
+
+    # Reward brute-force / optimization transition — a key interview signal
+    if any(t in expl for t in ("brute force", "naive", "optimise", "optimize", "better approach", "improve")):
+        score += 0.10
+
     return round(min(1.0, score), 3)
 
 
@@ -500,4 +616,4 @@ def _heuristic_complexity(state: DSAState) -> float:
     text = state.candidate_explanation.lower()
     if "o(" in text or "complex" in text:
         return 0.65
-    return 0.25
+    return 0.0

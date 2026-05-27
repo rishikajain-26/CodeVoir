@@ -30,6 +30,8 @@ async def contradiction_detector(state: DSAState) -> dict:
     turns = state.memory.turns
     if len(turns) < 2:
         return {"latest_contradiction": None}
+    if len(state.candidate_explanation.split()) < 8:
+        return {"latest_contradiction": None}
 
     recent_excerpts = [
         f"Turn {r.turn}: {r.explanation_excerpt[:300]}"

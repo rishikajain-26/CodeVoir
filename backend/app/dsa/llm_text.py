@@ -4,6 +4,7 @@ import litellm
 from litellm import acompletion
 
 from app.services.llm.litellm_config import resolve_litellm_settings
+from app.services.llm import health
 from app.utils.logger import logger
 
 
@@ -49,19 +50,32 @@ async def generate_text(
     llm = resolve_litellm_settings()
     if not llm.get("api_key"):
         logger.warning("DSA text generation skipped: no API key configured")
+        health.record_fail("no_api_key")
         return ""
     try:
-        return await _call_llm(llm, system_prompt, user_prompt, temperature=temperature, max_tokens=max_tokens)
+        text = await _call_llm(llm, system_prompt, user_prompt, temperature=temperature, max_tokens=max_tokens)
+        if text:
+            health.record_ok()
+        else:
+            health.record_fail("empty_response")
+        return text
     except litellm.RateLimitError:
         # Primary provider rate-limited — try Gemini fallback
         fallback = _gemini_fallback_settings()
         if fallback and fallback["model"] != llm.get("model"):
             logger.warning("DSA text generation rate-limited by %s, falling back to Gemini", llm.get("provider"))
             try:
-                return await _call_llm(fallback, system_prompt, user_prompt, temperature=temperature, max_tokens=max_tokens)
+                text = await _call_llm(fallback, system_prompt, user_prompt, temperature=temperature, max_tokens=max_tokens)
+                if text:
+                    health.record_ok()
+                else:
+                    health.record_fail("empty_response")
+                return text
             except Exception as exc2:
                 logger.warning("DSA text generation Gemini fallback also failed: %s", exc2)
+        health.record_fail("rate_limited")
         return ""
     except Exception as exc:
         logger.warning("DSA text generation failed (%s): %s", llm.get("provider"), exc)
+        health.record_fail(str(exc))
         return ""
