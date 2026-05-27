@@ -6,6 +6,7 @@ from litellm import acompletion
 from pydantic import ValidationError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from app.services.llm import health
 from app.services.llm.base_provider import BaseLLMProvider
 from app.services.llm.exceptions import LLMGenerationError, LLMParsingError, LLMValidationError
 from app.utils.json_utils import clean_json_response, extract_json_object
@@ -39,6 +40,7 @@ class ClaudeProvider(BaseLLMProvider):
 
         llm = self._settings()
         if not llm.get("api_key"):
+            health.record_fail("no_api_key")
             raise LLMGenerationError("No ANTHROPIC_API_KEY configured.")
 
         schema_hint = _schema_to_hint(response_schema)
@@ -58,6 +60,7 @@ class ClaudeProvider(BaseLLMProvider):
             )
         except Exception as exc:
             logger.error("ClaudeProvider generation failed: %s", exc)
+            health.record_exception(exc)
             raise LLMGenerationError(str(exc))
 
         raw_text = (response.choices[0].message.content or "").strip()
@@ -78,11 +81,15 @@ class ClaudeProvider(BaseLLMProvider):
             raise LLMParsingError(str(exc))
 
         try:
-            return response_schema.model_validate(parsed_json)
+            parsed = response_schema.model_validate(parsed_json)
+            health.record_ok()
+            return parsed
         except ValidationError:
             logger.warning("ClaudeProvider initial validation failed, trying normalization")
             try:
-                return _normalize_and_validate(parsed_json, response_schema)
+                parsed = _normalize_and_validate(parsed_json, response_schema)
+                health.record_ok()
+                return parsed
             except Exception as exc:
                 raise LLMValidationError(str(exc))
 

@@ -1,6 +1,11 @@
 import asyncio
 import os
 
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["GROQ_API_KEY"] = ""
+os.environ["GEMINI_API_KEY"] = ""
+os.environ["LLM_PROVIDER"] = ""
+
 from main import interview_companies, interview_company_config, interview_round_options, llm_status
 
 
@@ -10,9 +15,6 @@ def assert_true(condition, message):
 
 
 async def main():
-    os.environ["GROQ_API_KEY"] = ""
-    os.environ["GEMINI_API_KEY"] = ""
-
     options = await interview_round_options()
     round_ids = {round_info["id"] for round_info in options["rounds"]}
 

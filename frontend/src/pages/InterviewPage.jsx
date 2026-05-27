@@ -9,11 +9,10 @@ export default function InterviewPage() {
 
   const wsRef = useRef(null)
 
-  const lastEditTime = useRef(
-    Date.now()
-  )
+  const lastEditTime = useRef(0)
 
   useEffect(() => {
+    lastEditTime.current = Date.now()
 
     wsRef.current = new WebSocket(
       socketUrl
@@ -44,8 +43,7 @@ export default function InterviewPage() {
   }, [])
 
   const handleEditorMount = (
-    editor,
-    monaco
+    editor
   ) => {
 
     editor.onDidChangeModelContent(

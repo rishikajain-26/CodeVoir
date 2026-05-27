@@ -15,6 +15,7 @@ from app.services.llm.base_provider import (
     BaseLLMProvider
 )
 from app.services.llm.litellm_config import resolve_litellm_settings
+from app.services.llm import health
 
 from app.services.llm.exceptions import (
     LLMGenerationError,
@@ -67,6 +68,7 @@ class GeminiProvider(BaseLLMProvider):
         try:
             llm = resolve_litellm_settings()
             if not llm.get("api_key"):
+                health.record_fail("no_api_key")
                 raise LLMGenerationError("No LLM API key configured (set GROQ_API_KEY or GEMINI_API_KEY).")
 
             messages = [
@@ -98,7 +100,11 @@ class GeminiProvider(BaseLLMProvider):
 
         except litellm.RateLimitError as e:
             logger.error(f"LLM generation rate-limited (no fallback available): {e}")
+            health.record_exception(e)
             raise LLMGenerationError(str(e))
+
+        except LLMGenerationError:
+            raise
 
         except Exception as e:
 
@@ -106,6 +112,7 @@ class GeminiProvider(BaseLLMProvider):
                 f"LLM generation failed: {e}"
             )
 
+            health.record_exception(e)
             raise LLMGenerationError(
                 str(e)
             )
@@ -174,6 +181,7 @@ class GeminiProvider(BaseLLMProvider):
                 "Structured output validated"
             )
 
+            health.record_ok()
             return parsed
 
         except ValidationError:
@@ -276,6 +284,7 @@ class GeminiProvider(BaseLLMProvider):
                     "Fallback schema normalization succeeded"
                 )
 
+                health.record_ok()
                 return parsed
 
             except Exception as normalization_error:

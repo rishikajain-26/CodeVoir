@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
-import { AlertTriangle, ArrowLeft, BarChart3, Bot, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, Play, Send, Shield, Sparkles, Square, Target, TrendingUp, Upload } from "lucide-react"
+import OpportunitiesPage from "./pages/OpportunitiesPage"
+import { AlertTriangle, ArrowLeft, BarChart3, Bot, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, Play, Send, Shield, Sparkles, Square, Target, TrendingUp, Upload, Zap } from "lucide-react"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 // Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
@@ -62,7 +63,9 @@ function getStoredProfile() {
     try {
       const parsed = JSON.parse(stored)
       if (parsed?.authenticated && parsed?.user_id) return { name: parsed.name || "Candidate", user_id: parsed.user_id, email: parsed.email || "", authenticated: true }
-    } catch {}
+    } catch {
+      return { authenticated: false, user_id: "local-user", name: "Candidate", email: "" }
+    }
   }
   return { authenticated: false, user_id: "local-user", name: "Candidate", email: "" }
 }
@@ -113,7 +116,6 @@ export default function App() {
   const [companyDirectory, setCompanyDirectory] = useState([])
   const [companyRounds, setCompanyRounds] = useState({ company: "", resolved: false, rounds: [] })
   const [companyLoading, setCompanyLoading] = useState(false)
-  const [roundOptions, setRoundOptions] = useState([])
   const [isBusy, setIsBusy] = useState(false)
   const [dsaProgress, setDsaProgress] = useState(null)
   const [llmOffline, setLlmOffline] = useState(false)
@@ -126,8 +128,6 @@ export default function App() {
   const ttsTimeoutRef = useRef(null)
   const voiceRestartTimerRef = useRef(null)
   const intentionalStopRef = useRef(false)
-  const voiceRetryRef = useRef(0)
-  const lastListenEndedAtRef = useRef(0)
   const lastAiSpokenRef = useRef("")
   const ttsEndedAtRef = useRef(0)       // timestamp when TTS audio finished playing
   const dragRef = useRef(null)
@@ -142,18 +142,10 @@ export default function App() {
   const isCsRound = activeRound === "cs_fundamentals"
   const isProjectRound = !isDsaRound && !isCsRound
   const roundTitle = isDsaRound ? "DSA + Code Interview" : isCsRound ? "CS Fundamentals Interview" : "Project + Behavioural Interview"
-  const selectedRoundOption = roundOptions.find((round) => round.id === activeRound || round.legacy_ids?.includes(activeRound))
   const availableSetupRounds = companyRounds.resolved ? companyRounds.rounds || [] : []
   const selectedSetupRound = availableSetupRounds.find((round) => round.id === form.round_type)
   const canStartConfiguredInterview = Boolean(companyRounds.resolved && selectedSetupRound && !companyLoading && form.target_company.trim())
   const lastAiMessage = useMemo(() => [...messages].reverse().find((m) => m.role === "interviewer")?.content ?? "", [messages])
-
-  useEffect(() => {
-    apiFetch("/api/interview/round-options")
-      .then((res) => res.ok ? res.json() : null)
-      .then((meta) => setRoundOptions(meta?.rounds || []))
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     apiFetch("/api/interview/company-directory")
@@ -174,6 +166,7 @@ export default function App() {
   useEffect(() => {
     const company = form.target_company.trim()
     if (!company) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCompanyRounds({ company: "", resolved: false, rounds: [] })
       return
     }
@@ -227,6 +220,7 @@ export default function App() {
   useEffect(() => {
     if (!currentProblem) return
     const nextCode = getStarterCode(currentProblem, language)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCode(nextCode)
     codeRef.current = nextCode
     setCodeResult(null)
@@ -595,7 +589,9 @@ export default function App() {
 
   function _stopCurrentSpeech() {
     if (currentAudioRef.current) {
-      try { currentAudioRef.current.pause() } catch {}
+      try { currentAudioRef.current.pause() } catch {
+        currentAudioRef.current = null
+      }
       currentAudioRef.current = null
     }
     if (typeof window !== "undefined" && window.speechSynthesis) {
@@ -668,8 +664,6 @@ export default function App() {
     recognition.maxAlternatives = 1
     let finalText = ""
     let latestHeardText = ""
-    let startedAt = Date.now()
-    let hadRecoverableError = false
     let finalSpeechTimer = null
     let silenceTimer = null
     const pauseMs = voicePauseMs(activeRound)
@@ -684,7 +678,6 @@ export default function App() {
     }
     recognition.onstart = () => {
       intentionalStopRef.current = false
-      startedAt = Date.now()
       setVoiceState("listening")
       setLiveTranscript("")
     }
@@ -757,7 +750,9 @@ export default function App() {
     recognitionRef.current = null
     if (recognition) {
       recognition.onend = null   // prevent the auto-restart on stop
-      try { recognition.stop() } catch {}
+      try { recognition.stop() } catch {
+        setVoiceState("user_turn")
+      }
     }
     setVoiceState("user_turn")
     const clean = liveTranscriptRef.current.trim()
@@ -836,7 +831,7 @@ export default function App() {
   }
 
   if (screen === "dashboard") {
-    return <DashboardHistory
+    return <Dashboard
       userProfile={userProfile}
       dashboard={dashboard}
       loading={dashboardLoading}
@@ -845,14 +840,22 @@ export default function App() {
       onRefresh={loadDashboard}
       onOpenReport={openReport}
       onLogout={logout}
+      onOpportunities={() => setScreen("opportunities")}
       isBusy={isBusy}
     />
   }
 
-  if (screen === "feedback" && feedback) return <Feedback report={selectedReport || feedback} onRestart={() => startRound("dsa")} onBack={() => setScreen("dashboard")} />
+  if (screen === "feedback" && feedback) {
+    const r = selectedReport || feedback
+    const rt = r.round_type || "dsa"
+    if (rt === "dsa") return <DSAFeedback report={r} onRestart={() => startRound("dsa")} onBack={() => setScreen("dashboard")} />
+    if (rt === "cs_fundamentals") return <CSFeedback report={r} onRestart={() => startRound("cs_fundamentals")} onBack={() => setScreen("dashboard")} />
+    if (rt === "project_behavioral") return <PBFeedback report={r} onRestart={() => startRound("project_behavioral")} onBack={() => setScreen("dashboard")} />
+    return <Feedback report={r} onRestart={() => startRound(rt)} onBack={() => setScreen("dashboard")} />
+  }
 
   if (screen === "opportunities") {
-    return <OpportunitiesPage onBack={() => setScreen("setup")} />
+    return <OpportunitiesPage onBack={() => setScreen("dashboard")} />
   }
 
   if (screen === "setup") {
@@ -1336,6 +1339,7 @@ function ResumeQuestList({ title, items, tone }) {
 }
 
 */
+// eslint-disable-next-line no-unused-vars
 function DashboardHistory({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, isBusy }) {
   const stats = dashboard.stats || defaultDashboard.stats
   const xp = dashboard.xp || defaultDashboard.xp
@@ -1551,6 +1555,7 @@ function CompanyXpMini({ company }) {
   )
 }
 
+// eslint-disable-next-line no-unused-vars
 function ResumeQuestDashboard({ quests, onStart }) {
   const latest = quests?.[0]
   return (
@@ -1706,7 +1711,7 @@ function AnalyticsEmpty({ text }) {
   </div>
 }
 
-function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, isBusy }) {
+function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, onOpportunities, isBusy }) {
   const stats = dashboard.stats || defaultDashboard.stats
   const interviews = dashboard.interviews || []
   const companies = dashboard.companies || []
@@ -1730,6 +1735,7 @@ function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh,
           </div>
           <div className="flex gap-2">
             <button onClick={onRefresh} disabled={loading} className="rounded border border-emerald-800 px-3 py-2 text-sm text-emerald-100 disabled:opacity-50">Refresh</button>
+            <button onClick={onOpportunities} className="flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all"><Zap size={15} /> Opportunities</button>
             <button onClick={() => onStart("dsa")} className="inline-flex items-center gap-2 rounded bg-amber-300 px-4 py-2 font-semibold text-[#07120f]"><Code2 size={18} /> Start DSA</button>
             <button onClick={onLogout} className="inline-flex items-center gap-2 rounded border border-rose-500/50 px-3 py-2 text-sm text-rose-100"><LogOut size={16} /> Logout</button>
           </div>
@@ -1973,6 +1979,7 @@ function Field({ label, children }) {
   return <label className="grid gap-2 text-sm text-slate-300"><span>{label}</span>{children}</label>
 }
 
+// eslint-disable-next-line no-unused-vars
 function Panel({ title, icon, children }) {
   return <div className="min-h-0 rounded border border-slate-800 bg-slate-900"><div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-sm font-semibold">{icon}{title}</div><div className="p-3">{children}</div></div>
 }
@@ -2523,10 +2530,10 @@ function LearningPlanSection({ plan }) {
   )
 }
 
-function DSAFeedback({ report, onRestart }) {
+function DSAFeedback({ report, onRestart, onBack }) {
   const ev = (report.dsa_evaluation && report.dsa_evaluation.final_verdict)
     ? report.dsa_evaluation
-    : _buildClientDSAEval(report)
+    : {}
   const verdict = ev.final_verdict || {}
   const ct = ev.company_tailored || {}
   const adv = ev.advanced_metrics || {}
@@ -2540,6 +2547,7 @@ function DSAFeedback({ report, onRestart }) {
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
+            {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
               <span>DSA Interview Report</span>
               {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
@@ -3005,7 +3013,7 @@ function CSBenchmarkSection({ benchmarking }) {
   )
 }
 
-function CSFeedback({ report, onRestart }) {
+function CSFeedback({ report, onRestart, onBack }) {
   const ev = report.cs_evaluation || {}
   const verdict = ev.final_verdict || {}
   const breakdown = report.round_breakdown || {}
@@ -3018,6 +3026,7 @@ function CSFeedback({ report, onRestart }) {
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
+            {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
             <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
               <span>CS Fundamentals Report</span>
               {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
@@ -3416,7 +3425,7 @@ function PBBenchmarkSection({ benchmarking }) {
   )
 }
 
-function PBFeedback({ report, onRestart }) {
+function PBFeedback({ report, onRestart, onBack }) {
   const ev = report.pb_evaluation || {}
   const verdict = ev.final_verdict || {}
   const proj = ev.project_evaluation || {}
@@ -3432,6 +3441,7 @@ function PBFeedback({ report, onRestart }) {
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
+            {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
             <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
               <span>Project + Behavioral Report</span>
               {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
@@ -3753,7 +3763,9 @@ async function apiFetch(path, options = {}) {
         try {
           const body = await clone.json()
           if (body && body.detail) return res   // real app error, surface it
-        } catch {}
+        } catch {
+          lastError = new Error(`Could not parse 404 response for ${path}`)
+        }
         // No JSON detail → might be wrong server, try next base (unless last)
         if (base !== API_BASES[API_BASES.length - 1]) {
           lastError = new Error(`404 from ${base}${path}`)

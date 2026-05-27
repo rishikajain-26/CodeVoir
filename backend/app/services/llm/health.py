@@ -19,6 +19,25 @@ _state: dict[str, object] = {
 }
 
 
+def classify_failure(exc: BaseException | str | None = None, default: str = "llm_error") -> str:
+    """Return a stable, UI-safe health reason from provider exceptions."""
+    if exc is None:
+        return default
+    text = str(exc or "").lower()
+    name = exc.__class__.__name__.lower() if isinstance(exc, BaseException) else ""
+    if "ratelimit" in name or "rate limit" in text or "rate_limit" in text or "quota" in text:
+        return "rate_limited"
+    if "authentication" in name or "permission" in name or "api key" in text or "unauthorized" in text:
+        return "auth_error"
+    if "timeout" in name or "timed out" in text or "timeout" in text:
+        return "timeout"
+    if "connection" in name or "network" in text or "connection" in text:
+        return "network_error"
+    if isinstance(exc, str) and exc:
+        return exc[:80]
+    return default
+
+
 def record_ok() -> None:
     with _lock:
         _state["ok"] = True
@@ -40,6 +59,10 @@ def record_fail(reason: str = "") -> None:
         _state["ts"] = time.time()
         _state["reason"] = (reason or "")[:200]
         _state["consecutive_failures"] = int(_state.get("consecutive_failures", 0)) + 1
+
+
+def record_exception(exc: BaseException | str, default: str = "llm_error") -> None:
+    record_fail(classify_failure(exc, default))
 
 
 def is_offline() -> bool:
