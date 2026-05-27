@@ -12,6 +12,8 @@
   "dependencies": {
     "@livekit/components-react": "^2.9.21",
     "@monaco-editor/react": "^4.7.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "axios": "^1.16.1",
     "framer-motion": "^12.39.0",
     "livekit-client": "^2.19.0",
@@ -22,6 +24,7 @@
     "react-hook-form": "^7.76.0",
     "react-router-dom": "^7.15.1",
     "socket.io-client": "^4.8.3",
+    "three": "^0.184.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

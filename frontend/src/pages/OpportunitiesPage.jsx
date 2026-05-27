@@ -63,7 +63,7 @@ function OpportunityCard({ opp }) {
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col h-full bg-[#12122a] border border-white/10 rounded-2xl overflow-hidden
+      className="flex flex-col h-full overflow-hidden rounded-lg border border-slate-700/60 bg-slate-950/60 backdrop-blur-xl
                  hover:border-purple-500/40 hover:shadow-[0_0_24px_rgba(139,92,246,0.12)] transition-all duration-300 group"
     >
       {/* Cover */}
@@ -177,8 +177,8 @@ function OpportunityCard({ opp }) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-center gap-2 w-full px-4 py-2 rounded-xl
-                       bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold
+            className="flex items-center justify-center gap-2 w-full px-4 py-2 rounded-lg
+                       bg-teal-400 hover:bg-teal-300 text-slate-950 text-xs font-bold
                        transition-colors"
           >
             Apply Now <ExternalLink size={12} />
@@ -290,9 +290,9 @@ export default function OpportunitiesPage({ onBack }) {
   const visible = filteredOpps.slice(carouselIdx, carouselIdx + CARDS_PER_VIEW)
 
   return (
-    <div className="min-h-screen bg-[#0a0a1a] text-white">
+    <div className="dashboard-shell min-h-screen text-white">
       {/* Sticky header */}
-      <header className="sticky top-0 z-20 bg-[#0a0a1a]/95 backdrop-blur-sm border-b border-white/10 px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/70 px-6 py-4 backdrop-blur-xl flex items-center justify-between">
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm"
@@ -302,7 +302,7 @@ export default function OpportunitiesPage({ onBack }) {
         </button>
         <div className="flex items-center gap-2.5">
           <Zap size={17} className="text-purple-400" />
-          <span className="font-bold text-white tracking-wide">Opportunity Finder</span>
+          <span className="font-display font-bold text-white tracking-normal">Opportunity Finder</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           {dbStatus && (
@@ -321,10 +321,11 @@ export default function OpportunitiesPage({ onBack }) {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {/* Hero */}
-        <div className="text-center mb-10">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent mb-3">
+        <div className="dashboard-glass mb-10 px-6 py-8 text-center">
+          <div className="dashboard-kicker mx-auto mb-5"><Zap size={14} /> Matched opportunities</div>
+          <h1 className="font-display text-3xl sm:text-5xl font-semibold tracking-normal text-white mb-3">
             Find Your Perfect Opportunity
           </h1>
           <p className="text-gray-400 max-w-xl mx-auto text-sm sm:text-base">
@@ -334,14 +335,14 @@ export default function OpportunitiesPage({ onBack }) {
         </div>
 
         {/* Input grid */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="dashboard-glass grid md:grid-cols-2 gap-6 mb-8 p-5">
           {/* Resume upload */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Resume <span className="text-gray-500 font-normal">(PDF or TXT)</span>
             </label>
             <div
-              className={`relative rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
+              className={`relative rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
                 isDragging ? "border-purple-500 bg-purple-500/10" :
                 resumeFile ? "border-emerald-500/60 bg-emerald-500/5" :
                 "border-white/20 hover:border-purple-500/50 hover:bg-purple-500/5"
@@ -449,9 +450,9 @@ export default function OpportunitiesPage({ onBack }) {
           <button
             onClick={handleSubmit}
             disabled={loading || (!resumeFile && !skills.trim())}
-            className="px-8 py-3.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed
-                       text-white font-bold rounded-2xl transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)]
-                       hover:shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center gap-2.5 text-sm"
+            className="px-8 py-3.5 bg-teal-400 hover:bg-teal-300 disabled:opacity-40 disabled:cursor-not-allowed
+                       text-slate-950 font-bold rounded-lg transition-all shadow-[0_0_24px_rgba(20,184,166,0.25)]
+                       hover:scale-[1.015] hover:shadow-[0_0_34px_rgba(20,184,166,0.34)] flex items-center gap-2.5 text-sm"
           >
             {loading ? (
               <><Loader2 size={18} className="animate-spin" /> Analysing resume…</>
@@ -482,7 +483,7 @@ export default function OpportunitiesPage({ onBack }) {
 
             {/* Profile summary */}
             {results.profile && Object.values(results.profile).some(Boolean) && (
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+              <div className="dashboard-glass p-5 mb-6">
                 <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-4">
                   <CheckCircle size={14} />
                   Resume Analysed
