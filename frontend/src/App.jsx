@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
+import { Canvas, useFrame } from "@react-three/fiber"
+import { motion } from "framer-motion"
 import OpportunitiesPage from "./pages/OpportunitiesPage"
-import { AlertTriangle, ArrowLeft, BarChart3, Bot, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, Play, Send, Shield, Sparkles, Square, Target, TrendingUp, Upload, Zap } from "lucide-react"
+import { AlertTriangle, ArrowLeft, BarChart3, Bot, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, Play, RefreshCw, Send, Shield, Sparkles, Square, Target, TrendingUp, Trophy, Upload, Zap } from "lucide-react"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 // Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
@@ -860,16 +862,17 @@ export default function App() {
 
   if (screen === "setup") {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100">
+      <main className="dashboard-shell min-h-screen text-slate-100">
+        <BackgroundCanvas />
         {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
-        <section className="border-b border-slate-800 bg-slate-900">
+        <section className="relative z-10 border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-xl">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
             <div className="flex items-center gap-3">
               <button onClick={() => setScreen("dashboard")} className="grid h-10 w-10 place-items-center rounded border border-slate-700 bg-slate-950 text-slate-200" title="Back to dashboard"><ArrowLeft size={20} /></button>
-              <div className="grid h-10 w-10 place-items-center rounded bg-cyan-400 text-slate-950"><Bot size={22} /></div>
+              <div className="grid h-10 w-10 place-items-center rounded border border-amber-300/40 bg-amber-300/10 text-amber-200"><Bot size={22} /></div>
               <div>
-                <h1 className="text-xl font-semibold">Clio Interview Lab</h1>
-                <p className="text-sm text-slate-400">Voice-first mock interviews with DSA, resume probing, and proctoring.</p>
+                <h1 className="font-display text-xl font-semibold tracking-normal">CodeVoir Interview Lab</h1>
+                <p className="text-sm text-slate-400">Voice-first company rounds with AI feedback, resume probing, and proctoring.</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -885,8 +888,8 @@ export default function App() {
           </div>
         </section>
 
-        <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[1.15fr_.85fr]">
-          <div className="rounded border border-slate-800 bg-slate-900 p-5">
+        <section className="relative z-10 mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[1.15fr_.85fr]">
+          <div className="dashboard-glass p-5">
             <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Code2 size={19} className="text-cyan-300" /> Start Live Interview</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Target company">
@@ -927,7 +930,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="rounded border border-slate-800 bg-slate-900 p-5">
+          <div className="dashboard-glass p-5">
             <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><FileText size={19} className="text-cyan-300" /> Critical Resume Review</h2>
             <label className="flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
               <Upload size={18} />
@@ -946,9 +949,10 @@ export default function App() {
   }
 
   return (
-    <main className="grid h-screen grid-rows-[auto_1fr] bg-slate-950 text-slate-100">
+    <main className="dashboard-shell grid h-screen grid-rows-[auto_1fr] text-slate-100">
+      <BackgroundCanvas />
       {error && <div className="fixed left-1/2 top-4 z-50 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
-      <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3">
+      <header className="relative z-10 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/70 px-4 py-3 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <button onClick={() => setScreen("dashboard")} className="rounded border border-slate-700 bg-slate-950 px-2 py-2 text-slate-200" title="Back to dashboard"><ArrowLeft size={18} /></button>
           <Bot className="text-cyan-300" />
@@ -989,9 +993,9 @@ export default function App() {
         {liveTranscript && <div className="mt-2 rounded bg-slate-900 p-2 text-xs text-cyan-100">{liveTranscript}</div>}
       </div>
 
-      <section className="grid min-h-0 grid-cols-1 gap-4 p-4 lg:grid-cols-2">
-        <aside className="h-[calc(100vh-96px)] overflow-y-auto rounded border border-slate-800 bg-slate-900">
-          <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 px-5 py-4">
+      <section className="relative z-10 grid min-h-0 grid-cols-1 gap-4 p-4 lg:grid-cols-2">
+        <aside className="dashboard-glass h-[calc(100vh-96px)] overflow-y-auto">
+          <div className="sticky top-0 z-10 border-b border-slate-800/80 bg-slate-950/70 px-5 py-4 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm text-slate-400">{isDsaRound ? (dsaProgress?.label || `Question ${dsaProgress?.current_question_index || 1} of ${dsaProgress?.total_questions || "?"}`) : isCsRound ? "Concept interview" : "Project interview"}</div>
@@ -1017,7 +1021,7 @@ export default function App() {
         </aside>
 
         <section className="h-[calc(100vh-96px)] min-h-0">
-          {isDsaRound ? <div className="h-full rounded border border-slate-800 bg-slate-900">
+          {isDsaRound ? <div className="dashboard-glass h-full">
             <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
               <div className="flex items-center gap-2 font-semibold"><Code2 size={18} /> Code</div>
               <select className="w-40 py-2 text-sm" value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Coding language">
@@ -1093,42 +1097,46 @@ export default function App() {
 
 function WelcomePage({ error, onAuthenticate }) {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#06110f] text-white">
+    <main className="dashboard-shell min-h-screen text-white">
+      <BackgroundCanvas />
       {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-300 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
-      <section className="relative min-h-screen">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(251,191,36,.22),transparent_28%),radial-gradient(circle_at_82%_12%,rgba(45,212,191,.18),transparent_30%),linear-gradient(135deg,#06110f_0%,#10241f_48%,#1d1526_100%)]" />
-        <div className="relative mx-auto grid min-h-screen max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
-          <div className="max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100">
-              <Sparkles size={16} /> AI interview prep built around real company rounds
-            </div>
-            <h1 className="text-5xl font-black leading-tight tracking-normal text-white md:text-7xl">CodeVoir<span className="block text-amber-300">Interview Arena</span></h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-emerald-50/80">Practice DSA, CS fundamentals, and project-behavioural rounds with live AI feedback, code execution, integrity signals, and a performance dashboard that remembers every company attempt.</p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <WelcomeStat icon={<Code2 size={20} />} label="DSA rounds" value="Company tagged" />
-              <WelcomeStat icon={<Brain size={20} />} label="AI reports" value="Evidence based" />
-              <WelcomeStat icon={<BarChart3 size={20} />} label="Dashboard" value="Score trends" />
-            </div>
+      <section className="relative z-10 mx-auto grid min-h-screen max-w-7xl gap-10 px-6 py-10 lg:grid-cols-[minmax(0,.95fr)_minmax(360px,.65fr)] lg:items-center">
+        <motion.div className="grid max-w-3xl gap-6" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
+          <div className="dashboard-kicker"><Sparkles size={15} /> AI interview prep built around real company rounds</div>
+          <h1 className="font-display text-6xl font-semibold leading-[1.02] tracking-normal text-white md:text-8xl">
+            CodeVoir
+            <span className="block text-amber-300">Interview Arena</span>
+          </h1>
+          <p className="max-w-2xl text-lg leading-8 text-slate-300">Practice DSA, CS fundamentals, and project-behavioural rounds with live AI feedback, code execution, integrity signals, and a performance dashboard that remembers every company attempt.</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <WelcomeStat icon={<Code2 size={20} />} label="DSA rounds" value="Company tagged" />
+            <WelcomeStat icon={<Brain size={20} />} label="AI reports" value="Evidence based" />
+            <WelcomeStat icon={<BarChart3 size={20} />} label="Dashboard" value="Score trends" />
           </div>
+        </motion.div>
 
-          <section className="rounded border border-emerald-300/20 bg-[#07120f]/85 p-6 shadow-2xl shadow-black/40 backdrop-blur">
-            <h2 className="text-2xl font-bold">Sign in with OAuth</h2>
-            <p className="mt-2 text-sm leading-6 text-emerald-50/70">CodeVoir now uses backend OAuth. You will be redirected to the configured identity provider, then returned to this dashboard.</p>
-            <button type="button" onClick={onAuthenticate} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded bg-amber-300 px-4 py-3 font-bold text-[#07120f] shadow-lg shadow-amber-900/20">
+        <motion.div className="welcome-auth-stack" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, duration: 0.55 }}>
+          <div className="welcome-logo-stage">
+            <OrbitingLogoSystem stats={defaultDashboard.stats} />
+          </div>
+          <section className="dashboard-glass p-7">
+            <h2 className="font-display text-3xl font-semibold tracking-normal">Sign in with OAuth</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">CodeVoir will redirect you to the configured identity provider, then return you to this dashboard.</p>
+            <button type="button" onClick={onAuthenticate} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded bg-amber-300 px-4 py-4 font-bold text-[#07120f] shadow-lg shadow-amber-900/20 transition hover:scale-[1.015] hover:bg-amber-200">
               <LogIn size={18} /> Continue with OAuth
             </button>
-            <p className="mt-4 text-xs leading-5 text-emerald-50/55">Backend setup required: set OAuth client id, secret, callback URL, and frontend URL in the backend environment.</p>
+            <p className="mt-4 text-xs leading-5 text-slate-500">Keep your OAuth keys only in the backend environment. They are never needed in frontend code.</p>
           </section>
-        </div>
+        </motion.div>
       </section>
     </main>
   )
 }
 
 function WelcomeStat({ icon, label, value }) {
-  return <div className="rounded border border-white/10 bg-white/10 p-4 backdrop-blur">
+  return <div className="dashboard-glass p-4">
     <div className="text-amber-200">{icon}</div>
-    <div className="mt-3 text-sm text-emerald-50/60">{label}</div>
+    <div className="mt-3 text-sm text-slate-400">{label}</div>
     <div className="font-semibold text-white">{value}</div>
   </div>
 }
@@ -1714,169 +1722,359 @@ function AnalyticsEmpty({ text }) {
 function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, onOpportunities, isBusy }) {
   const stats = dashboard.stats || defaultDashboard.stats
   const interviews = dashboard.interviews || []
-  const companies = dashboard.companies || []
-  const latest = interviews[0]
   const completed = interviews.filter((item) => item.has_report)
-  const dsaReports = interviews.filter((item) => item.round_type === "dsa")
-  const completedDsa = dsaReports.filter((item) => item.has_report)
-  const dsaAverage = completedDsa.length ? Math.round(completedDsa.reduce((sum, item) => sum + (Number(item.overall_score) || 0), 0) / completedDsa.length) : 0
+  const displayName = (userProfile.name || "Rishika Jain").toUpperCase()
+  const metrics = [
+    { icon: <Briefcase size={17} />, label: "Interviews", value: stats.total_interviews || 0 },
+    { icon: <FileText size={17} />, label: "Reports", value: stats.completed_interviews || 0 },
+    { icon: <Target size={17} />, label: "Companies", value: stats.companies_practiced || 0 },
+    { icon: <TrendingUp size={17} />, label: "Average", value: `${stats.average_score || 0}/100`, tone: "teal" },
+    { icon: <Trophy size={17} />, label: "Best", value: `${stats.best_score || 0}/100`, tone: "amber" },
+  ]
 
   return (
-    <main className="min-h-screen bg-[#07120f] text-slate-100">
-      {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
-      <section className="border-b border-emerald-900/50 bg-[#0b1b17]">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded bg-amber-300 text-[#07120f]"><BarChart3 size={22} /></div>
-            <div>
-              <h1 className="text-xl font-semibold">Candidate Dashboard</h1>
-              <p className="text-sm text-slate-400">{userProfile.name} · interview performance across company rounds</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={onRefresh} disabled={loading} className="rounded border border-emerald-800 px-3 py-2 text-sm text-emerald-100 disabled:opacity-50">Refresh</button>
-            <button onClick={onOpportunities} className="flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all"><Zap size={15} /> Opportunities</button>
-            <button onClick={() => onStart("dsa")} className="inline-flex items-center gap-2 rounded bg-amber-300 px-4 py-2 font-semibold text-[#07120f]"><Code2 size={18} /> Start DSA</button>
-            <button onClick={onLogout} className="inline-flex items-center gap-2 rounded border border-rose-500/50 px-3 py-2 text-sm text-rose-100"><LogOut size={16} /> Logout</button>
-          </div>
-        </div>
-      </section>
+    <main className="dashboard-shell min-h-screen text-slate-100">
+      <BackgroundCanvas />
+      {error && <div className="fixed left-1/2 top-20 z-50 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950/95 px-4 py-3 text-sm text-red-100 shadow-2xl">{error}</div>}
+      <DashboardNav
+        displayName={displayName}
+        loading={loading}
+        onRefresh={onRefresh}
+        onOpportunities={onOpportunities}
+        onLogout={onLogout}
+      />
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6">
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
-          <div className="rounded border border-amber-300/30 bg-[#10241f] p-5 shadow-2xl shadow-emerald-950/20">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="text-xs uppercase text-amber-200">DSA Interview Track</div>
-                <h2 className="mt-2 text-2xl font-bold">Company-style coding rounds are ready.</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/70">Pick a company, solve runnable DSA questions in the Monaco editor, run tests, submit code, and generate a report that appears here.</p>
-              </div>
-              <button onClick={() => onStart("dsa")} className="inline-flex items-center gap-2 rounded bg-amber-300 px-4 py-2 font-bold text-[#07120f]"><Play size={18} /> Practice DSA</button>
-            </div>
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <MiniStat label="DSA attempts" value={dsaReports.length} />
-              <MiniStat label="DSA reports" value={completedDsa.length} />
-              <MiniStat label="DSA average" value={`${dsaAverage}/100`} />
-            </div>
-          </div>
-          <div className="rounded border border-rose-300/20 bg-[#171423] p-5">
-            <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles size={18} className="text-rose-200" /> Round shortcuts</h2>
-            <div className="mt-4 grid gap-2">
-              <button onClick={() => onStart("dsa")} className="rounded border border-amber-300/40 bg-amber-300/10 px-3 py-3 text-left text-sm text-amber-100">DSA + code execution</button>
-              <button onClick={() => onStart("cs_fundamentals")} className="rounded border border-teal-300/30 bg-teal-300/10 px-3 py-3 text-left text-sm text-teal-100">CS fundamentals</button>
-              <button onClick={() => onStart("project_behavioral")} className="rounded border border-rose-300/30 bg-rose-300/10 px-3 py-3 text-left text-sm text-rose-100">Project + behavioural</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <DashboardMetric icon={<Briefcase size={18} />} label="Interviews" value={stats.total_interviews} />
-          <DashboardMetric icon={<Shield size={18} />} label="Reports" value={stats.completed_interviews} />
-          <DashboardMetric icon={<Target size={18} />} label="Companies" value={stats.companies_practiced} />
-          <DashboardMetric icon={<TrendingUp size={18} />} label="Average" value={`${stats.average_score || 0}/100`} />
-          <DashboardMetric icon={<BarChart3 size={18} />} label="Best" value={`${stats.best_score || 0}/100`} />
-        </div>
-
-        {latest ? (
-          <div className="grid gap-4 lg:grid-cols-[1fr_.8fr]">
-            <div className="rounded border border-slate-800 bg-slate-900 p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs uppercase text-cyan-300">Latest interview</div>
-                  <h2 className="mt-1 text-xl font-semibold">{latest.target_company || "General"} · {prettyRound(latest.round_type)}</h2>
-                </div>
-                <ScoreBadge score={latest.overall_score} />
-              </div>
-              <p className="min-h-12 text-sm leading-6 text-slate-300">{latest.summary || (latest.has_report ? "Report generated." : "Interview is in progress or has not produced enough report evidence yet.")}</p>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <MiniStat label="Signal" value={latest.hiring_signal || "In progress"} />
-                <MiniStat label="Round score" value={`${latest.round_score || 0}/100`} />
-                <MiniStat label="Integrity" value={`${latest.integrity_score ?? 100}/100`} />
-              </div>
-              {latest.has_report && <button onClick={() => onOpenReport(latest.session_id)} disabled={isBusy} className="mt-4 rounded bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">Open full report</button>}
-            </div>
-
-            <div className="rounded border border-slate-800 bg-slate-900 p-5">
-              <h2 className="mb-4 text-lg font-semibold">Company Performance</h2>
-              <div className="space-y-3">
-                {(companies.length ? companies.slice(0, 5) : [{ company: "No company data yet", completed_count: 0, interview_count: 0, average_score: 0 }]).map((company) => (
-                  <div key={company.company} className="rounded border border-slate-800 bg-slate-950 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-medium text-slate-100">{company.company}</div>
-                        <div className="text-xs text-slate-500">{company.completed_count}/{company.interview_count} reports complete</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-semibold text-cyan-300">{company.average_score || 0}</div>
-                        <div className="text-xs text-slate-500">avg score</div>
-                      </div>
-                    </div>
-                    <ProgressBar value={company.average_score || 0} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded border border-slate-800 bg-slate-900 p-8">
-            <div className="max-w-2xl">
-              <div className="text-xs uppercase text-cyan-300">No interviews yet</div>
-              <h2 className="mt-2 text-2xl font-semibold">Start a company-specific AI interview to build your dashboard.</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-400">Your completed rounds, scores, company trends, strengths, weak areas, and generated reports will appear here automatically.</p>
-              <button onClick={onStart} className="mt-5 inline-flex items-center gap-2 rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950"><Play size={18} /> Start interview</button>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded border border-slate-800 bg-slate-900">
-          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-            <h2 className="text-lg font-semibold">Interview Reports</h2>
-            <div className="text-sm text-slate-500">{completed.length} completed</div>
-          </div>
-          <div className="divide-y divide-slate-800">
-            {(interviews.length ? interviews : []).map((item) => (
-              <div key={item.session_id} className="grid gap-4 p-5 lg:grid-cols-[1fr_auto]">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1"><Calendar size={14} /> {formatDate(item.completed_at || item.created_at)}</span>
-                    <span>{prettyRound(item.round_type)}</span>
-                    {item.problem_title && <span>{item.problem_title}</span>}
-                  </div>
-                  <h3 className="mt-2 text-lg font-semibold">{item.target_company || "General"} · {item.job_role || "Software Engineer"}</h3>
-                  <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">{item.summary || "No report generated yet. End the interview to produce a full analysis."}</p>
-                  <DashboardHighlights title="Strengths" items={item.strengths} tone="emerald" />
-                  <DashboardHighlights title="Focus areas" items={item.weak_areas} tone="amber" />
-                </div>
-                <div className="flex min-w-40 flex-col items-start gap-3 lg:items-end">
-                  <ScoreBadge score={item.overall_score} />
-                  <div className="text-sm text-slate-400">{item.hiring_signal || "In progress"}</div>
-                  {item.has_report ? (
-                    <button onClick={() => onOpenReport(item.session_id)} disabled={isBusy} className="rounded border border-cyan-600 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 disabled:opacity-50">View report</button>
-                  ) : (
-                    <span className="rounded border border-slate-700 px-3 py-2 text-sm text-slate-500">In progress</span>
-                  )}
-                </div>
-              </div>
-            ))}
-            {!interviews.length && <div className="p-5 text-sm text-slate-400">No interview history for this user yet.</div>}
-          </div>
-        </div>
+      <section className="relative z-10 mx-auto grid max-w-7xl gap-5 px-6 pb-14 pt-20">
+        <DashboardHero
+          displayName={displayName}
+          stats={stats}
+          completed={completed.length}
+          onStart={() => onStart()}
+          onOpportunities={onOpportunities}
+          onRefresh={onRefresh}
+          loading={loading}
+        />
+        <StatsBar metrics={metrics} />
+        <DashboardWorkspace
+          userProfile={userProfile}
+          stats={stats}
+          interviews={interviews}
+          completed={completed}
+          onOpenReport={onOpenReport}
+          isBusy={isBusy}
+        />
       </section>
     </main>
   )
 }
 
-function DashboardMetric({ icon, label, value }) {
-  return <div className="rounded border border-emerald-900/50 bg-[#0d1f1b] p-4">
-    <div className="flex items-center gap-2 text-xs uppercase text-emerald-100/50">{icon}{label}</div>
-    <div className="mt-3 text-2xl font-semibold text-amber-100">{value}</div>
-  </div>
+const dashboardCard = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
+}
+
+const dashboardStagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+}
+
+function DashboardNav({ displayName, loading, onRefresh, onOpportunities, onLogout }) {
+  return (
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#030712]/70 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded border border-amber-300/40 bg-amber-300/15 text-amber-200 shadow-[0_0_24px_rgba(245,158,11,.2)]"><BarChart3 size={21} /></div>
+          <div className="min-w-0">
+            <h1 className="font-display text-lg font-semibold tracking-normal text-white">Candidate Dashboard</h1>
+            <p className="truncate text-xs uppercase text-slate-400">{displayName} - interview performance across company rounds</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <DashboardButton onClick={onRefresh} disabled={loading} icon={<RefreshCw size={15} className={loading ? "animate-spin" : ""} />} label="Refresh" variant="ghost" />
+          <DashboardButton onClick={onOpportunities} icon={<Zap size={15} />} label="Opportunities" variant="purple" />
+          <DashboardButton onClick={onLogout} icon={<LogOut size={15} />} label="Logout" variant="ghost" />
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function DashboardButton({ icon, label, variant, ...props }) {
+  const styles = {
+    ghost: "border-white/10 bg-white/[.03] text-slate-200 hover:border-white/25 hover:bg-white/[.08]",
+    purple: "border-purple-400/45 bg-purple-500/10 text-purple-200 hover:border-purple-300 hover:bg-purple-500/20",
+    amber: "border-amber-300 bg-amber-400 text-slate-950 shadow-[0_0_28px_rgba(245,158,11,.25)] hover:bg-amber-300",
+  }
+  return <button {...props} className={`inline-flex h-10 items-center gap-2 rounded px-3 text-sm font-semibold transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]}`}>{icon}<span>{label}</span></button>
+}
+
+function DashboardHero({ displayName, stats, completed, onStart, onOpportunities, onRefresh, loading }) {
+  return (
+    <motion.section className="dashboard-hero" initial="hidden" animate="show" variants={dashboardStagger}>
+      <motion.div variants={dashboardCard} className="dashboard-hero-copy">
+        <div className="dashboard-kicker">AI Interview Platform</div>
+        <h2 className="font-display text-5xl font-semibold leading-[1.02] tracking-normal text-white md:text-7xl">
+          Build sharper interviews from every company round.
+        </h2>
+        <p className="max-w-2xl text-base leading-7 text-slate-300 md:text-lg">
+          Track DSA, CS fundamentals, and project-behavioural performance in one dark command center, with reports shaped by your answers and interview history.
+        </p>
+
+        <div className="dashboard-action-stack">
+          <button onClick={onStart} className="dashboard-primary-action"><Play size={18} /> Start interview</button>
+          <button onClick={onOpportunities} className="dashboard-secondary-action"><Zap size={17} /> Opportunities</button>
+          <button onClick={onRefresh} disabled={loading} className="dashboard-secondary-action"><RefreshCw size={17} className={loading ? "animate-spin" : ""} /> Refresh dashboard</button>
+        </div>
+
+        <div className="dashboard-hero-strip">
+          <span>{displayName}</span>
+          <span>{stats.total_interviews || 0} interviews</span>
+          <span>{completed} reports ready</span>
+        </div>
+      </motion.div>
+      <motion.div variants={dashboardCard} className="dashboard-globe-panel" aria-hidden="true">
+        <OrbitingLogoSystem stats={stats} />
+      </motion.div>
+    </motion.section>
+  )
+}
+
+function DSATrackCard({ dsaReports, completedDsa, dsaAverage, onStart }) {
+  return (
+    <motion.section variants={dashboardCard} className="dashboard-glass border-l-4 border-l-amber-400 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-5">
+        <div className="max-w-2xl">
+          <div className="text-xs font-semibold uppercase tracking-[.18em] text-amber-300">DSA Interview Track</div>
+          <h2 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-normal text-white md:text-4xl">Company-style coding rounds are ready.</h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">Practice runnable coding interviews, compare attempts, and keep reports aligned with the companies you are preparing for.</p>
+        </div>
+        <button onClick={onStart} className="inline-flex h-11 shrink-0 items-center gap-2 rounded bg-amber-400 px-4 font-bold text-slate-950 shadow-[0_0_26px_rgba(245,158,11,.25)] transition hover:scale-[1.03] hover:bg-amber-300"><Play size={17} /> Practice DSA</button>
+      </div>
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <MiniStat label="DSA Attempts" value={dsaReports} />
+        <MiniStat label="DSA Reports" value={completedDsa} />
+        <MiniStat label="DSA Average" value={`${dsaAverage}/100`} />
+      </div>
+    </motion.section>
+  )
+}
+
+function RoundShortcuts({ onStart }) {
+  const rounds = [
+    { label: "DSA + code execution", helper: "Monaco editor and runnable tests", tone: "amber", round: "dsa" },
+    { label: "CS fundamentals", helper: "Core concepts and follow-ups", tone: "teal", round: "cs_fundamentals" },
+    { label: "Project + behavioural", helper: "Resume evidence and STAR answers", tone: "purple", round: "project_behavioral" },
+  ]
+  return (
+    <motion.section variants={dashboardCard} className="dashboard-glass p-6">
+      <h2 className="flex items-center gap-2 font-display text-xl font-semibold tracking-normal text-white"><Sparkles size={19} className="text-purple-300" /> Round Shortcuts</h2>
+      <div className="mt-5 grid gap-3">
+        {rounds.map((round) => (
+          <button key={round.round} onClick={() => onStart(round.round)} className={`round-shortcut round-shortcut-${round.tone}`}>
+            <span className="font-semibold text-white">{round.label}</span>
+            <span className="text-xs text-slate-400">{round.helper}</span>
+          </button>
+        ))}
+      </div>
+    </motion.section>
+  )
+}
+
+function StatsBar({ metrics }) {
+  return (
+    <motion.section className="dashboard-glass grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5" initial="hidden" animate="show" variants={dashboardStagger}>
+      {metrics.map((metric) => <DashboardMetric key={metric.label} {...metric} />)}
+    </motion.section>
+  )
+}
+
+function DashboardWorkspace({ userProfile, stats, interviews, completed, onOpenReport, isBusy }) {
+  return (
+    <motion.section className="dashboard-workspace" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.55 }}>
+      <UserProfilePanel userProfile={userProfile} stats={stats} completed={completed.length} />
+      <InterviewReports interviews={interviews} completed={completed} onOpenReport={onOpenReport} isBusy={isBusy} />
+    </motion.section>
+  )
+}
+
+function UserProfilePanel({ userProfile, stats, completed }) {
+  const initials = (userProfile.name || "Rishika Jain").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "RJ"
+  return (
+    <aside className="profile-side-panel">
+      <div className="profile-avatar">{initials}</div>
+      <div>
+        <h2 className="font-display text-xl font-semibold tracking-normal text-white">{userProfile.name || "Rishika Jain"}</h2>
+        <p className="mt-1 text-sm text-slate-400">{userProfile.email || "Candidate workspace"}</p>
+      </div>
+
+      <nav className="profile-tabs" aria-label="Dashboard sections">
+        <button className="profile-tab profile-tab-active"><FileText size={16} /> Reports</button>
+        <button className="profile-tab"><BarChart3 size={16} /> Overview</button>
+        <button className="profile-tab"><Target size={16} /> Companies</button>
+      </nav>
+
+      <div className="profile-summary">
+        <div>
+          <span>Total interviews</span>
+          <strong>{stats.total_interviews || 0}</strong>
+        </div>
+        <div>
+          <span>Reports ready</span>
+          <strong>{completed}</strong>
+        </div>
+        <div>
+          <span>Best score</span>
+          <strong>{stats.best_score || 0}/100</strong>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+function EmptyStateCard({ hasInterviews, onStart }) {
+  if (hasInterviews) return null
+  return (
+    <motion.section className="dashboard-glass empty-pulse p-8" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, duration: 0.55 }}>
+      <div className="max-w-2xl">
+        <div className="text-xs font-semibold uppercase tracking-[.2em] text-slate-500">No Interviews Yet</div>
+        <h2 className="mt-3 font-display text-3xl font-semibold tracking-normal text-white">Start a company-specific AI interview to build your dashboard.</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-300">Reports, company trends, score movement, strengths, and focus areas will appear here after your first completed round.</p>
+        <button onClick={onStart} className="mt-5 inline-flex h-11 items-center gap-2 rounded bg-teal-400 px-4 font-bold text-slate-950 shadow-[0_0_26px_rgba(20,184,166,.22)] transition hover:scale-[1.03] hover:bg-teal-300"><Play size={17} /> Start interview</button>
+      </div>
+    </motion.section>
+  )
+}
+
+function InterviewReports({ interviews, completed, onOpenReport, isBusy }) {
+  return (
+    <motion.section className="dashboard-glass overflow-hidden" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24, duration: 0.55 }}>
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <h2 className="font-display text-xl font-semibold tracking-normal text-white">Interview Reports</h2>
+        <div className="text-sm text-slate-400">{completed.length} completed</div>
+      </div>
+      {interviews.length ? (
+        <div className="divide-y divide-white/10">
+          {interviews.map((item) => (
+            <div key={item.session_id} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1"><Calendar size={14} /> {formatDate(item.completed_at || item.created_at)}</span>
+                  <span>{prettyRound(item.round_type)}</span>
+                  {item.problem_title && <span className="truncate">{item.problem_title}</span>}
+                </div>
+                <h3 className="mt-2 font-display text-lg font-semibold tracking-normal text-white">{item.target_company || "General"} - {item.job_role || "Software Engineer"}</h3>
+                <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">{item.summary || "No report generated yet. End the interview to produce a full analysis."}</p>
+                <DashboardHighlights title="Strengths" items={item.strengths} tone="emerald" />
+                <DashboardHighlights title="Focus areas" items={item.weak_areas} tone="amber" />
+              </div>
+              <div className="flex min-w-40 flex-col items-start gap-3 lg:items-end">
+                <ScoreBadge score={item.overall_score} />
+                <div className="text-sm text-slate-400">{item.hiring_signal || "In progress"}</div>
+                {item.has_report ? (
+                  <button onClick={() => onOpenReport(item.session_id)} disabled={isBusy} className="rounded border border-teal-400/40 bg-teal-400/10 px-3 py-2 text-sm font-semibold text-teal-100 disabled:opacity-50">View report</button>
+                ) : (
+                  <span className="rounded border border-white/10 px-3 py-2 text-sm text-slate-500">In progress</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-5">
+          <div className="rounded border border-dashed border-slate-600/70 bg-slate-950/40 p-8 text-center text-sm text-slate-400">No interview history for this user yet.</div>
+        </div>
+      )}
+    </motion.section>
+  )
+}
+
+function BackgroundCanvas() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-0">
+      <Canvas camera={{ position: [0, 0, 7.4], fov: 45 }} dpr={[1, 1.7]} gl={{ antialias: true, alpha: true }}>
+        <ambientLight intensity={0.7} />
+        <pointLight position={[2, 3, 4]} intensity={1.3} color="#f59e0b" />
+        <ParticleField />
+      </Canvas>
+    </div>
+  )
+}
+
+function OrbitingLogoSystem({ stats }) {
+  const companies = [
+    { name: "Google", mark: "G", orbit: "orbit-a", delay: "0s", brand: "google" },
+    { name: "Amazon", mark: "a", orbit: "orbit-b", delay: "-4s", brand: "amazon" },
+    { name: "Adobe", mark: "A", orbit: "orbit-c", delay: "-8s", brand: "adobe" },
+    { name: "Meta", mark: "∞", orbit: "orbit-a", delay: "-12s", brand: "meta" },
+    { name: "Microsoft", mark: "⊞", orbit: "orbit-b", delay: "-16s", brand: "microsoft" },
+    { name: "Netflix", mark: "N", orbit: "orbit-c", delay: "-20s", brand: "netflix" },
+  ]
+  return (
+    <div className="logo-system">
+      <div className="logo-orbit-ring logo-orbit-ring-1" />
+      <div className="logo-orbit-ring logo-orbit-ring-2" />
+      <div className="logo-orbit-ring logo-orbit-ring-3" />
+      <div className="cv-sun">
+        <div className="cv-swoosh cv-swoosh-blue" />
+        <div className="cv-swoosh cv-swoosh-white" />
+        <div className="cv-letters">CV</div>
+        <div className="cv-dot cv-dot-1" />
+        <div className="cv-dot cv-dot-2" />
+      </div>
+      {companies.map((company, index) => (
+        <div key={company.name} className={`company-orbit ${company.orbit}`} style={{ animationDelay: company.delay }}>
+          <span className={`company-planet company-planet-${company.brand}`} title={company.name}>
+            <span className="company-logo-mark">{company.mark}</span>
+            <span className="company-logo-name">{company.name}</span>
+          </span>
+        </div>
+      ))}
+      <div className="logo-score-chip">
+        <span>Best</span>
+        <strong>{stats.best_score || 0}/100</strong>
+      </div>
+    </div>
+  )
+}
+
+function ParticleField() {
+  const pointsRef = useRef(null)
+  const vertices = useMemo(() => {
+    const data = []
+    for (let i = 0; i < 130; i += 1) {
+      data.push((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4)
+    }
+    return new Float32Array(data)
+  }, [])
+
+  useFrame((state) => {
+    if (!pointsRef.current) return
+    pointsRef.current.rotation.y = state.clock.elapsedTime * 0.025
+    pointsRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.35) * 0.08
+  })
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[vertices, 3]} />
+      </bufferGeometry>
+      <pointsMaterial color="#94a3b8" size={0.018} transparent opacity={0.48} sizeAttenuation />
+    </points>
+  )
+}
+
+function DashboardMetric({ icon, label, value, tone }) {
+  const valueTone = tone === "teal" ? "text-teal-300" : tone === "amber" ? "text-amber-300" : "text-white"
+  return <motion.div variants={dashboardCard} className="rounded border border-white/10 bg-slate-950/45 p-4">
+    <div className="flex items-center gap-2 text-xs uppercase text-slate-400">{icon}{label}</div>
+    <div className={`mt-3 font-display text-3xl font-semibold tracking-normal ${valueTone}`}>{value}</div>
+  </motion.div>
 }
 
 function MiniStat({ label, value }) {
-  return <div className="rounded border border-white/10 bg-[#07120f] p-3">
-    <div className="text-xs uppercase text-emerald-100/50">{label}</div>
-    <div className="mt-1 text-sm font-semibold text-slate-100">{value}</div>
+  return <div className="rounded border border-white/10 bg-slate-950/45 p-3">
+    <div className="text-xs uppercase text-slate-500">{label}</div>
+    <div className="mt-1 font-display text-lg font-semibold tracking-normal text-white">{value}</div>
   </div>
 }
 
@@ -2040,7 +2238,7 @@ function CsRoundPanel({ messages, lastAiMessage, session, form }) {
 }
 
 function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, autoVoice, voiceState, liveTranscript, lastAiMessage, isCsRound, scratchpad, setScratchpad, scratchpadMode, setScratchpadMode }) {
-  return <div className={`grid h-full rounded border border-slate-800 bg-slate-900 ${isCsRound ? "grid-rows-[1fr_auto]" : "grid-rows-[auto_1fr_auto]"}`}>
+  return <div className={`dashboard-glass grid h-full ${isCsRound ? "grid-rows-[1fr_auto]" : "grid-rows-[auto_1fr_auto]"}`}>
     {!isCsRound && (
       <div className="border-b border-slate-800 px-4 py-3">
         <div className="text-sm text-slate-400">Current question</div>
@@ -2082,8 +2280,9 @@ function Feedback({ report, onRestart, onBack }) {
   const roundItems = roundBreakdownItems(breakdown)
   const integrity = report.integrity || {}
 
-  return <main className="min-h-screen bg-slate-950 p-6 text-slate-100">
-    <section className="mx-auto max-w-6xl rounded border border-slate-800 bg-slate-900 p-6">
+  return <main className="dashboard-shell min-h-screen p-6 text-slate-100">
+    <BackgroundCanvas />
+    <section className="dashboard-glass relative z-10 mx-auto max-w-6xl p-6">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <button onClick={onBack} className="mb-4 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>
@@ -2541,8 +2740,9 @@ function DSAFeedback({ report, onRestart, onBack }) {
   const integrity = report.integrity || {}
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8">
+    <main className="dashboard-shell min-h-screen text-slate-100">
+      <BackgroundCanvas />
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
 
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
@@ -3020,8 +3220,9 @@ function CSFeedback({ report, onRestart, onBack }) {
   const integrity = report.integrity || {}
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8">
+    <main className="dashboard-shell min-h-screen text-slate-100">
+      <BackgroundCanvas />
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
 
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
@@ -3435,8 +3636,9 @@ function PBFeedback({ report, onRestart, onBack }) {
   const integrity = report.integrity || {}
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8">
+    <main className="dashboard-shell min-h-screen text-slate-100">
+      <BackgroundCanvas />
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
 
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
