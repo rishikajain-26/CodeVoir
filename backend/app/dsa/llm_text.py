@@ -59,7 +59,7 @@ async def generate_text(
         else:
             health.record_fail("empty_response")
         return text
-    except litellm.RateLimitError:
+    except litellm.RateLimitError as exc:
         # Primary provider rate-limited — try Gemini fallback
         fallback = _gemini_fallback_settings()
         if fallback and fallback["model"] != llm.get("model"):
@@ -73,9 +73,9 @@ async def generate_text(
                 return text
             except Exception as exc2:
                 logger.warning("DSA text generation Gemini fallback also failed: %s", exc2)
-        health.record_fail("rate_limited")
+        health.record_exception(exc)
         return ""
     except Exception as exc:
         logger.warning("DSA text generation failed (%s): %s", llm.get("provider"), exc)
-        health.record_fail(str(exc))
+        health.record_exception(exc)
         return ""

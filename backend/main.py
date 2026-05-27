@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.error
 import urllib.request
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from html import unescape
 from pathlib import Path
@@ -39,6 +40,7 @@ from app.services.interview_data_service import (
     list_companies_for_round,
 )
 from app.services.llm_service import llm_service
+from app.services.llm.health import get_health as _llm_get_health, is_offline as _llm_is_offline
 from app.services.report_service import build_feedback_report, build_feedback_report_async
 from app.services.session_store import (
     load_all_sessions,
@@ -282,6 +284,10 @@ app.add_middleware(
         "http://127.0.0.1:5174",
         "http://localhost:5175",
         "http://127.0.0.1:5175",
+        "http://localhost:5176",
+        "http://127.0.0.1:5176",
+        "http://localhost:5177",
+        "http://127.0.0.1:5177",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
     ],
@@ -627,7 +633,7 @@ async def interview_message(payload: MessageRequest):
         "problem": session.get("problem") if problem_changed else None,
         "problem_changed": problem_changed,
         "degraded": degraded,
-        "llm_offline": _llm_is_offline(),
+        "llm_offline": _llm_is_offline() and llm_service.is_configured(),
     }
 
 
@@ -1489,14 +1495,20 @@ async def _next_interview_turn(
 
     if session["round_type"] == "cs_fundamentals":
         if run_cs_fundamentals_turn:
-            result = run_cs_fundamentals_turn(session, user_text, scratchpad or {})
-            return result.get("ai_text", _cs_fallback_turn(session))
+            try:
+                result = run_cs_fundamentals_turn(session, user_text, scratchpad or {})
+                return result.get("ai_text", _cs_fallback_turn(session))
+            except Exception as exc:
+                session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "cs_graph", "error": str(exc)[:300]})
         session["phase"] = "cs_fundamentals"
         return _cs_fallback_turn(session)
 
     if run_project_behavioral_turn:
-        result = run_project_behavioral_turn(session, user_text)
-        return result.get("ai_text", "Tell me more about your strongest project, your exact ownership, and one measurable result.")
+        try:
+            result = run_project_behavioral_turn(session, user_text)
+            return result.get("ai_text", "Tell me more about your strongest project, your exact ownership, and one measurable result.")
+        except Exception as exc:
+            session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "pb_graph", "error": str(exc)[:300]})
 
     projects = session.get("resume_data", {}).get("projects", [])
     if session["question_count"] <= 2:

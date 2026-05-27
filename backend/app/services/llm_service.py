@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 from litellm import completion
-
-from app.utils.json_utils import clean_json_response, extract_json_object
 
 
 class LLMService:
@@ -43,55 +40,17 @@ class LLMService:
     ) -> str:
         from app.services.llm import health
 
+        settings = self._litellm_settings()
         provider = self.active_provider()
-        if provider == "groq":
-            text = self._generate_groq(system_prompt, user_payload, temperature, max_tokens)
+        if settings.get("api_key"):
+            text, failure_reason = self._generate_litellm(system_prompt, user_payload, temperature, max_tokens)
             if text:
                 health.record_ok()
             else:
-                health.record_fail("groq_empty_or_error")
-            return text or fallback
-        if provider == "gemini":
-            text = self._generate_gemini(system_prompt, user_payload, temperature, max_tokens)
-            if text:
-                health.record_ok()
-            else:
-                health.record_fail("gemini_empty_or_error")
+                health.record_fail(failure_reason or f"{provider}_empty_or_error")
             return text or fallback
         health.record_fail("no_provider_configured")
         return fallback
-
-    def _generate_groq(self, system_prompt: str, user_payload: dict[str, Any] | str, temperature: float, max_tokens: int) -> str:
-        key = os.getenv("GROQ_API_KEY", "").strip()
-        if not key:
-            return ""
-        body = {
-            "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": _payload_to_text(user_payload)},
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        data = _post_json(
-            "https://api.groq.com/openai/v1/chat/completions",
-            body,
-            {"Authorization": f"Bearer {key}", "User-Agent": "ClioInterviewLab/1.0"},
-        )
-        if not raw_text:
-            return None
-        try:
-            parsed = json.loads(extract_json_object(clean_json_response(raw_text)))
-            if (
-                isinstance(parsed, dict)
-                and len(parsed) == 1
-                and not any(key in response_schema.model_fields for key in parsed)
-            ):
-                parsed = next(iter(parsed.values()))
-            return response_schema.model_validate(parsed)
-        except Exception:
-            return None
 
     def _generate_litellm(
         self,
@@ -99,10 +58,12 @@ class LLMService:
         user_payload: dict[str, Any] | str,
         temperature: float,
         max_tokens: int,
-    ) -> str:
+    ) -> tuple[str, str]:
+        from app.services.llm import health
+
         settings = self._litellm_settings()
         if not settings.get("api_key"):
-            return ""
+            return "", "no_api_key"
         try:
             response = completion(
                 model=settings["model"],
@@ -114,9 +75,9 @@ class LLMService:
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            return (response.choices[0].message.content or "").strip()
-        except Exception:
-            return ""
+            return (response.choices[0].message.content or "").strip(), "empty_response"
+        except Exception as exc:
+            return "", health.classify_failure(exc, f"{settings.get('provider', 'llm')}_error")
 
     def _litellm_settings(self) -> dict[str, str]:
         try:
