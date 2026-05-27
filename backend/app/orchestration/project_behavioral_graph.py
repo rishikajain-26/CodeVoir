@@ -24,7 +24,6 @@ class ProjectBehavioralState(TypedDict, total=False):
 
 
 def run_project_behavioral_turn(session: dict[str, Any], user_text: str) -> dict[str, Any]:
-    """Run one Project + Behavioural interview turn through a LangGraph workflow."""
     result = PROJECT_BEHAVIORAL_GRAPH.invoke({"session": session, "user_text": user_text})
     session["phase"] = result.get("phase", session.get("phase", "projects"))
     session["project_behavioral"] = result.get("project_behavioral", session.get("project_behavioral", {}))
@@ -44,25 +43,12 @@ def _context_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         session.get("project_behavioral", {}),
     )
     resume_signals = _extract_resume_signals(session.get("resume_data", {}), jd_signals, selected_project)
-    return {
-        **state,
-        "company_profile": profile,
-        "jd_signals": jd_signals,
-        "resume_signals": resume_signals,
-    }
+    return {**state, "company_profile": profile, "jd_signals": jd_signals, "resume_signals": resume_signals}
 
 
 def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     session = state.get("session", {})
-    turn = int(session.get("question_count", 0) or 0)
-    phase = _phase_for_turn(turn)
-    if _is_project_switch_request(state.get("user_text", "")):
-        evaluation = _project_switch_evaluation(state.get("resume_signals", {}))
-        return {**state, "answer_evaluation": evaluation}
-    if _is_greeting_only(state.get("user_text", "")):
-        evaluation = _greeting_evaluation(state.get("resume_signals", {}))
-        return {**state, "answer_evaluation": evaluation}
-
+    phase = _phase_for_turn(int(session.get("question_count", 0) or 0))
     llm_evaluation = evaluate_project_behavioral_with_llm(
         session=session,
         memory=session.get("project_behavioral", {}),
@@ -91,104 +77,24 @@ def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
 
 def _strategy_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     session = state["session"]
-    turn = int(session.get("question_count", 0) or 0)
-    profile = state.get("company_profile", {})
     evaluation = state.get("answer_evaluation", {})
-
-    phase = _phase_for_turn(turn)
-    goal = _goal_for_phase(phase)
-
-    if evaluation.get("flags") and phase not in {"closing", "pressure_validation"}:
-        goal = f"{goal}; repair weak evidence from the previous answer"
-
-    followup_intent = evaluation.get("followup_intent") or _select_followup_intent(
-        evaluation,
-        session.get("project_behavioral", {}),
-    )
-    strategy = {
-        "turn": turn,
+    phase = _phase_for_turn(int(session.get("question_count", 0) or 0))
+    return {
+        **state,
         "phase": phase,
-        "goal": goal,
-        "company_style": profile.get("interview_style", "balanced"),
-        "theme": _pick_theme(profile.get("focus_areas", []), turn),
-        "followup_intent": followup_intent,
+        "strategy": {
+            "turn": int(session.get("question_count", 0) or 0),
+            "phase": phase,
+            "goal": evaluation.get("next_question_reason") or "continue a natural project and behavioural interview",
+            "company_style": state.get("company_profile", {}).get("interview_style", "balanced"),
+            "followup_intent": evaluation.get("followup_intent", "move_forward"),
+        },
     }
-    return {**state, "strategy": strategy, "phase": phase}
-
-
-def _phase_for_turn(turn: int) -> str:
-    if turn <= 1:
-        return "resume_walkthrough"
-    if turn <= 3:
-        return "project_deep_dive"
-    if turn <= 5:
-        return "technical_tradeoffs"
-    if turn <= 8:
-        return "behavioural_star"
-    if turn <= 10:
-        return "pressure_validation"
-    return "closing"
-
-
-def _goal_for_phase(phase: str) -> str:
-    goals = {
-        "resume_walkthrough": "connect resume, job description, and strongest project",
-        "project_deep_dive": "validate project ownership, architecture, and tradeoffs",
-        "technical_tradeoffs": "probe scaling, reliability, failure modes, and redesign thinking",
-        "behavioural_star": "collect STAR evidence for collaboration, conflict, pressure, or ambiguity",
-        "pressure_validation": "stress-test weak areas and company-specific expectations",
-        "closing": "wrap up and prepare feedback",
-    }
-    return goals.get(phase, goals["project_deep_dive"])
-
-
-_BEHAVIORAL_SYSTEM_PROMPT = """You are a sharp, realistic Project + Behavioural interviewer. Your job is to extract evidence, not make the candidate feel good.
-
-Response rules:
-1. React to what the candidate just said in ONE sentence (acknowledge, correct, or push back).
-2. Ask exactly ONE focused follow-up question — never two.
-3. If STAR components are missing, name which one is absent and ask for it directly.
-4. If exaggeration_risk is true, challenge the claim: "You said X — can you give me a specific number or a concrete example?"
-5. If accountability_gap is true, push: "You said 'we' a lot — what did YOU personally own in that?"
-6. In pressure_validation phase: be direct, do not soften pushback.
-7. In behavioural_star phase: require all 4 STAR components before moving on.
-
-Anti-patterns (never do these):
-- Do not summarize what the candidate said.
-- Do not give encouragement like "Great answer!" or "That's impressive."
-- Do not ask multiple questions.
-- Do not answer on behalf of the candidate.
-
-Plain text only. Maximum 3 sentences."""
 
 
 def _response_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
-    fallback = _fallback_question(state)
     evaluation = state.get("answer_evaluation", {})
-    ai_text = evaluation.get("next_question") or fallback
-    return {**state, "ai_text": ai_text}
-
-
-def _detect_claim_contradiction(previous_turns: list[dict], current_text: str) -> dict | None:
-    """Heuristic contradiction detection for behavioral answers."""
-    if not previous_turns or not current_text:
-        return None
-    current_lower = current_text.lower()
-    for past_turn in reversed(previous_turns[-4:]):
-        past_excerpt = (past_turn.get("answer_excerpt") or "").lower()
-        # Detect metric flip: claimed 50% before, now claiming 20%
-        past_numbers = re.findall(r"\b(\d+)\s*(%|x|users?|ms|seconds?|engineers?)", past_excerpt)
-        curr_numbers = re.findall(r"\b(\d+)\s*(%|x|users?|ms|seconds?|engineers?)", current_lower)
-        if past_numbers and curr_numbers:
-            for pn, pu in past_numbers:
-                for cn, cu in curr_numbers:
-                    if pu == cu and abs(int(pn) - int(cn)) / max(int(pn), 1) > 0.5:
-                        return {
-                            "claim_before": f"{pn}{pu}",
-                            "claim_now": f"{cn}{cu}",
-                            "topic": "metrics",
-                        }
-    return None
+    return {**state, "ai_text": evaluation.get("next_question") or _llm_unavailable_message()}
 
 
 def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
@@ -198,43 +104,27 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     strategy = state.get("strategy", {})
     profile = state.get("company_profile", {})
     resume_signals = state.get("resume_signals", {})
-    is_switch_request = evaluation.get("followup_intent") == "switch_project"
 
-    turns = previous.get("turns", [])
-    contradiction = None
-    if state.get("user_text"):
-        contradiction = _detect_claim_contradiction(turns, state.get("user_text", ""))
-        turns = [
-            *turns,
-            {
-                "phase": strategy.get("phase", state.get("phase", "projects")),
-                "answer_text": _clip(state.get("user_text", ""), 3000),
-                "answer_excerpt": _clip(state.get("user_text", ""), 900),
-                "scores": evaluation.get("scores", {}),
-                "evaluation_source": evaluation.get("evaluation_source", "local_fallback"),
-                "flags": evaluation.get("flags", []),
-                "evidence": evaluation.get("evidence", []),
-                "strengths": evaluation.get("strengths", []),
-                "weak_areas": evaluation.get("weak_areas", []),
-                "star_components": evaluation.get("star_components", {}),
-                "exaggeration_risk": evaluation.get("exaggeration_risk", False),
-                "accountability_gap": evaluation.get("accountability_gap", False),
-                "project_discussed": evaluation.get("project_discussed", False),
-                "jd_skill_hits": evaluation.get("jd_skill_hits", []),
-                "resume_skill_hits": evaluation.get("resume_skill_hits", []),
-                "company_focus_hits": evaluation.get("company_focus_hits", []),
-                "role_alignment_hits": evaluation.get("role_alignment_hits", []),
-                "followup_intent": strategy.get("followup_intent", ""),
-                "next_question": state.get("ai_text", ""),
-                "next_question_reason": evaluation.get("next_question_reason", ""),
-            },
-        ][-20:]
+    turns = [
+        *previous.get("turns", []),
+        {
+            "phase": strategy.get("phase", state.get("phase", "projects")),
+            "answer_text": _clip(state.get("user_text", ""), 3000),
+            "answer_excerpt": _clip(state.get("user_text", ""), 900),
+            "scores": evaluation.get("scores", {}),
+            "evaluation_source": evaluation.get("evaluation_source", "llm_unavailable"),
+            "flags": evaluation.get("flags", []),
+            "evidence": evaluation.get("evidence", []),
+            "strengths": evaluation.get("strengths", []),
+            "weak_areas": evaluation.get("weak_areas", []),
+            "star_components": evaluation.get("star_components", {}),
+            "project_discussed": evaluation.get("project_discussed", False),
+            "followup_intent": strategy.get("followup_intent", ""),
+            "next_question": state.get("ai_text", ""),
+            "next_question_reason": evaluation.get("next_question_reason", ""),
+        },
+    ][-20:]
 
-    contradiction_history = previous.get("contradiction_history", [])
-    if contradiction:
-        contradiction_history = [*contradiction_history, contradiction][-10:]
-
-    weak_areas = _weak_areas_from_eval(evaluation)
     project_behavioral = {
         **previous,
         "company_profile": profile.get("company", session.get("target_company") or "General Product Engineering"),
@@ -251,7 +141,7 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         "jd_signals": state.get("jd_signals", {}),
         "resume_focus": resume_signals,
         "candidate_selected_project": _selected_project_memory(resume_signals, previous),
-        "pending_project_switch": is_switch_request,
+        "pending_project_switch": False,
         "turns": turns,
         "latest_scores": evaluation.get("scores", {}),
         "latest_flags": evaluation.get("flags", []),
@@ -259,10 +149,9 @@ def _memory_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         "latest_context_alignment": evaluation.get("context_alignment", {}),
         "exaggeration_risk": evaluation.get("exaggeration_risk", False),
         "accountability_gap": evaluation.get("accountability_gap", False),
-        "contradiction_history": contradiction_history,
         "current_goal": strategy.get("goal", ""),
     }
-    return {**state, "project_behavioral": project_behavioral, "weak_areas": weak_areas}
+    return {**state, "project_behavioral": project_behavioral, "weak_areas": _weak_areas_from_eval(evaluation)}
 
 
 def build_project_behavioral_graph():
@@ -272,7 +161,6 @@ def build_project_behavioral_graph():
     graph.add_node("choose_strategy", _strategy_node)
     graph.add_node("generate_question", _response_node)
     graph.add_node("update_memory", _memory_node)
-
     graph.set_entry_point("load_context")
     graph.add_edge("load_context", "evaluate_answer")
     graph.add_edge("evaluate_answer", "choose_strategy")
@@ -283,6 +171,50 @@ def build_project_behavioral_graph():
 
 
 PROJECT_BEHAVIORAL_GRAPH = build_project_behavioral_graph()
+
+
+def _phase_for_turn(turn: int) -> str:
+    if turn <= 1:
+        return "resume_walkthrough"
+    if turn <= 3:
+        return "project_deep_dive"
+    if turn <= 5:
+        return "technical_tradeoffs"
+    if turn <= 8:
+        return "behavioural_star"
+    if turn <= 10:
+        return "pressure_validation"
+    return "closing"
+
+
+def _llm_unavailable_evaluation(resume_signals: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "evaluation_source": "llm_unavailable",
+        "scores": {},
+        "flags": ["LLM response was unavailable; no local interview fallback was used."],
+        "evidence": [],
+        "strengths": [],
+        "weak_areas": [],
+        "technical_terms": [],
+        "has_metric": False,
+        "context_alignment": {},
+        "project_discussed": False,
+        "jd_skill_hits": [],
+        "resume_skill_hits": [],
+        "company_focus_hits": [],
+        "role_alignment_hits": [],
+        "star_components": {},
+        "exaggeration_risk": False,
+        "accountability_gap": False,
+        "followup_intent": "llm_unavailable",
+        "next_question": _llm_unavailable_message(),
+        "next_question_reason": "LLM unavailable.",
+        "active_project": resume_signals.get("selected_project", ""),
+    }
+
+
+def _llm_unavailable_message() -> str:
+    return "The AI model is unavailable for this turn, so I will not continue with a scripted local interview response. Please retry once the LLM connection is healthy."
 
 
 def _extract_jd_signals(job_description: str) -> dict[str, Any]:
@@ -296,11 +228,10 @@ def _extract_jd_signals(job_description: str) -> dict[str, Any]:
         "design", "build", "deploy", "optimize", "collaborate", "debug", "own", "lead",
         "mentor", "monitor", "scale", "automate",
     ])
-    seniority = "senior" if re.search(r"\bsenior|lead|mentor|architect\b", text, re.I) else "early-career"
     return {
         "skills": skills[:10],
         "responsibilities": responsibilities[:8],
-        "seniority": seniority,
+        "seniority": "senior" if re.search(r"\bsenior|lead|mentor|architect\b", text, re.I) else "early-career",
         "has_jd": bool(text.strip()),
         "summary": _clip(re.sub(r"\s+", " ", text).strip(), 420),
     }
@@ -314,17 +245,16 @@ def _extract_resume_signals(
     projects = resume_data.get("projects", []) if isinstance(resume_data, dict) else []
     skills = resume_data.get("skills", []) if isinstance(resume_data, dict) else []
     selected_project = _project_from_choice(selected_project_choice, projects)
-    project_text = " ".join(str(value) for value in selected_project.values()) if selected_project else ""
+    project_text = _project_summary(selected_project) if selected_project else ""
     jd_skills = {skill.lower() for skill in jd_signals.get("skills", [])}
-    resume_skill_matches = [skill for skill in skills if skill.lower() in jd_skills]
-    selected_name = selected_project.get("name") or "your strongest resume project"
     selected_source = (selected_project_choice or {}).get("source") or ("resume" if selected_project else "fallback")
+    selected_name = selected_project.get("name") or "your strongest resume project"
     return {
         "selected_project": selected_name,
         "selected_project_source": selected_source,
-        "candidate_selected_project": selected_name if selected_source in {"candidate", "resume_match"} else "",
+        "candidate_selected_project": selected_name if selected_source in {"candidate", "resume_match", "auto_selected"} else "",
         "project_summary": _clip(project_text, 420),
-        "resume_skill_matches": resume_skill_matches[:10],
+        "resume_skill_matches": [skill for skill in skills if skill.lower() in jd_skills][:10],
         "project_count": max(len(projects), 1 if selected_project else 0),
         "skill_count": len(skills),
     }
@@ -338,40 +268,18 @@ def _detect_candidate_project_choice(
     text = _clip(user_text, 700)
     projects = resume_data.get("projects", []) if isinstance(resume_data, dict) else []
     previous_choice = previous.get("candidate_selected_project") if isinstance(previous, dict) else None
-    pending_project_switch = bool(previous.get("pending_project_switch")) if isinstance(previous, dict) else False
+
+    if _candidate_asks_interviewer_to_choose_project(text):
+        chosen_project = _choose_alternative_resume_project(text, projects, previous_choice)
+        if chosen_project:
+            return {"name": chosen_project.get("name") or "selected resume project", "source": "auto_selected", "resume_project": chosen_project}
 
     explicit_name = _extract_explicit_project_name(text)
     if explicit_name:
         matched_project = _best_matching_resume_project(explicit_name, projects)
         if matched_project:
-            return {
-                "name": matched_project.get("name") or explicit_name,
-                "source": "resume_match",
-                "resume_project": matched_project,
-                "summary": _project_summary(matched_project),
-            }
-        return {
-            "name": explicit_name,
-            "source": "candidate",
-            "summary": _clip(text, 420),
-        }
-
-    if pending_project_switch and not _is_project_switch_request(text):
-        matched_project = _best_matching_resume_project(text, projects, min_score=1)
-        if matched_project:
-            return {
-                "name": matched_project.get("name") or "selected resume project",
-                "source": "resume_match",
-                "resume_project": matched_project,
-                "summary": _project_summary(matched_project),
-            }
-        candidate_name = _clean_project_choice(text)
-        if _looks_like_project_name(candidate_name):
-            return {
-                "name": candidate_name,
-                "source": "candidate",
-                "summary": _clip(text, 420),
-            }
+            return {"name": matched_project.get("name") or explicit_name, "source": "resume_match", "resume_project": matched_project}
+        return {"name": explicit_name, "source": "candidate", "summary": _clip(text, 420)}
 
     if isinstance(previous_choice, dict) and previous_choice.get("name"):
         return {
@@ -382,13 +290,7 @@ def _detect_candidate_project_choice(
 
     matched_project = _best_matching_resume_project(text, projects, min_score=3)
     if matched_project:
-        return {
-            "name": matched_project.get("name") or "selected resume project",
-            "source": "resume_match",
-            "resume_project": matched_project,
-            "summary": _project_summary(matched_project),
-        }
-
+        return {"name": matched_project.get("name") or "selected resume project", "source": "resume_match", "resume_project": matched_project}
     return None
 
 
@@ -396,76 +298,15 @@ def _extract_explicit_project_name(user_text: str) -> str:
     text = re.sub(r"\s+", " ", user_text or "").strip()
     if not text:
         return ""
-
-    project_context_pattern = re.search(
-        r"\bmy\s+(?:strongest\s+|main\s+|best\s+)?(?P<context>[a-zA-Z0-9+.#&' -]{2,45}?)\s+project\s+"
-        r"(?:which\s+is|that\s+is|called|named|is|was)\s+(?:an?\s+|the\s+)?(?P<name>[a-zA-Z0-9+.#&' -]{3,90})",
-        text,
-        re.I,
-    )
-    if project_context_pattern:
-        return _clean_project_choice(project_context_pattern.group("name"))
-
-    talk_pattern = re.search(
-        r"\b(?:i(?:'ll| will| would like to| want to| am going to)?|let me|i can)\s+"
-        r"(?:be\s+)?(?:talk(?:ing)?\s+about|explain(?:ing)?|walk(?:ing)?\s+through|discuss(?:ing)?|choose|pick|present(?:ing)?)\s+"
-        r"(?:my\s+)?(?P<name>[a-zA-Z0-9+.#&' -]{3,110})",
-        text,
-        re.I,
-    )
-    if talk_pattern:
-        return _clean_project_choice(talk_pattern.group("name"))
-
-    strongest_pattern = re.search(
-        r"\b(?:my\s+)?(?:strongest|main|best)\s+project\s+(?:is|was|would\s+be|will\s+be)\s+"
-        r"(?:an?\s+|the\s+)?(?P<name>[a-zA-Z0-9+.#&' -]{3,90})",
-        text,
-        re.I,
-    )
-    if strongest_pattern:
-        return _clean_project_choice(strongest_pattern.group("name"))
-
+    patterns = [
+        r"\b(?:i(?:'ll| will| would like to| want to| am going to)?|let me|i can)\s+(?:be\s+)?(?:talk(?:ing)?\s+about|explain(?:ing)?|walk(?:ing)?\s+through|discuss(?:ing)?|choose|pick|present(?:ing)?)\s+(?:my\s+)?(?P<name>[a-zA-Z0-9+.#&' -]{3,110})",
+        r"\b(?:my\s+)?(?:strongest|main|best)\s+project\s+(?:is|was|would\s+be|will\s+be)\s+(?:an?\s+|the\s+)?(?P<name>[a-zA-Z0-9+.#&' -]{3,90})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            return _clean_project_choice(match.group("name"))
     return ""
-
-
-def _clean_project_choice(value: str) -> str:
-    value = re.split(r"[.!?;]|\s+(?:because|where|which|that|and then|so then)\b", value or "", maxsplit=1, flags=re.I)[0]
-    value = re.sub(r"^(?:my|the|a|an|on|about|for)\s+", "", value.strip(), flags=re.I)
-    value = re.sub(r"^(?:the|a|an)\s+", "", value.strip(), flags=re.I)
-    value = re.sub(r"\s+", " ", value).strip(" ,:-")
-    return _clip(value, 90)
-
-
-def _best_matching_resume_project(
-    text: str,
-    projects: list[dict[str, Any]],
-    min_score: int = 2,
-) -> dict[str, Any] | None:
-    if not text or not projects:
-        return None
-    lower = text.lower()
-    text_tokens = {
-        token
-        for token in re.findall(r"[a-zA-Z0-9+.#-]+", lower)
-        if len(token) >= 3 and token not in {"project", "about", "explain", "talking", "strongest"}
-    }
-    best_project = None
-    best_score = 0
-    for project in projects:
-        project_text = _project_summary(project).lower()
-        name = str(project.get("name") or "").lower()
-        if name and (name in lower or lower in name):
-            return project
-        project_tokens = {
-            token
-            for token in re.findall(r"[a-zA-Z0-9+.#-]+", project_text)
-            if len(token) >= 3
-        }
-        score = len(text_tokens & project_tokens)
-        if score > best_score:
-            best_score = score
-            best_project = project
-    return best_project if best_score >= min_score else None
 
 
 def _project_from_choice(choice: dict[str, Any] | None, projects: list[dict[str, Any]]) -> dict[str, Any]:
@@ -473,12 +314,9 @@ def _project_from_choice(choice: dict[str, Any] | None, projects: list[dict[str,
         resume_project = choice.get("resume_project")
         if isinstance(resume_project, dict) and resume_project:
             return resume_project
-        name = _clean_project_choice(str(choice.get("name") or "").strip())
+        name = _clean_project_choice(str(choice.get("name") or ""))
         if name:
-            matched_project = _best_matching_resume_project(name, projects)
-            if matched_project:
-                return matched_project
-            return {"name": name, "description": choice.get("summary") or name}
+            return _best_matching_resume_project(name, projects) or {"name": name, "description": choice.get("summary") or name}
     return projects[0] if projects else {}
 
 
@@ -494,86 +332,67 @@ def _selected_project_memory(resume_signals: dict[str, Any], previous: dict[str,
     }
 
 
-def _is_project_switch_request(user_text: str) -> bool:
-    lower = (user_text or "").lower().strip()
-    if not lower:
-        return False
-    return bool(re.search(
-        r"\b(?:can|could|may|should|let'?s|i\s+want\s+to|i'?d\s+like\s+to)\b.*\b(?:another|different|other|new|second)\s+project\b"
-        r"|\b(?:switch|change|move)\b.*\bproject\b"
-        r"|\b(?:discuss|talk\s+about|explain)\b.*\b(?:another|different|other|new|second)\s+project\b",
+def _best_matching_resume_project(text: str, projects: list[dict[str, Any]], min_score: int = 2) -> dict[str, Any] | None:
+    if not text or not projects:
+        return None
+    lower = text.lower()
+    text_tokens = {token for token in re.findall(r"[a-zA-Z0-9+.#-]+", lower) if len(token) >= 3}
+    best_project = None
+    best_score = 0
+    for project in projects:
+        project_text = _project_summary(project).lower()
+        name = str(project.get("name") or "").lower()
+        if name and (name in lower or lower in name):
+            return project
+        project_tokens = {token for token in re.findall(r"[a-zA-Z0-9+.#-]+", project_text) if len(token) >= 3}
+        score = len(text_tokens & project_tokens)
+        if score > best_score:
+            best_score = score
+            best_project = project
+    return best_project if best_score >= min_score else None
+
+
+def _candidate_asks_interviewer_to_choose_project(user_text: str) -> bool:
+    lower = (user_text or "").lower()
+    return bool(lower and re.search(
+        r"\b(?:you|interviewer|ai)\s+(?:can\s+|could\s+|should\s+)?(?:choose|pick|select)\b.*\b(?:project|resume)\b"
+        r"|\b(?:choose|pick|select)\s+(?:any\s+)?(?:random\s+|other\s+|different\s+|another\s+)?project\b.*\b(?:resume|for\s+me)\b"
+        r"|\bany\s+(?:random\s+|other\s+|different\s+|another\s+)?project\s+from\s+my\s+resume\b",
         lower,
     ))
 
 
-def _project_switch_evaluation(resume_signals: dict[str, Any]) -> dict[str, Any]:
-    current_project = _clean_project_choice(resume_signals.get("selected_project") or "this project")
-    return {
-        "evaluation_source": "local_control_intent",
-        "scores": {},
-        "flags": [],
-        "evidence": [],
-        "technical_terms": [],
-        "has_metric": True,
-        "context_alignment": {
-            "has_resume_project": resume_signals.get("project_count", 0) > 0,
-            "has_jd": False,
-            "project_discussed": True,
-            "jd_skill_hits": [],
-            "jd_responsibility_hits": [],
-            "resume_skill_hits": [],
-            "company_focus_hits": [],
-            "role_alignment_hits": [],
-        },
-        "project_discussed": True,
-        "jd_skill_hits": [],
-        "resume_skill_hits": [],
-        "company_focus_hits": [],
-        "role_alignment_hits": [],
-        "star_components": {
-            "situation": True,
-            "task": True,
-            "action": True,
-            "result": True,
-        },
-        "exaggeration_risk": False,
-        "accountability_gap": False,
-        "followup_intent": "switch_project",
-        "next_question": f"Yes. Which project do you want to switch to instead of {current_project}? Give me the project name and one-line context.",
-        "next_question_reason": "Candidate asked to change the project focus.",
-    }
+def _choose_alternative_resume_project(user_text: str, projects: list[dict[str, Any]], previous_choice: Any) -> dict[str, Any] | None:
+    if not projects:
+        return None
+    excluded_names = _excluded_project_names(user_text, previous_choice)
+    for project in projects:
+        searchable = f"{project.get('name', '')} {_project_summary(project)}".lower()
+        if not any(excluded and excluded in searchable for excluded in excluded_names):
+            return project
+    return projects[0]
 
 
-def _is_greeting_only(user_text: str) -> bool:
-    lower = re.sub(r"[^a-z\s]", "", (user_text or "").lower()).strip()
-    return lower in {"hi", "hello", "hey", "hello hi", "hi hello"}
-
-
-def _greeting_evaluation(resume_signals: dict[str, Any]) -> dict[str, Any]:
-    current_project = _clean_project_choice(resume_signals.get("selected_project") or "your selected project")
-    return {
-        **_project_switch_evaluation(resume_signals),
-        "followup_intent": "phase_default",
-        "next_question": f"Hi. Let us continue with {current_project}: what exactly did you personally build, change, or own?",
-        "next_question_reason": "Candidate sent a greeting instead of an interview answer.",
-    }
-
-
-def _looks_like_project_name(value: str) -> bool:
-    tokens = re.findall(r"[a-zA-Z0-9+.#-]+", value or "")
-    if not 1 <= len(tokens) <= 10:
-        return False
-    filler = {"yes", "yeah", "okay", "ok", "sure", "project", "another", "different"}
-    return any(token.lower() not in filler and len(token) >= 3 for token in tokens)
+def _excluded_project_names(user_text: str, previous_choice: Any) -> list[str]:
+    excluded: list[str] = []
+    lower = (user_text or "").lower()
+    for pattern in (
+        r"\b(?:except|besides|apart\s+from|other\s+than)\s+(?:the\s+)?(?P<name>[a-zA-Z0-9+.#&' -]{3,90})",
+        r"\b(?:not|don't|do\s+not)\s+(?:the\s+)?(?P<name>[a-zA-Z0-9+.#&' -]{3,90})",
+    ):
+        for match in re.finditer(pattern, lower, re.I):
+            name = _clean_project_choice(match.group("name"))
+            if name:
+                excluded.append(name.lower())
+    if isinstance(previous_choice, dict) and previous_choice.get("name"):
+        excluded.append(_clean_project_choice(str(previous_choice["name"])).lower())
+    return [name for name in dict.fromkeys(excluded) if name]
 
 
 def _project_summary(project: dict[str, Any]) -> str:
     parts: list[str] = []
     for value in project.values():
-        if isinstance(value, list):
-            parts.extend(str(item) for item in value)
-        else:
-            parts.append(str(value))
+        parts.extend(str(item) for item in value) if isinstance(value, list) else parts.append(str(value))
     return " ".join(parts)
 
 
@@ -944,201 +763,15 @@ def _keyword_hits(text: str, keywords: list[str]) -> list[str]:
     return [keyword for keyword in keywords if keyword.lower() in lower]
 
 
-def _observable_result_hits(lower_answer: str) -> list[str]:
-    return _keyword_hits(lower_answer, [
-        "unbiased",
-        "bias-free",
-        "free from bias",
-        "personal bias",
-        "fair",
-        "fairness",
-        "consistent judging",
-        "objective judging",
-        "less subjective",
-        "reliable evaluation",
-        "better evaluation",
-        "clearer feedback",
-        "working prototype",
-        "playable",
-        "usable",
-        "completed",
-        "launched",
-        "validated",
-    ])
-
-
-def _candidate_referenced_resume_project(lower_answer: str, resume_signals: dict[str, Any], word_count: int) -> bool:
-    if int(resume_signals.get("project_count", 0) or 0) <= 0:
-        return False
-
-    project_name = str(resume_signals.get("selected_project", "") or "")
-    project_tokens = [
-        token.lower()
-        for token in re.findall(r"[a-zA-Z0-9]+", project_name)
-        if len(token) >= 4 and token.lower() not in {"your", "strongest", "resume", "project"}
-    ]
-    if project_tokens and any(token in lower_answer for token in project_tokens):
-        return True
-
-    project_summary = str(resume_signals.get("project_summary", "") or "")
-    project_terms = [
-        token.lower()
-        for token in re.findall(r"[a-zA-Z0-9+.#-]+", project_summary)
-        if len(token) >= 4 and token.lower() not in {"with", "using", "built", "project", "system", "application"}
-    ]
-    overlap = sum(1 for token in set(project_terms) if token in lower_answer)
-    if overlap >= 2:
-        return True
-
-    project_language = _keyword_hits(lower_answer, ["project", "app", "application", "platform", "system", "dashboard", "api", "service"])
-    return word_count >= 45 and len(project_language) >= 1
-
-
-def _role_alignment_hits(lower_answer: str, job_role: str) -> list[str]:
-    role_tokens = [
-        token.lower()
-        for token in re.findall(r"[a-zA-Z0-9+.#-]+", job_role or "")
-        if len(token) >= 4 and token.lower() not in {"software", "engineer", "developer"}
-    ]
-    hits = [token for token in role_tokens if token in lower_answer]
-    if "backend" in lower_answer:
-        hits.append("backend")
-    if "frontend" in lower_answer:
-        hits.append("frontend")
-    if "full stack" in lower_answer or "fullstack" in lower_answer:
-        hits.append("full stack")
-    return list(dict.fromkeys(hits))
-
-
-def _pick_theme(themes: list[str], turn: int) -> str:
-    if not themes:
-        return "ownership"
-    return themes[(max(1, turn) - 1) % len(themes)]
-
-
-def _score(count: int, bands: list[int]) -> int:
-    if count < bands[0]:
-        return 3
-    if count < bands[1]:
-        return 6
-    if count < bands[2]:
-        return 8
-    return 10
-
-
-def _extract_evidence_sentences(text: str) -> list[str]:
-    sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
-    useful = [sentence for sentence in sentences if len(sentence.split()) >= 8]
-    return [_clip(sentence, 220) for sentence in useful[:3]]
-
-
 def _weak_areas_from_eval(evaluation: dict[str, Any]) -> list[str]:
     return [*evaluation.get("flags", []), *evaluation.get("weak_areas", [])][:3]
 
 
-def _repair_instruction(evaluation: dict[str, Any]) -> str:
-    flags = evaluation.get("flags", [])
-    if not flags:
-        return ""
-    return f"Also fix this gap from your previous answer: {flags[0]}"
-
-
-def _select_followup_intent(evaluation: dict[str, Any], previous: dict[str, Any] | None = None) -> str:
-    if not evaluation:
-        return "phase_default"
-
-    alignment = evaluation.get("context_alignment", {}) or {}
-    star = evaluation.get("star_components", {}) or {}
-    scores = evaluation.get("scores", {}) or {}
-    previous = previous or {}
-
-    if alignment.get("has_resume_project") and not alignment.get("project_discussed"):
-        return _avoid_repeated_intent("anchor_resume_project", previous, ["clarify_ownership", "technical_depth"])
-    if alignment.get("has_jd") and not (alignment.get("jd_skill_hits") or alignment.get("jd_responsibility_hits")):
-        return _avoid_repeated_intent("connect_jd", previous, ["clarify_ownership", "technical_depth"])
-    if evaluation.get("accountability_gap"):
-        return _avoid_repeated_intent("clarify_ownership", previous, ["technical_depth", "quantify_impact"])
-    if evaluation.get("exaggeration_risk"):
-        return _avoid_repeated_intent("verify_claim", previous, ["clarify_ownership", "technical_depth"])
-    if not evaluation.get("has_metric") and not evaluation.get("has_observable_result"):
-        return _avoid_repeated_intent("quantify_impact", previous, ["clarify_ownership", "technical_depth"])
-    if scores.get("technical_depth", 10) < 6:
-        return _avoid_repeated_intent("technical_depth", previous, ["clarify_ownership", "quantify_impact"])
-    if not evaluation.get("has_metric"):
-        return _avoid_repeated_intent("quantify_impact", previous, ["technical_depth", "clarify_ownership"])
-
-    missing_star = [name for name, present in star.items() if not present]
-    if missing_star:
-        return f"star_{missing_star[0]}"
-
-    return "phase_default"
-
-
-def _avoid_repeated_intent(intent: str, previous: dict[str, Any], alternatives: list[str]) -> str:
-    recent_intents = [
-        turn.get("followup_intent")
-        for turn in (previous.get("turns", []) if isinstance(previous, dict) else [])[-2:]
-        if turn.get("followup_intent")
-    ]
-    recent_questions = [
-        str(turn.get("next_question") or "").lower()
-        for turn in (previous.get("turns", []) if isinstance(previous, dict) else [])[-2:]
-    ]
-    repeated_by_question = intent == "quantify_impact" and any("measurable or observable result" in question for question in recent_questions)
-    if intent not in recent_intents and not repeated_by_question:
-        return intent
-    for alternative in alternatives:
-        if alternative not in recent_intents:
-            return alternative
-    return "phase_default"
-
-
-def _targeted_followup(
-    intent: str,
-    evaluation: dict[str, Any],
-    resume: dict[str, Any],
-    jd: dict[str, Any],
-    company: str,
-    project: str,
-    role: str,
-) -> str:
-    if intent == "phase_default":
-        return ""
-
-    if intent == "anchor_resume_project":
-        return f"Anchor this to {project}. What exactly did you personally build, change, or own in that project?"
-
-    if intent == "switch_project":
-        return f"Yes. Which project do you want to switch to instead of {project}? Give me the project name and one-line context."
-
-    if intent == "connect_jd":
-        jd_targets = [*jd.get("skills", [])[:3], *jd.get("responsibilities", [])[:2]]
-        target_text = ", ".join(jd_targets) if jd_targets else f"the {role} requirements"
-        return f"Tie this answer to the job description. Which required skill or responsibility does {project} prove: {target_text}?"
-
-    if intent == "clarify_ownership":
-        return "You used broad team language. What did you personally own, what decision did you make, and what would have failed without your contribution?"
-
-    if intent == "verify_claim":
-        return "That claim needs verification. Give one concrete number, before-and-after comparison, or specific incident that proves the impact without exaggerating."
-
-    if intent == "quantify_impact":
-        return f"What measurable or observable result came from your work on {project}: latency, accuracy, users, time saved, defects reduced, or another honest outcome?"
-
-    if intent == "technical_depth":
-        return f"Go deeper technically on {project}. What architecture tradeoff, failure mode, scaling limit, or redesign decision did you personally handle?"
-
-    if intent.startswith("star_"):
-        missing = intent.replace("star_", "", 1)
-        prompts = {
-            "situation": "Give the Situation clearly: what was happening, who was involved, and why did it matter?",
-            "task": "Give the Task clearly: what responsibility or goal was specifically assigned to you?",
-            "action": "Give the Action clearly: what did you personally do step by step?",
-            "result": "Give the Result clearly: what changed, what metric or outcome proved it, and what did you learn?",
-        }
-        return prompts.get(missing, "Complete the missing STAR component with specific evidence.")
-
-    return ""
+def _clean_project_choice(value: str) -> str:
+    value = re.split(r"[.!?;]|\s+(?:because|where|which|that|and then|so then)\b", value or "", maxsplit=1, flags=re.I)[0]
+    value = re.sub(r"^(?:my|the|a|an|on|about|for)\s+", "", value.strip(), flags=re.I)
+    value = re.sub(r"\s+", " ", value).strip(" ,:-")
+    return _clip(value, 90)
 
 
 def _clip(value: str, limit: int) -> str:

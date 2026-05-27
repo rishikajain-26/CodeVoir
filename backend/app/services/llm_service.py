@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Type, TypeVar
 
 from litellm import completion
+from pydantic import BaseModel, ValidationError
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class LLMService:

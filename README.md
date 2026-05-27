@@ -8,7 +8,7 @@ Clio is an agentic AI-powered mock interview platform that simulates real techni
 - **Live code editor** — Monaco Editor with syntax highlighting, multi-language support (Python, JavaScript, Java, C, C++), and in-browser code execution with test case validation.
 - **18-node LangGraph pipeline** — Intent resolution, signal extraction, evaluation, contradiction detection, difficulty adjustment, phase tracking, memory compression, and adaptive output generation — all orchestrated as a compiled state graph.
 - **Intelligent adaptive questioning** — Tracks 7 interview phases (reading → clarification → brute_force → optimization → coding → testing → closing) and what's been assessed. The LLM uses this to decide what to probe next.
-- **Multi-LLM fallback chain** — Claude Sonnet (primary) → Groq/Llama (secondary) → Gemini Flash (tertiary), with automatic retry and graceful degradation to hardcoded responses when all providers are unavailable.
+- **Multi-LLM fallback chain** — Claude Sonnet (primary) → OpenAI → Groq/Llama → Gemini Flash, with automatic retry and graceful degradation to hardcoded responses when all providers are unavailable.
 - **Behavioral signal analysis** — Tracks speech patterns (WPM, fillers, hesitations, tone), editor behavior (keystrokes, rewrites, approach switches), silence profiles, and confidence trends across turns.
 - **Static code analysis** — Tree-sitter powered structural analysis (loop depth, recursion detection, boundary checks, dead code) at zero LLM cost, feeding accurate facts to the evaluator.
 - **Contradiction detection** — Catches when a candidate's current claims conflict with prior statements and confronts them directly.
@@ -92,7 +92,7 @@ resolve_intent
 
 - Python 3.11+
 - Node.js 18+
-- At least one LLM API key (Groq and Gemini have free tiers)
+- At least one LLM API key (OpenAI, Anthropic, Groq, or Gemini)
 
 ### Backend
 
@@ -105,7 +105,7 @@ venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env — add at least one LLM API key (GROQ_API_KEY or GEMINI_API_KEY)
+# Edit .env — add at least one LLM API key
 
 uvicorn main:app --reload --port 8000
 ```
@@ -149,10 +149,12 @@ Python, JavaScript, and Java support work without this.
 
 | Variable | Required | Description |
 |---|---|---|
+| `OPENAI_API_KEY` | One of these | OpenAI API key |
+| `OPENAI_MODEL` | No | OpenAI model name, defaults to `gpt-4o-mini` |
 | `GROQ_API_KEY` | One of these | Groq API key (free tier available) |
-| `GEMINI_API_KEY` | required | Google Gemini API key (free tier available) |
-| `ANTHROPIC_API_KEY` | | Claude API key (highest quality, paid) |
-| `LLM_PROVIDER` | No | Force a specific provider: `anthropic`, `groq`, or `gemini` |
+| `GEMINI_API_KEY` | One of these | Google Gemini API key (free tier available) |
+| `ANTHROPIC_API_KEY` | One of these | Claude API key (highest quality, paid) |
+| `LLM_PROVIDER` | No | Force a specific provider: `openai`, `anthropic`, `groq`, or `gemini` |
 | `DATABASE_URL` | No | PostgreSQL connection string (optional) |
 | `VITE_ELEVENLABS_API_KEY` | No | ElevenLabs TTS for natural voice (frontend `.env.local`) |
 
