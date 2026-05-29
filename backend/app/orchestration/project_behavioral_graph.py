@@ -49,7 +49,7 @@ def _context_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
 def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     session = state.get("session", {})
     phase = _phase_for_turn(int(session.get("question_count", 0) or 0))
-    evaluation = evaluate_project_behavioral_with_llm(
+    llm_evaluation = evaluate_project_behavioral_with_llm(
         session=session,
         memory=session.get("project_behavioral", {}),
         company_profile=state.get("company_profile", {}),
@@ -57,7 +57,21 @@ def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         resume_signals=state.get("resume_signals", {}),
         user_text=state.get("user_text", ""),
         phase=phase,
-    ) or _llm_unavailable_evaluation(state.get("resume_signals", {}))
+    )
+    evaluation = llm_evaluation or _evaluate_answer(
+        state.get("user_text", ""),
+        state.get("strategy", {}),
+        state.get("resume_signals", {}),
+        state.get("jd_signals", {}),
+        state.get("company_profile", {}),
+        state.get("session", {}),
+    )
+    evaluation = _ground_project_behavioral_score(
+        evaluation,
+        state.get("user_text", ""),
+        state.get("session", {}),
+        phase,
+    )
     return {**state, "answer_evaluation": evaluation}
 
 
@@ -380,6 +394,368 @@ def _project_summary(project: dict[str, Any]) -> str:
     for value in project.values():
         parts.extend(str(item) for item in value) if isinstance(value, list) else parts.append(str(value))
     return " ".join(parts)
+
+
+def _evaluate_answer(
+    user_text: str,
+    strategy: dict[str, Any],
+    resume_signals: dict[str, Any],
+    jd_signals: dict[str, Any],
+    company_profile: dict[str, Any],
+    session: dict[str, Any],
+) -> dict[str, Any]:
+    text = user_text.strip()
+    lower = text.lower()
+    words = re.findall(r"[a-zA-Z0-9+.#-]+", text)
+    project_discussed = _candidate_referenced_resume_project(lower, resume_signals, len(words))
+    jd_skill_hits = _keyword_hits(lower, jd_signals.get("skills", []))
+    jd_responsibility_hits = _keyword_hits(lower, jd_signals.get("responsibilities", []))
+    resume_skill_hits = _keyword_hits(lower, resume_signals.get("resume_skill_matches", []))
+    company_focus_hits = _keyword_hits(lower, company_profile.get("focus_areas", []))
+    role_alignment_hits = _role_alignment_hits(lower, session.get("job_role", ""))
+    has_metric = bool(re.search(
+        r"\b\d+%|\b\d+\s*percent\b|\b\d+x|\b\d+\+|\b\d+\s*(users|ms|seconds|requests|apis|features|tests|people|days|weeks|engineers?)\b",
+        lower,
+    ))
+    first_person = len(re.findall(r"\bi\b|\bmy\b|\bme\b|\bbuilt\b|\bimplemented\b|\bdesigned\b|\bowned\b", lower))
+    technical_terms = _keyword_hits(lower, [
+        "api", "database", "cache", "latency", "scale", "architecture", "frontend", "backend",
+        "react", "fastapi", "docker", "redis", "postgres", "testing", "security", "deployment",
+        "tradeoff", "complexity", "failure", "monitoring", "microservices", "distributed",
+        "schema", "index", "query", "throughput", "async", "concurrent",
+    ])
+
+    # STAR component detection
+    situation_signals = _keyword_hits(lower, ["situation", "context", "background", "was working on", "we were", "the team"])
+    task_signals = _keyword_hits(lower, ["task", "responsibility", "assigned", "challenge", "goal", "needed to"])
+    action_signals = _keyword_hits(lower, ["i decided", "i implemented", "i refactored", "i built", "i changed", "i proposed", "my approach", "i wrote"])
+    result_signals = _keyword_hits(lower, ["result", "outcome", "reduced", "improved", "increased", "shipped", "deployed", "learned", "prevented", "saved"])
+    observable_result_signals = _observable_result_hits(lower)
+    has_observable_result = bool(result_signals or observable_result_signals)
+
+    star_score = min(10, (
+        (3 if situation_signals else 0) +
+        (3 if task_signals else 0) +
+        (2 if action_signals else 1) +
+        (3 if result_signals else 0) +
+        (1 if has_metric else 0)
+    ))
+
+    # Exaggeration / inflation signals
+    vague_superlatives = _keyword_hits(lower, [
+        "best in class", "revolutionary", "completely redesigned", "10x engineer",
+        "saved millions", "single-handedly", "entirely alone", "nobody else",
+        "state of the art", "world-class",
+    ])
+    unsupported_claims = _keyword_hits(lower, [
+        "10x", "saved millions", "zero downtime", "millions of users", "100% accurate",
+        "never failed", "completely secure", "fully scalable", "production grade",
+    ])
+    accountability_gap = bool(
+        re.search(r"\bwe\b", lower) and not re.search(r"\bi\b|\bmy\b|\bmy role\b|\bmy contribution\b", lower)
+    )
+    credibility_risk = bool(vague_superlatives or (unsupported_claims and not has_metric))
+
+    scores = {
+        "specificity": _score(len(words), [35, 80, 140]),
+        "ownership": min(10, 3 + first_person),
+        "technical_depth": min(10, 3 + len(technical_terms)),
+        "impact": 9 if (has_metric and has_observable_result) else (7 if has_observable_result else (6 if has_metric else 3)),
+        "star_completeness": star_score,
+        "reflection": min(10, 3 + len(result_signals) + len(observable_result_signals)),
+        "context_alignment": min(
+            10,
+            2
+            + (2 if project_discussed else 0)
+            + min(3, len(jd_skill_hits) + len(jd_responsibility_hits))
+            + min(2, len(resume_skill_hits) + len(company_focus_hits))
+            + min(1, len(role_alignment_hits)),
+        ),
+    }
+    if accountability_gap:
+        scores["ownership"] = min(scores["ownership"], 4)
+    if credibility_risk:
+        scores["impact"] = min(scores["impact"], 4)
+        scores["specificity"] = min(scores["specificity"], 5)
+    if resume_signals.get("project_count", 0) > 0 and not project_discussed:
+        scores["context_alignment"] = min(scores["context_alignment"], 4)
+    if jd_signals.get("has_jd") and not (jd_skill_hits or jd_responsibility_hits):
+        scores["context_alignment"] = min(scores["context_alignment"], 5)
+
+    flags = []
+    if len(words) < 35:
+        flags.append("Answer is too brief for a realistic Project + Behavioural interview.")
+    if resume_signals.get("project_count", 0) > 0 and not project_discussed:
+        flags.append(
+            f"Resume project evidence is unclear; explicitly connect the answer to {resume_signals.get('selected_project', 'the selected project')}."
+        )
+    if jd_signals.get("has_jd") and not (jd_skill_hits or jd_responsibility_hits):
+        flags.append("Job description connection is missing; tie the answer to at least one required skill or responsibility.")
+    if company_profile.get("focus_areas") and not company_focus_hits:
+        flags.append("Company-specific focus is not evident; connect the answer to the round's expected focus areas.")
+    if first_person < 2 or accountability_gap:
+        flags.append("Personal ownership is unclear; explain what YOU specifically did, not just 'we'.")
+    if not has_metric and not has_observable_result:
+        flags.append("Impact is unclear; add honest metrics or observable outcomes.")
+    elif not has_metric:
+        flags.append("Impact is observable but not quantified; a real interviewer may still ask how you validated it.")
+    if len(technical_terms) < 2:
+        flags.append("Technical depth is thin; include architecture, tradeoffs, or failure modes.")
+    if not has_observable_result:
+        flags.append("STAR result is missing; end with a concrete outcome and what you learned.")
+    if not action_signals:
+        flags.append("Your specific action is vague; say explicitly what you built or decided.")
+    if vague_superlatives:
+        flags.append(
+            f"Possible exaggeration detected ({', '.join(vague_superlatives[:2])}); "
+            "use precise, verifiable claims."
+        )
+    if unsupported_claims and not has_metric:
+        flags.append(
+            f"Unsupported high-impact claim detected ({', '.join(unsupported_claims[:2])}); interviewers need verifiable context before giving credit."
+        )
+
+    return {
+        "evaluation_source": "local_fallback",
+        "scores": scores,
+        "flags": flags,
+        "evidence": _extract_evidence_sentences(text),
+        "technical_terms": technical_terms[:8],
+        "has_metric": has_metric,
+        "has_observable_result": has_observable_result,
+        "observable_result_hits": observable_result_signals[:8],
+        "context_alignment": {
+            "has_resume_project": resume_signals.get("project_count", 0) > 0,
+            "has_jd": jd_signals.get("has_jd", False),
+            "project_discussed": project_discussed,
+            "jd_skill_hits": jd_skill_hits[:8],
+            "jd_responsibility_hits": jd_responsibility_hits[:8],
+            "resume_skill_hits": resume_skill_hits[:8],
+            "company_focus_hits": company_focus_hits[:8],
+            "role_alignment_hits": role_alignment_hits[:6],
+        },
+        "project_discussed": project_discussed,
+        "jd_skill_hits": jd_skill_hits[:8],
+        "resume_skill_hits": resume_skill_hits[:8],
+        "company_focus_hits": company_focus_hits[:8],
+        "role_alignment_hits": role_alignment_hits[:6],
+        "star_components": {
+            "situation": bool(situation_signals),
+            "task": bool(task_signals),
+            "action": bool(action_signals),
+            "result": has_observable_result,
+        },
+        "exaggeration_risk": credibility_risk,
+        "accountability_gap": accountability_gap,
+    }
+
+
+def _ground_project_behavioral_score(
+    evaluation: dict[str, Any],
+    user_text: str,
+    session: dict[str, Any],
+    phase: str,
+) -> dict[str, Any]:
+    """Make PB scoring depend on whether the answer satisfies the actual prompt.
+
+    Project + Behavioural questions do not have one fixed answer, but each prompt
+    has expected evidence. A reply that does not answer that prompt should not
+    receive credit just because it contains confident words or resume keywords.
+    """
+    scores = dict(evaluation.get("scores") or {})
+    if not scores:
+        return evaluation
+
+    text = (user_text or "").strip()
+    words = re.findall(r"[a-zA-Z0-9+.#-]+", text)
+    prior_turns = (session.get("project_behavioral", {}) or {}).get("turns", [])
+    current_question = ""
+    if prior_turns:
+        current_question = str(prior_turns[-1].get("next_question") or "")
+    alignment = _project_answer_alignment_score(text, current_question, phase)
+
+    weighted = (
+        _score_to_ten(scores.get("ownership")) * 0.20
+        + _score_to_ten(scores.get("technical_depth")) * 0.20
+        + _score_to_ten(scores.get("impact")) * 0.18
+        + _score_to_ten(scores.get("star_completeness")) * 0.16
+        + _score_to_ten(scores.get("context_alignment")) * 0.16
+        + _score_to_ten(scores.get("communication", scores.get("specificity"))) * 0.10
+    )
+    question_score = min(weighted, alignment)
+
+    if len(words) < 8:
+        question_score = 0
+    elif len(words) < 18:
+        question_score = min(question_score, 2)
+    elif len(words) < 35:
+        question_score = min(question_score, 4)
+
+    if alignment <= 1:
+        cap = 0
+    elif alignment <= 3:
+        cap = 3
+    elif alignment <= 5:
+        cap = 5
+    else:
+        cap = 10
+
+    if cap < 10:
+        for key, value in list(scores.items()):
+            if isinstance(value, (int, float)):
+                scores[key] = min(_score_to_ten(value), cap)
+
+    scores["question_alignment"] = round(alignment, 2)
+    scores["question_score"] = round(question_score, 2)
+    flags = list(evaluation.get("flags") or [])
+    if alignment <= 3:
+        flags.append("Answer did not directly satisfy the interviewer question, so this turn receives little or no credit.")
+    elif question_score <= 5:
+        flags.append("Answer partially addressed the question but missed expected evidence such as ownership, tradeoffs, result, or STAR detail.")
+
+    return {**evaluation, "scores": scores, "flags": _dedupe(flags)}
+
+
+def _score_to_ten(value: Any) -> float:
+    if not isinstance(value, (int, float)):
+        return 0.0
+    score = float(value)
+    if 0 <= score <= 1:
+        return score * 10
+    if score > 10:
+        return score / 10
+    return max(0.0, min(10.0, score))
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for item in items:
+        key = str(item).strip()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(key)
+    return result
+
+
+def _project_answer_alignment_score(text: str, current_question: str, phase: str) -> float:
+    lower = (text or "").lower()
+    q = (current_question or "").lower()
+    words = re.findall(r"[a-zA-Z0-9+.#-]+", lower)
+    if len(words) < 8:
+        return 0.0
+
+    ownership = bool(re.search(r"\bi\b|\bmy\b|\bme\b|\bbuilt\b|\bimplemented\b|\bdesigned\b|\bowned\b|\bchanged\b|\bdecided\b", lower))
+    technical = bool(_keyword_hits(lower, [
+        "architecture", "api", "database", "cache", "latency", "scale", "backend", "frontend",
+        "model", "pipeline", "deployment", "tradeoff", "failure", "monitoring", "schema",
+        "algorithm", "optimization", "testing", "security", "distributed",
+    ]))
+    result = bool(_observable_result_hits(lower) or re.search(r"\b\d+%|\b\d+x|\b\d+\+|\busers\b|\baccuracy\b|\blatency\b|\bsaved\b|\breduced\b|\bimproved\b|\bshipped\b|\bdeployed\b", lower))
+    alternatives = bool(re.search(r"\balternative|rejected|instead|tradeoff|chose|decision|because|hardest\b", lower))
+    star_parts = sum(bool(token) for token in [
+        re.search(r"\bsituation|context|background|when\b", lower),
+        re.search(r"\btask|goal|needed|responsibility|challenge\b", lower),
+        re.search(r"\bi\s+(built|implemented|designed|changed|decided|led|wrote|created|owned)\b", lower),
+        re.search(r"\bresult|outcome|learned|improved|reduced|increased|shipped|deployed\b", lower),
+    ])
+
+    score = 0.0
+    if "personally" in q or "own" in q or "build" in q or "change" in q:
+        score += 4 if ownership else 0
+        score += 2 if technical else 0
+        score += 2 if result else 0
+        score += min(2, len(words) / 35 * 2)
+        return round(min(10, score), 2)
+    if "technical decision" in q or "alternatives" in q or "reject" in q:
+        score += 3 if technical else 0
+        score += 3 if alternatives else 0
+        score += 2 if ownership else 0
+        score += 2 if result else 0
+        return round(min(10, score), 2)
+    if "measurable" in q or "observable result" in q or "impact" in q:
+        score += 5 if result else 0
+        score += 2 if ownership else 0
+        score += 2 if technical else 0
+        score += min(1, len(words) / 40)
+        return round(min(10, score), 2)
+    if "star" in q or phase == "behavioural_star":
+        return round(min(10, star_parts * 2.5), 2)
+    if "10x" in q or "redesign" in q or "break first" in q:
+        score += 3 if technical else 0
+        score += 3 if re.search(r"\bscale|bottleneck|latency|database|cache|queue|load|throughput|failure\b", lower) else 0
+        score += 2 if result else 0
+        score += 2 if alternatives else 0
+        return round(min(10, score), 2)
+
+    score += 2 if ownership else 0
+    score += 2 if technical else 0
+    score += 2 if result else 0
+    score += min(2, star_parts * 0.5)
+    score += min(2, len(words) / 50 * 2)
+    return round(min(10, score), 2)
+
+
+def _fallback_question(state: ProjectBehavioralState) -> str:
+    session = state["session"]
+    strategy = state.get("strategy", {})
+    profile = state.get("company_profile", {})
+    resume = state.get("resume_signals", {})
+    jd = state.get("jd_signals", {})
+    evaluation = state.get("answer_evaluation", {})
+    company = profile.get("company", session.get("target_company") or "this company")
+    project = _clean_project_choice(resume.get("selected_project", "your strongest resume project"))
+    role = session.get("job_role", "the role")
+    theme = strategy.get("theme", "ownership")
+    phase = strategy.get("phase", "project_deep_dive")
+    intent = strategy.get("followup_intent", "phase_default")
+
+    targeted = _targeted_followup(intent, evaluation, resume, jd, company, project, role)
+    if targeted:
+        return targeted
+
+    if phase == "resume_walkthrough":
+        jd_hint = ""
+        if jd.get("skills"):
+            jd_hint = f" Tie it to these JD signals: {', '.join(jd['skills'][:4])}."
+        return f"Let us start the Project + Behavioural round for {role} at {company}. Walk me through {project}: what problem it solved, your exact ownership, and why it is relevant to this role.{jd_hint}"
+
+    if phase == "project_deep_dive":
+        repair = _repair_instruction(evaluation)
+        return f"Go deeper on {project}. What was the hardest technical decision you personally made, what alternatives did you reject, and what result did that decision create? {repair}".strip()
+
+    if phase == "technical_tradeoffs":
+        return f"Now think like a {company} interviewer. If {project} had to support 10x more users or data, what would break first, how would you redesign it, and what metric would prove the redesign worked?"
+
+    if phase == "behavioural_star":
+        return f"Answer this in STAR format: tell me about a time you handled {theme} while building or shipping a project. I need the situation, your action, the result, and what you would do differently now."
+
+    if phase == "pressure_validation":
+        weak = evaluation.get("flags", ["your weakest previous answer"])[0]
+        return f"I am going to pressure-test one area: {weak} Give a sharper version of that answer with one concrete example, one tradeoff, and one measurable outcome."
+
+    return "We are near the end. Give me a concise closing pitch: why your resume, project experience, and behavioral evidence make you a strong fit for this job description?"
+
+
+def _build_llm_payload(state: ProjectBehavioralState) -> dict[str, Any]:
+    session = state["session"]
+    evaluation = state.get("answer_evaluation", {})
+    return {
+        "round": "Project + Behavioural",
+        "role": session.get("job_role"),
+        "experience": session.get("experience_level"),
+        "target_company": session.get("target_company"),
+        "strategy": state.get("strategy", {}),
+        "company_profile": state.get("company_profile", {}),
+        "jd_signals": state.get("jd_signals", {}),
+        "resume_signals": state.get("resume_signals", {}),
+        "latest_evaluation": evaluation,
+        "star_components": evaluation.get("star_components", {}),
+        "exaggeration_risk": evaluation.get("exaggeration_risk", False),
+        "accountability_gap": evaluation.get("accountability_gap", False),
+        "candidate_answer": state.get("user_text", "")[-1200:],
+        "contradiction_history": (state.get("session", {}).get("project_behavioral", {}) or {}).get("contradiction_history", [])[-3:],
+    }
 
 
 def _keyword_hits(text: str, keywords: list[str]) -> list[str]:
