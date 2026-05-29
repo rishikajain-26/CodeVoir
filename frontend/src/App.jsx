@@ -100,15 +100,12 @@ export default function App() {
   const [resumeReview, setResumeReview] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
-  const [scratchpadMode, setScratchpadMode] = useState("text")
-  const [scratchpad, setScratchpad] = useState("")
   const [language, setLanguage] = useState("python")
   const [code, setCode] = useState(defaultCode)
   const [codeResult, setCodeResult] = useState(null)
   const [feedback, setFeedback] = useState(null)
   const [warning, setWarning] = useState("")
   const [error, setError] = useState("")
-  const [transcriptOpen, setTranscriptOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [cameraPos, setCameraPos] = useState({ x: 24, y: 88 })
   const [voiceState, setVoiceState] = useState("idle")
@@ -132,6 +129,7 @@ export default function App() {
   const intentionalStopRef = useRef(false)
   const lastAiSpokenRef = useRef("")
   const ttsEndedAtRef = useRef(0)       // timestamp when TTS audio finished playing
+  const speechTokenRef = useRef(0)
   const dragRef = useRef(null)
   const editorTelemetryRef = useRef({ lastChangeAt: Date.now(), edits: 0, pasteEvents: 0, largePastes: 0, deletions: 0, idleGaps: 0, maxLines: 0 })
   const codeRef = useRef(defaultCode)
@@ -375,7 +373,6 @@ export default function App() {
     setMessages((prev) => [...prev, { role: "thinking", content: "" }])
     try {
       const payload = { session_id: session.session_id, user_text: clean, behavioral_metrics: behavioralMetrics, code_context: currentCodeContext("message") }
-      if (isCsRound && scratchpad.trim()) payload.scratchpad = { mode: scratchpadMode, content: scratchpad }
       const reply = await postJson("/api/interview/message", payload)
       // Remove thinking indicator
       setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
@@ -484,6 +481,8 @@ export default function App() {
 
   async function finishInterview() {
     if (!session) return
+    stopVoiceCapture()
+    _stopCurrentSpeech()
     const report = await apiFetch(`/api/feedback/${session.session_id}`).then((r) => r.json())
     setFeedback(report)
     setSelectedReport(report)
@@ -590,6 +589,7 @@ export default function App() {
   }
 
   function _stopCurrentSpeech() {
+    speechTokenRef.current += 1
     if (currentAudioRef.current) {
       try { currentAudioRef.current.pause() } catch {
         currentAudioRef.current = null
@@ -600,16 +600,21 @@ export default function App() {
       window.speechSynthesis.cancel()
     }
     if (ttsTimeoutRef.current) { window.clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null }
+    speakingRef.current = false
+    ttsEndedAtRef.current = Date.now()
+    setVoiceState(recognitionRef.current ? "listening" : "user_turn")
   }
 
   function speak(text) {
     if (!text) return
     _stopCurrentSpeech()
+    const speechToken = ++speechTokenRef.current
     lastAiSpokenRef.current = text
     speakingRef.current = true
     setVoiceState("ai_speaking")
 
     const finishSpeaking = () => {
+      if (speechToken !== speechTokenRef.current) return
       if (!speakingRef.current) return
       speakingRef.current = false
       ttsEndedAtRef.current = Date.now()
@@ -623,16 +628,17 @@ export default function App() {
       _elevenLabsTTS(text, (audio) => { currentAudioRef.current = audio })
         .then(finishSpeaking)
         .catch((err) => {
+          if (speechToken !== speechTokenRef.current) return
           console.warn("ElevenLabs TTS failed, using browser voice:", err)
           currentAudioRef.current = null
-          _speakBrowserTTS(text, finishSpeaking)
+          _speakBrowserTTS(text, finishSpeaking, speechToken)
         })
     } else {
-      _speakBrowserTTS(text, finishSpeaking)
+      _speakBrowserTTS(text, finishSpeaking, speechToken)
     }
   }
 
-  function _speakBrowserTTS(text, onDone) {
+  function _speakBrowserTTS(text, onDone, speechToken) {
     if (!("speechSynthesis" in window)) { onDone(); return }
     const chunks = chunkSpeechText(text)
     if (!chunks.length) { onDone(); return }
@@ -651,6 +657,7 @@ export default function App() {
     }
 
     const speakNext = () => {
+      if (speechToken !== speechTokenRef.current) return
       if (finished) return
       if (ttsTimeoutRef.current) {
         window.clearTimeout(ttsTimeoutRef.current)
@@ -662,17 +669,20 @@ export default function App() {
       const utterance = new SpeechSynthesisUtterance(chunk)
       utterance.rate = 1.02
       utterance.onend = () => {
+        if (speechToken !== speechTokenRef.current) return
         if (currentId !== utteranceId) return
         index += 1
         speakNext()
       }
       utterance.onerror = () => {
+        if (speechToken !== speechTokenRef.current) return
         if (currentId === utteranceId) complete()
       }
       window.speechSynthesis.resume?.()
       window.speechSynthesis.speak(utterance)
       // Chrome can silently drop longer interviewer turns; advance instead of hanging.
       ttsTimeoutRef.current = window.setTimeout(() => {
+        if (speechToken !== speechTokenRef.current) return
         if (currentId !== utteranceId) return
         utteranceId += 1
         window.speechSynthesis.cancel()
@@ -787,6 +797,13 @@ export default function App() {
   }
 
   function stopPushToTalkAndSend() {
+    const clean = stopVoiceCapture()
+    if (clean && session && !isBusy) {
+      sendMessage(clean, { voice_turn: true })
+    }
+  }
+
+  function stopVoiceCapture() {
     autoVoiceRef.current = false
     setAutoVoice(false)
     const recognition = recognitionRef.current
@@ -800,9 +817,7 @@ export default function App() {
     setVoiceState("user_turn")
     const clean = liveTranscriptRef.current.trim()
     setLiveTranscript("")
-    if (clean && session && !isBusy) {
-      sendMessage(clean, { voice_turn: true })
-    }
+    return clean
   }
 
   function sendCapturedTranscript() {
@@ -976,7 +991,7 @@ export default function App() {
           <button onClick={() => setScreen("dashboard")} className="rounded border border-slate-700 bg-slate-950 px-2 py-2 text-slate-200" title="Back to dashboard"><ArrowLeft size={18} /></button>
           <div>
             <div className="font-semibold">{roundTitle}</div>
-            {isCsRound && <div className="text-xs text-slate-400">{voiceState.replace("_", " ")} - {form.difficulty}{liveTranscript ? ` - "${liveTranscript.slice(0, 70)}"` : ""}</div>}
+            <div className="text-xs text-slate-400">{voiceState.replace("_", " ")}{liveTranscript ? ` - "${liveTranscript.slice(0, 70)}"` : ""}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1010,16 +1025,18 @@ export default function App() {
         {liveTranscript && <div className="mt-2 rounded bg-slate-900 p-2 text-xs text-cyan-100">{liveTranscript}</div>}
       </div>
 
-      <section className={`relative z-10 grid min-h-0 grid-cols-1 gap-4 p-4 ${isDsaRound || isCsRound ? "lg:grid-cols-2" : "mx-auto w-full max-w-6xl"}`}>
-        {(isDsaRound || isCsRound) && <aside className="dashboard-glass h-[calc(100vh-96px)] overflow-y-auto">
-          {(isDsaRound || isCsRound) && <div className="sticky top-0 z-10 border-b border-slate-800/80 bg-slate-950/70 px-5 py-4 backdrop-blur-xl">
+      <section className={`relative z-10 grid min-h-0 grid-cols-1 gap-4 p-4 ${isDsaRound ? "lg:grid-cols-2" : ""}`}>
+        <aside className={`dashboard-glass h-[calc(100vh-96px)] ${isCsRound ? "flex items-center justify-center overflow-hidden p-6" : "overflow-y-auto"}`}>
+          {!isCsRound && <div className="sticky top-0 z-10 border-b border-slate-800/80 bg-slate-950/70 px-5 py-4 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm text-slate-400">{isDsaRound ? (dsaProgress?.label || `Question ${dsaProgress?.current_question_index || 1} of ${dsaProgress?.total_questions || "?"}`) : "Concept interview"}</div>
-                <h2 className="truncate text-xl font-semibold">{isDsaRound ? currentProblem?.title : "CS Fundamentals"}</h2>
+                <div className="text-sm text-slate-400">{isDsaRound ? (dsaProgress?.label || `Question ${dsaProgress?.current_question_index || 1} of ${dsaProgress?.total_questions || "?"}`) : "Project interview"}</div>
+                <h2 className="truncate text-xl font-semibold">{isDsaRound ? currentProblem?.title : isCsRound ? "CS Fundamentals" : "Project + Behavioural"}</h2>
               </div>
               {currentProblem && <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300">{currentProblem.difficulty}</span>}
             </div>
+            {isDsaRound && session?.dataset_size && <div className="mt-2 text-xs text-slate-500">Dataset: {session.dataset_size.toLocaleString()} {session.dataset_label || "public DSA problems"}{session.target_company ? ` - ${session.target_company}` : ""}</div>}
+            {currentProblem?.companies?.length > 0 && <div className="mt-2 text-xs text-cyan-300">Seen in: {currentProblem.companies.slice(0, 5).join(", ")}{currentProblem.companies.length > 5 ? "..." : ""}</div>}
           </div>}
           {isDsaRound ? (
             <div className="space-y-5 p-5 text-sm text-slate-300">
@@ -1035,8 +1052,8 @@ export default function App() {
           )}
         </aside>}
 
-        <section className={`${isDsaRound || isCsRound ? "h-[calc(100vh-96px)] min-h-0" : "min-h-[calc(100vh-96px)] grid place-items-center"}`}>
-          {isDsaRound ? <div className="dashboard-glass h-full">
+        {isDsaRound && <section className="h-[calc(100vh-96px)] min-h-0">
+          <div className="dashboard-glass h-full">
             <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
               <div className="flex items-center gap-2 font-semibold"><Code2 size={18} /> Code</div>
               <select className="w-40 py-2 text-sm" value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Coding language">
@@ -1072,20 +1089,8 @@ export default function App() {
                 </div>}
               </div>
             </div>
-          </div> : isCsRound ? <InterviewWorkspace input={input} setInput={setInput} isBusy={isBusy} sendMessage={sendMessage} toggleMic={toggleMic} autoVoice={autoVoice} voiceState={voiceState} liveTranscript={liveTranscript} lastAiMessage={lastAiMessage} isCsRound={isCsRound} scratchpad={scratchpad} setScratchpad={setScratchpad} scratchpadMode={scratchpadMode} setScratchpadMode={setScratchpadMode} /> : <ProjectBehavioralWorkspace lastAiMessage={lastAiMessage} contextItems={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`]} />}
-        </section>
-
-        {transcriptOpen && <aside className="fixed bottom-0 right-0 top-0 z-30 flex w-[420px] max-w-[96vw] flex-col border-l border-slate-700 bg-slate-950 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 p-3">
-            <span className="font-semibold">Interview Transcript</span>
-            <button onClick={() => setTranscriptOpen(false)} className="rounded border border-slate-700 px-2 py-1 text-xs">Close</button>
           </div>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-            {messages.map((m, i) => m.role === "thinking" ? <div key={i} className="flex items-center gap-2 rounded bg-cyan-950/50 p-3 text-sm text-cyan-200 animate-pulse"><span className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-bounce" />Thinking...</div> : <div key={i} className={`rounded p-3 text-sm ${m.role === "candidate" ? "bg-slate-800" : m.role === "system" ? "border border-cyan-600 bg-cyan-900/30 text-cyan-300 text-xs" : "bg-cyan-950 text-cyan-50"}`}><b>{m.role === "candidate" ? "You" : m.role === "system" ? "↑" : "AI"}:</b> {m.content}{m.degraded && <span className="ml-2 rounded bg-amber-900/60 px-1.5 py-0.5 text-[10px] text-amber-300" title="AI service was temporarily unavailable — this is a pre-built response">offline mode</span>}</div>)}
-            {liveTranscript && <div className="rounded border border-cyan-700 bg-slate-900 p-3 text-sm text-cyan-100"><b>Hearing now:</b> {liveTranscript}</div>}
-          </div>
-          <div className="border-t border-slate-800 p-3 text-xs text-slate-400">Live transcript of AI and candidate turns. Click Start voice once; browser permission is required.</div>
-        </aside>}
+        </section>}
 
         {chatOpen && <aside className="fixed bottom-5 right-5 z-40 flex h-[520px] w-[460px] max-w-[96vw] flex-col rounded border border-slate-700 bg-slate-950 shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-800 p-3">
@@ -2292,85 +2297,79 @@ function RoundContext({ title, items }) {
 function CsRoundPanel({ messages, lastAiMessage, session, form }) {
   const csMemory = session?.cs_fundamentals || {}
   const currentTopic = csMemory.current_topic || ""
-  const topicsCovered = csMemory.topics_covered || []
-  const weakTopics = csMemory.weak_topics || []
-  const strongTopics = csMemory.strong_topics || []
-  const history = messages.filter((m) => m.role !== "system").slice(0, -1)
+  const company = session?.target_company || form.target_company || "General"
+  const role = form.job_role || session?.job_role || "Software Engineer"
+  const latestAnswer = [...messages].reverse().find((m) => m.role === "candidate")?.content || ""
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-slate-800 p-5">
-        <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wider text-cyan-500">
-          {currentTopic && <span className="rounded bg-cyan-900/50 px-2 py-0.5">{currentTopic}</span>}
-          <span>Current question</span>
-        </div>
-        <div className="mt-2 rounded border border-cyan-700/60 bg-cyan-950/30 p-4 text-sm font-medium leading-7 text-cyan-50">
-          {lastAiMessage || "Loading your first question\u2026"}
-        </div>
-      </div>
+    <div className="relative flex min-h-full w-full items-center justify-center">
+      <div className="pointer-events-none absolute inset-0 opacity-80 [background-image:linear-gradient(rgba(34,211,238,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,.08)_1px,transparent_1px)] [background-size:34px_34px]" />
+      <div className="pointer-events-none absolute left-8 right-8 top-10 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent" />
+      <div className="pointer-events-none absolute bottom-10 left-8 right-8 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
 
-      {history.length > 0 && (
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
-          <div className="mb-1 text-xs uppercase text-slate-500">Earlier in this interview</div>
-          {history.map((m, i) => (
-            <div key={i} className={`rounded p-2 text-xs leading-5 ${m.role === "interviewer" ? "border border-cyan-800/40 bg-cyan-950/25 text-cyan-100" : "bg-slate-800 text-slate-300"}`}>
-              <span className="mr-1 font-semibold">{m.role === "interviewer" ? "Interviewer:" : "You:"}</span>
-              {m.content.length > 260 ? `${m.content.slice(0, 260)}\u2026` : m.content}
+      <div className="relative w-full max-w-4xl overflow-hidden rounded-lg border border-cyan-300/40 bg-[#050b14]/95 shadow-[0_0_80px_rgba(6,182,212,.22)] backdrop-blur-xl">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-200 via-sky-400 to-amber-300" />
+        <div className="absolute left-0 top-0 h-20 w-20 border-l-2 border-t-2 border-cyan-300/60" />
+        <div className="absolute right-0 top-0 h-20 w-20 border-r-2 border-t-2 border-amber-300/50" />
+        <div className="absolute bottom-0 left-0 h-20 w-20 border-b-2 border-l-2 border-sky-300/40" />
+        <div className="absolute bottom-0 right-0 h-20 w-20 border-b-2 border-r-2 border-cyan-300/50" />
+
+        <div className="relative border-b border-cyan-300/15 px-6 py-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 space-y-3">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-cyan-200">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-60" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-200" />
+                </span>
+                CS Fundamentals Round
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
+                <span className="rounded border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-cyan-50">Role: {role}</span>
+                <span className="rounded border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-amber-50">Company: {company}</span>
+              </div>
             </div>
-          ))}
+            {currentTopic && <span className="rounded border border-cyan-300/40 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,.12)]">{currentTopic}</span>}
+          </div>
         </div>
-      )}
 
-      <div className="border-t border-slate-800 p-4">
-        <div className="grid gap-1 text-xs text-slate-400">
-          <div>{session?.target_company || form.target_company ? `${session?.target_company || form.target_company} \u00b7 ` : ""}{form.job_role}</div>
-          {topicsCovered.length > 0 && <div>Covered: {topicsCovered.join(" \u00b7 ")}</div>}
-          {weakTopics.length > 0 && <div className="text-amber-400">Needs work: {weakTopics.join(", ")}</div>}
-          {strongTopics.length > 0 && <div className="text-emerald-400">Strong: {strongTopics.join(", ")}</div>}
-          {topicsCovered.length === 0 && <div>Topics: DBMS \u00b7 OOP \u00b7 OS \u00b7 Networks</div>}
-          <div className="text-slate-500">Scratchpad notes are evaluated \u2014 nothing is executed.</div>
+        <div className="relative px-6 py-8 md:px-10 md:py-12">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded border border-cyan-300/50 bg-cyan-300/10 text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,.14)]">
+                <Brain size={22} />
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Question stream</div>
+                <div className="text-sm text-cyan-100">Live interviewer prompt</div>
+              </div>
+            </div>
+            <div className="hidden h-10 items-center gap-1 md:flex">
+              <span className="h-6 w-1 rounded bg-cyan-300/70" />
+              <span className="h-10 w-1 rounded bg-sky-300/80" />
+              <span className="h-4 w-1 rounded bg-amber-300/80" />
+              <span className="h-8 w-1 rounded bg-cyan-200/70" />
+            </div>
+          </div>
+
+          <div className="relative overflow-hidden rounded-lg border border-cyan-300/25 bg-gradient-to-br from-slate-900/95 via-cyan-950/45 to-slate-950 p-6 shadow-inner shadow-cyan-950/40">
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/80 to-transparent" />
+            <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-cyan-200 via-sky-400 to-amber-300" />
+            <p className="relative text-balance text-2xl font-semibold leading-10 text-cyan-50 md:text-3xl md:leading-[3.1rem]">
+              {lastAiMessage || "Loading your first question..."}
+            </p>
+          </div>
+
+          {latestAnswer && (
+            <div className="mt-5 rounded border border-slate-800 bg-slate-950/70 p-3 text-xs leading-5 text-slate-400">
+              <span className="font-semibold text-slate-300">Latest answer: </span>
+              {latestAnswer.length > 220 ? `${latestAnswer.slice(0, 220)}...` : latestAnswer}
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
-}
-
-function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, autoVoice, voiceState, liveTranscript, lastAiMessage, isCsRound, scratchpad, setScratchpad, scratchpadMode, setScratchpadMode }) {
-  return <div className={`dashboard-glass grid h-full ${isCsRound ? "grid-rows-[1fr_auto]" : "grid-rows-[auto_1fr_auto]"}`}>
-    {!isCsRound && (
-      <div className="border-b border-slate-800 px-4 py-3">
-        <div className="text-sm text-slate-400">Current question</div>
-        <div className="mt-2 rounded bg-slate-950 p-3 text-sm leading-6 text-cyan-50">{lastAiMessage || "The interviewer question will appear here."}</div>
-      </div>
-    )}
-    <div className={`grid min-h-0 gap-3 p-4 ${isCsRound ? "lg:grid-cols-2" : "grid-cols-1"}`}>
-      <div className="min-h-0 rounded border border-slate-800 bg-slate-950 p-3">
-        <label className="grid h-full gap-2 text-sm text-slate-300">
-          <span>Your answer</span>
-          <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Answer the interviewer here, or use voice." className="min-h-0 flex-1 resize-none rounded border border-slate-700 bg-slate-900 p-3 text-sm outline-none focus:border-cyan-400" />
-        </label>
-      </div>
-      {isCsRound && <div className="min-h-0 rounded border border-slate-800 bg-slate-950 p-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <label className="text-sm text-slate-300">Scratchpad</label>
-          <select className="w-36 py-2 text-sm" value={scratchpadMode} onChange={(e) => setScratchpadMode(e.target.value)} aria-label="Scratchpad mode">
-            <option value="text">Text</option>
-            <option value="sql">SQL</option>
-            <option value="pseudocode">Pseudocode</option>
-            <option value="diagram">Diagram notes</option>
-          </select>
-        </div>
-        <textarea value={scratchpad} onChange={(e) => setScratchpad(e.target.value)} placeholder="Optional whiteboard notes. Use it for SQL, pseudocode, diagrams, or examples when helpful." className="h-[calc(100%-44px)] w-full resize-none rounded border border-slate-700 bg-slate-900 p-3 font-mono text-sm outline-none focus:border-cyan-400" />
-      </div>}
-    </div>
-    <div className="border-t border-slate-800 p-3">
-      <div className="flex gap-2">
-        <button onClick={() => sendMessage()} disabled={isBusy} className="flex-1 rounded border border-cyan-600 bg-cyan-950 px-3 py-2 font-semibold text-cyan-100 disabled:opacity-50">Send answer</button>
-        <button onClick={toggleMic} className={`rounded border px-3 py-2 ${autoVoice || voiceState === "listening" ? "border-red-400 text-red-200" : "border-slate-600"}`} title="Toggle microphone">{autoVoice || voiceState === "listening" ? <Square size={18} /> : <Mic size={18} />}</button>
-      </div>
-      {liveTranscript && <div className="mt-2 rounded bg-slate-950 p-2 text-xs text-cyan-100">Hearing: {liveTranscript}</div>}
-    </div>
-  </div>
 }
 
 function ProjectBehavioralWorkspace({ lastAiMessage, contextItems }) {
@@ -2587,7 +2586,7 @@ function MetricCard({ metric }) {
   const score = Math.max(0, Math.min(100, Number(metric.score) || 0))
   const { bar, text } = scoreColor(score)
   return (
-    <div className="rounded border border-slate-800 bg-slate-950 p-3">
+    <motion.div className="report-pop-card rounded border border-slate-800 bg-slate-950 p-3" whileHover={{ y: -4, scale: 1.015 }} transition={{ type: "spring", stiffness: 320, damping: 22 }}>
       <div className="flex items-start justify-between gap-2">
         <div className="text-sm font-medium text-slate-200 leading-5">{metric.name}</div>
         <div className={`text-lg font-bold shrink-0 ${text}`}>{score}</div>
@@ -2599,7 +2598,7 @@ function MetricCard({ metric }) {
         {metric.label && <span className={`text-xs font-medium shrink-0 ${labelColor(metric.label)}`}>{metric.label}</span>}
       </div>
       {metric.note && <p className="mt-2 text-xs leading-5 text-slate-400">{metric.note}</p>}
-    </div>
+    </motion.div>
   )
 }
 
@@ -2609,7 +2608,7 @@ function VerdictCard({ verdict, overallScore }) {
   const confidence = Math.max(0, Math.min(100, Number(verdict?.confidence_score) || 0))
   const { bar: confBar } = scoreColor(confidence)
   return (
-    <div className={`rounded border-2 ${border} ${bg} p-5`}>
+    <motion.div className={`verdict-glow rounded border-2 ${border} ${bg} p-5`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Final Verdict</div>
@@ -2651,7 +2650,23 @@ function VerdictCard({ verdict, overallScore }) {
           )}
         </div>
       )}
-    </div>
+    </motion.div>
+  )
+}
+
+function DSAReportStat({ label, value, helper, tone = "cyan" }) {
+  const tones = {
+    cyan: "from-cyan-500/20 text-cyan-200 border-cyan-400/30",
+    emerald: "from-emerald-500/20 text-emerald-200 border-emerald-400/30",
+    amber: "from-amber-500/20 text-amber-200 border-amber-400/30",
+    rose: "from-rose-500/20 text-rose-200 border-rose-400/30",
+  }
+  return (
+    <motion.div className={`report-pop-card rounded border bg-gradient-to-br ${tones[tone] || tones.cyan} to-slate-950/80 p-4`} whileHover={{ y: -5, scale: 1.02 }}>
+      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="mt-2 text-3xl font-bold text-white">{value}</div>
+      {helper && <div className="mt-1 text-xs leading-5 text-slate-400">{helper}</div>}
+    </motion.div>
   )
 }
 
@@ -2730,17 +2745,26 @@ function RecommendationCard({ rec }) {
 }
 
 function QuestionPerformanceCard({ qp }) {
-  const verdictColor = { Strong: "text-emerald-400 bg-emerald-900/40", Satisfactory: "text-blue-400 bg-blue-900/40", "Needs Work": "text-amber-400 bg-amber-900/40", Weak: "text-red-400 bg-red-900/40" }
+  const verdictColor = {
+    Solved: "text-emerald-300 bg-emerald-900/40",
+    Partial: "text-cyan-300 bg-cyan-900/40",
+    Explained: "text-blue-300 bg-blue-900/40",
+    Incorrect: "text-amber-300 bg-amber-900/40",
+    "Not attempted": "text-red-300 bg-red-900/40",
+    Strong: "text-emerald-400 bg-emerald-900/40",
+    Satisfactory: "text-blue-400 bg-blue-900/40",
+    "Needs Work": "text-amber-400 bg-amber-900/40",
+    Weak: "text-red-400 bg-red-900/40",
+  }
   const vc = verdictColor[qp.verdict] || verdictColor["Needs Work"]
   const metrics = qp.metrics || {}
   const bars = [
-    { label: "Approach", val: metrics.approach_quality || 0 },
-    { label: "Implementation", val: metrics.implementation || 0 },
+    { label: "Code", val: metrics.code_correctness ?? metrics.implementation ?? 0 },
+    { label: "Explain", val: metrics.explanation_credit ?? metrics.approach_quality ?? 0 },
     { label: "Communication", val: metrics.communication || 0 },
-    { label: "Debugging", val: metrics.debugging || 0 },
   ]
   return (
-    <div className="rounded border border-slate-700 bg-slate-900 p-4">
+    <motion.div className="report-pop-card rounded border border-slate-700 bg-slate-900 p-4" whileHover={{ y: -4, scale: 1.01 }}>
       <div className="flex items-start justify-between mb-3">
         <div>
           <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Question {qp.question_index}</span>
@@ -2768,7 +2792,7 @@ function QuestionPerformanceCard({ qp }) {
           {(qp.followups_asked || []).slice(0, 1).map((f, i) => <span key={i} className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400 max-w-xs truncate">{f}</span>)}
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -2891,14 +2915,23 @@ function DSAFeedback({ report, onRestart, onBack }) {
   const adv = ev.advanced_metrics || {}
   const breakdown = report.round_breakdown || {}
   const integrity = report.integrity || {}
+  const basis = breakdown.scoring_basis || {}
+  const solved = basis.solved_questions ?? 0
+  const assigned = basis.total_questions ?? 1
+  const missingRuns = basis.missing_code_runs ?? 0
+  const integrityEvents = integrity.violations?.length || 0
+  const simpleMetrics = ev.core_metrics || []
+  const metricScore = (name) => simpleMetrics.find((m) => m.name === name)?.score ?? 0
+  const strongTopics = ev.strong_dsa_topics || []
+  const weakTopics = ev.weak_dsa_topics || []
 
   return (
-    <main className="dashboard-shell min-h-screen text-slate-100">
+    <main className="dashboard-shell dsa-report-shell min-h-screen text-slate-100">
       <BackgroundCanvas />
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
 
         {/* Header */}
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
+        <motion.div className="report-hero mb-6 flex flex-wrap items-start justify-between gap-4 rounded border border-cyan-300/20 p-5" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div>
             {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
@@ -2925,7 +2958,14 @@ function DSAFeedback({ report, onRestart, onBack }) {
               )}
             </div>
           )}
-        </div>
+        </motion.div>
+
+        <motion.div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" initial="hidden" animate="show" variants={dashboardStagger}>
+          <DSAReportStat label="Overall score" value={`${Math.round(Number(report.overall_score) || 0)}/100`} helper="Correct code first; tab switches can reduce it." tone="cyan" />
+          <DSAReportStat label="Coding solved" value={`${solved}/${assigned}`} helper="Questions with all testcases passed." tone="emerald" />
+          <DSAReportStat label="Concept clarity" value={`${metricScore("Concept Clarity")}/100`} helper="Approach and DSA understanding." tone="cyan" />
+          <DSAReportStat label="Integrity" value={`${integrity.score ?? 100}/100`} helper={`${integrityEvents} event${integrityEvents === 1 ? "" : "s"} shown separately.`} tone={integrityEvents ? "amber" : "emerald"} />
+        </motion.div>
 
         {/* Main two-column layout */}
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -2933,22 +2973,34 @@ function DSAFeedback({ report, onRestart, onBack }) {
           {/* Left column */}
           <div className="space-y-6">
 
-            {/* Radar + core metrics header */}
+            {/* Core metrics */}
             {ev.core_metrics?.length > 0 && (
-              <div className="rounded border border-slate-800 bg-slate-900 p-5">
-                <h2 className="mb-4 text-base font-semibold text-slate-100">Core Evaluation Metrics</h2>
-                <div className="grid gap-6 md:grid-cols-[280px_1fr] items-start">
-                  <RadarChart metrics={ev.core_metrics} />
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {ev.core_metrics.map((m) => <MetricCard key={m.name} metric={m} />)}
-                  </div>
+              <motion.div className="report-panel rounded border border-slate-800 bg-slate-900 p-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                <h2 className="font-display mb-4 text-xl font-semibold text-slate-100">Core Result Fields</h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {ev.core_metrics.map((m) => <MetricCard key={m.name} metric={m} />)}
                 </div>
-              </div>
+              </motion.div>
             )}
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="report-panel rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="font-display text-lg font-semibold text-slate-100">Strong DSA Topics</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {strongTopics.length ? strongTopics.map((topic) => <span key={topic} className="rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-200">{topic}</span>) : <span className="text-sm text-slate-500">No clear strong topic signal yet.</span>}
+                </div>
+              </div>
+              <div className="report-panel rounded border border-slate-800 bg-slate-900 p-5">
+                <h2 className="font-display text-lg font-semibold text-slate-100">Weak DSA Topics</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {weakTopics.length ? weakTopics.map((topic) => <span key={topic} className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-200">{topic}</span>) : <span className="text-sm text-slate-500">No weak topic signal yet.</span>}
+                </div>
+              </div>
+            </div>
+
             {/* Advanced metrics */}
-            {adv.company_fit && (
-              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+            {false && adv.company_fit && (
+              <motion.div className="report-panel rounded border border-slate-800 bg-slate-900 p-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
                 <h2 className="mb-4 text-base font-semibold text-slate-100">Company Fit Analysis</h2>
                 <AdvancedMetricCard title="Company Fit" score={adv.company_fit.score}>
                   <p className="text-xs leading-5 text-slate-400 mb-2">{adv.company_fit.note}</p>
@@ -2961,12 +3013,12 @@ function DSAFeedback({ report, onRestart, onBack }) {
                     ))}
                   </div>
                 </AdvancedMetricCard>
-              </div>
+              </motion.div>
             )}
 
             {/* Company-tailored */}
-            {ct.company && (
-              <div className="rounded border border-slate-800 bg-slate-900 p-5">
+            {false && ct.company && (
+              <motion.div className="report-panel rounded border border-slate-800 bg-slate-900 p-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-semibold text-slate-100">{ct.company} — Company-Tailored Evaluation</h2>
                   {ct.bar_assessment && (
@@ -3000,11 +3052,11 @@ function DSAFeedback({ report, onRestart, onBack }) {
                     {ct.summary}
                   </div>
                 )}
-              </div>
+              </motion.div>
             )}
 
             {/* Benchmarking */}
-            {ev.benchmarking && (
+            {false && ev.benchmarking && (
               <div className="rounded border border-slate-800 bg-slate-900 p-5">
                 <div className="flex items-start justify-between mb-4 gap-4">
                   <h2 className="text-base font-semibold text-slate-100">Comparative Benchmarking</h2>
@@ -3028,7 +3080,7 @@ function DSAFeedback({ report, onRestart, onBack }) {
             )}
 
             {/* Topic mastery heatmap */}
-            {report.topic_mastery?.length > 0 && (
+            {false && report.topic_mastery?.length > 0 && (
               <div className="rounded border border-slate-800 bg-slate-900 p-5">
                 <h2 className="mb-4 text-base font-semibold text-slate-100">Topic Mastery</h2>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -3043,7 +3095,7 @@ function DSAFeedback({ report, onRestart, onBack }) {
           <div className="space-y-5">
             <VerdictCard verdict={verdict} overallScore={report.overall_score} />
 
-            {ev.weakness_analysis?.length > 0 && (
+            {false && ev.weakness_analysis?.length > 0 && (
               <div className="rounded border border-slate-800 bg-slate-900 p-4">
                 <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Weakness Analysis</h2>
                 <div className="space-y-3">
@@ -3052,7 +3104,7 @@ function DSAFeedback({ report, onRestart, onBack }) {
               </div>
             )}
 
-            {ev.strength_recognition?.length > 0 && (
+            {false && ev.strength_recognition?.length > 0 && (
               <div className="rounded border border-slate-800 bg-slate-900 p-4">
                 <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Strengths Recognized</h2>
                 <div className="space-y-3">
@@ -3061,7 +3113,7 @@ function DSAFeedback({ report, onRestart, onBack }) {
               </div>
             )}
 
-            {ev.behavior_coaching?.length > 0 && (
+            {false && ev.behavior_coaching?.length > 0 && (
               <div className="rounded border border-slate-800 bg-slate-900 p-4">
                 <h2 className="mb-3 text-sm font-semibold text-slate-100 uppercase tracking-wide">Behavior Coaching</h2>
                 <div className="space-y-3">
@@ -3096,7 +3148,7 @@ function DSAFeedback({ report, onRestart, onBack }) {
             </div>
           )}
 
-          {ev.improvement_recommendations?.length > 0 && (
+          {false && ev.improvement_recommendations?.length > 0 && (
             <div className="rounded border border-slate-800 bg-slate-900 p-5">
               <h2 className="mb-4 text-base font-semibold text-slate-100">Improvement Recommendations</h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -3105,10 +3157,10 @@ function DSAFeedback({ report, onRestart, onBack }) {
             </div>
           )}
 
-          <LearningPlanSection plan={ev.learning_plan || {}} />
+          {false && <LearningPlanSection plan={ev.learning_plan || {}} />}
 
           {/* Evidence */}
-          {breakdown.evidence?.length > 0 && <EvidencePanel evidence={breakdown.evidence} />}
+          {false && breakdown.evidence?.length > 0 && <EvidencePanel evidence={breakdown.evidence} />}
 
         </div>
 
@@ -4131,7 +4183,6 @@ function roundBreakdownItems(section) {
     section.topics_covered?.length && `Topics covered: ${section.topics_covered.join(", ")}`,
     section.strong_topics?.length && `Strong topics: ${section.strong_topics.join(", ")}`,
     section.weak_topics?.length && `Weak topics: ${section.weak_topics.join(", ")}`,
-    section.scratchpad_observations?.length && `Scratchpad turns: ${section.scratchpad_observations.length}`,
     ...(section.latest_flags || []),
   ].filter(Boolean)
   return []
@@ -4139,7 +4190,7 @@ function roundBreakdownItems(section) {
 
 function formatEvidence(item) {
   if (item.role && item.content) return `${item.role}: ${item.content}`
-  if (item.topic) return `${item.topic} | ${item.question_type || "question"}\nAnswer: ${item.answer_excerpt || ""}\nScratchpad: ${item.scratchpad_excerpt || ""}`
+  if (item.topic) return `${item.topic} | ${item.question_type || "question"}\nAnswer: ${item.answer_excerpt || ""}`
   if (item.phase) return `${item.phase}\nAnswer: ${item.answer_text || item.answer_excerpt || ""}\nFlags: ${(item.flags || []).join("; ")}`
   return JSON.stringify(item, null, 2)
 }

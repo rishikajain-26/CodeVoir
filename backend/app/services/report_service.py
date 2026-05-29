@@ -82,6 +82,7 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
     passed = int(latest.get("passed_testcases", 0) or 0)
     total = int(latest.get("total_testcases", 0) or 0)
     run_score = float(latest.get("overall_score", 0) or 0)
+    question_scoring = _dsa_question_scoring(session)
     hints = int(session.get("hint_count", 0) or 0)
     code_analysis = session.get("latest_code_analysis", {})
     dsa_memory = session.get("dsa", {})
@@ -105,16 +106,15 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
         weak_areas.extend(code_analysis["optimization_prompts"][:2])
     if not total:
         weak_areas.append("No code submission was recorded, so correctness evidence is limited.")
-    # Use accumulated graph session score when no code run; never pad with arbitrary constant
-    _dsa_mem = session.get("dsa", {})
-    _sess_sc = _dsa_mem.get("session_scores") if isinstance(_dsa_mem.get("session_scores"), dict) else {}
-    _sess_raw = float(_sess_sc.get("overall", 0) or 0)  # 0-1 scale
-    _exchange_ct = int(session.get("exchange_count", 0) or 0)
-    _no_code_score = round(_sess_raw * 80, 1) if _sess_raw > 0 else 0
+    if question_scoring.get("missing_code_runs"):
+        weak_areas.append(
+            f"No runnable code was recorded for {question_scoring['missing_code_runs']} assigned question(s); unfinished questions are scored heavily."
+        )
     return {
         "type": "dsa",
         "title": "DSA Round",
-        "round_score": round(run_score if total else (_no_code_score if _exchange_ct > 0 else 0), 1),
+        "round_score": question_scoring["round_score"],
+        "scoring_basis": question_scoring,
         "hiring_recommendation": graph_report.get("recommendation", ""),
         "recommendation_rationale": graph_report.get("recommendation_rationale", ""),
         "radar_data": graph_report.get("radar_data", {}),
@@ -132,6 +132,7 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
             "total_testcases": total,
             "overall_score": run_score,
         },
+        "question_performance": question_scoring["questions"],
         "strengths": _dedupe(strengths),
         "weak_areas": _dedupe(weak_areas),
         "evidence": _message_evidence(session, 4),
@@ -255,7 +256,6 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
     questions = memory.get("questions_asked", [])
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
-    scratchpad_history = memory.get("scratchpad_history", [])
     score = _avg_question_scores(questions) if questions else (_avg_scores_to_hundred(latest_scores) if latest_scores else 0)
     strengths = []
     weak_areas = list(latest_flags)
@@ -268,8 +268,6 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
     strong_evidence = _cs_strength_evidence(questions)
     if strong_evidence:
         strengths.extend(strong_evidence[:3])
-    if scratchpad_history:
-        strengths.append(f"Used scratchpad evidence in {len(scratchpad_history)} turn{'s' if len(scratchpad_history) != 1 else ''}.")
     if memory.get("weak_topics"):
         weak_areas.append(f"Weak topics to revise: {', '.join(memory.get('weak_topics', [])[:4])}.")
     weak_areas.extend(llm_weak_areas[:4])
@@ -304,7 +302,6 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
         "weak_topics": memory.get("weak_topics", []),
         "latest_scores": latest_scores,
         "latest_flags": latest_flags,
-        "scratchpad_observations": scratchpad_history[-5:],
         "pending_question": memory.get("pending_question", {}),
         "last_answered_topic": memory.get("last_answered_topic", ""),
         "evaluation_sources": evaluation_sources,
@@ -586,7 +583,141 @@ def _cap_score(score: int | float, cap: int | float) -> int:
     return int(round(max(0, min(float(score), float(cap)))))
 
 
+def _dsa_total_questions(session: dict[str, Any]) -> int:
+    progress = session.get("dsa_progress") or {}
+    round_config = session.get("round_config") or {}
+    return max(1, int(progress.get("total_questions") or round_config.get("question_count") or 1))
+
+
+def _dsa_runs_by_question(session: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    progress = session.get("dsa_progress") or {}
+    current_q = int(progress.get("current_question_index", 1) or 1)
+    runs = [*(session.get("dsa_question_results") or []), *(session.get("code_runs") or [])]
+    best: dict[int, dict[str, Any]] = {}
+    for run in runs:
+        if not isinstance(run, dict):
+            continue
+        q_idx = int(run.get("question_index") or current_q or 1)
+        prior = best.get(q_idx)
+        score = float(run.get("overall_score", 0) or 0)
+        prior_score = float(prior.get("overall_score", 0) or 0) if prior else -1
+        if prior is None or score >= prior_score:
+            best[q_idx] = run
+    return best
+
+
+def _dsa_turns_by_question(session: dict[str, Any]) -> dict[int, list[dict[str, Any]]]:
+    dsa = session.get("dsa", {}) if isinstance(session.get("dsa"), dict) else {}
+    memory = dsa.get("memory") if isinstance(dsa.get("memory"), dict) else {}
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for turn in memory.get("turns") or []:
+        if isinstance(turn, dict):
+            grouped.setdefault(int(turn.get("turn", 1) or 1), []).append(turn)
+    return grouped
+
+
+def _dsa_explanation_credit(turns: list[dict[str, Any]], *, cap: int) -> int:
+    if not turns or cap <= 0:
+        return 0
+
+    def values(field: str) -> list[float]:
+        vals: list[float] = []
+        for turn in turns:
+            score = turn.get("score") if isinstance(turn.get("score"), dict) else {}
+            value = score.get(field)
+            if isinstance(value, (int, float)):
+                vals.append(max(0.0, min(1.0, float(value))))
+        return vals
+
+    def avg(field: str) -> float:
+        vals = values(field)
+        return sum(vals) / len(vals) if vals else 0.0
+
+    approach = avg("approach_quality")
+    complexity = avg("complexity_accuracy")
+    relevance_vals = [v for v in values("answer_relevance") if v > 0]
+    relevance = sum(relevance_vals) / len(relevance_vals) if relevance_vals else 0.0
+    communication = avg("communication")
+    weighted = avg("weighted_total")
+
+    # Ordinary conversation, irrelevant replies, and confident but wrong narration
+    # should not inflate the result.
+    if weighted < 0.28 and approach < 0.35 and relevance < 0.35:
+        return 0
+    if approach < 0.25 and relevance < 0.30:
+        return 0
+
+    raw = (approach * 0.45) + (complexity * 0.25) + (relevance * 0.20) + (communication * 0.10)
+    return int(round(max(0.0, min(1.0, raw)) * cap))
+
+
+def _dsa_question_scoring(session: dict[str, Any]) -> dict[str, Any]:
+    total_questions = _dsa_total_questions(session)
+    runs_by_q = _dsa_runs_by_question(session)
+    turns_by_q = _dsa_turns_by_question(session)
+    questions: list[dict[str, Any]] = []
+
+    for q_idx in range(1, total_questions + 1):
+        run = runs_by_q.get(q_idx, {})
+        total = int(run.get("total_testcases", 0) or 0)
+        passed = int(run.get("passed_testcases", 0) or 0)
+        has_run = total > 0
+        solved = has_run and passed == total
+        test_pct = passed / total if total else 0.0
+        code_score = 100 if solved else int(round(test_pct * 85))
+        explanation_cap = 0 if solved else (15 if has_run else 30)
+        explanation_credit = _dsa_explanation_credit(turns_by_q.get(q_idx, []), cap=explanation_cap)
+        score = 100 if solved else min(85 if has_run else 30, code_score + explanation_credit)
+        verdict = (
+            "Solved" if solved else
+            "Partial" if has_run and passed > 0 else
+            "Explained" if explanation_credit > 0 else
+            "Incorrect" if has_run else
+            "Not attempted"
+        )
+        questions.append({
+            "question_index": q_idx,
+            "problem_title": run.get("problem_title", ""),
+            "problem_excerpt": run.get("problem_title", ""),
+            "passed_testcases": passed,
+            "total_testcases": total,
+            "has_code_run": has_run,
+            "solved": solved,
+            "code_score": code_score,
+            "explanation_credit": explanation_credit,
+            "overall_score": score,
+            "verdict": verdict,
+        })
+
+    return {
+        "round_score": round(sum(q["overall_score"] for q in questions) / max(total_questions, 1), 1),
+        "total_questions": total_questions,
+        "solved_questions": sum(1 for q in questions if q["solved"]),
+        "attempted_questions": sum(1 for q in questions if q["has_code_run"] or q["explanation_credit"] > 0),
+        "missing_code_runs": sum(1 for q in questions if not q["has_code_run"]),
+        "questions": questions,
+    }
+
+
 def _early_exit_penalty(session: dict[str, Any]) -> float:
+    scoring = _dsa_question_scoring(session)
+    missing_runs = int(scoring.get("missing_code_runs", 0) or 0)
+    total_questions = int(scoring.get("total_questions", 1) or 1)
+    if missing_runs <= 0:
+        return 0.0
+
+    prog = session.get("dsa_progress") or {}
+    penalty = min(45.0, missing_runs * (35.0 / max(total_questions, 1)))
+    allocated_s = float(prog.get("allocated_minutes", 0) or 0) * 60
+    elapsed_s = float(prog.get("elapsed_seconds", 0) or 0)
+    if allocated_s > 0 and elapsed_s > 0:
+        used = elapsed_s / allocated_s
+        if used < 0.5:
+            penalty += min(20.0, (0.5 - used) * 40)
+    return round(min(60.0, penalty), 1)
+
+    # Legacy implementation below is intentionally unreachable; kept temporarily to
+    # avoid a broad rewrite in this already-edited file.
     """Penalize abandoning the round early without a working solution.
 
     Compares time used vs allocated. Ending with <50% of the allotted time used and
@@ -614,6 +745,19 @@ def _early_exit_penalty(session: dict[str, Any]) -> float:
     return round(min(15.0, (0.5 - used) * 30), 1)
 
 
+def _tab_switch_penalty(session: dict[str, Any]) -> float:
+    signals = session.get("behavioral_signals") or {}
+    violations = session.get("violations") or []
+    focus_loss = int(signals.get("focus_loss", 0) or 0)
+    if focus_loss <= 0:
+        focus_loss = sum(
+            1
+            for violation in violations
+            if isinstance(violation, dict) and violation.get("type") in {"tab_hidden", "window_blur"}
+        )
+    return float(min(20, focus_loss * 5))
+
+
 def _overall_score(
     scores: dict[str, float],
     integrity_score: int,
@@ -621,8 +765,15 @@ def _overall_score(
     exchange_count: int = 0,
     session: dict[str, Any] | None = None,
 ) -> float:
+    if session and session.get("round_type", "dsa") == "dsa":
+        base = float(round_score or 0)
+        base -= _early_exit_penalty(session)
+        base -= _tab_switch_penalty(session)
+        return round(max(0.0, min(100.0, base)), 1)
+
     if exchange_count == 0:
         return 0.0
+
     # For DSA: use the graph's accumulated session score as the primary signal.
     # This avoids inflating the overall via keyword-based text scores that always
     # return a non-zero floor regardless of candidate quality.
@@ -662,8 +813,13 @@ def _summary(session: dict[str, Any], section: dict[str, Any], overall: float) -
     round_type = session.get("round_type", "")
     title = section.get("title", "Interview")
     evidence_count = len(section.get("evidence", []))
-    if round_type == "project_behavioral":
-        return f"{title} report for {role} at {company}. The score is {overall}/100 based on how directly and meaningfully the answers addressed the interviewer prompts."
+    if session.get("round_type", "dsa") == "dsa":
+        basis = section.get("scoring_basis", {}) if isinstance(section.get("scoring_basis"), dict) else {}
+        return (
+            f"{title} report for {role} at {company}. The score is {overall}/100 from "
+            f"{basis.get('solved_questions', 0)}/{basis.get('total_questions', 1)} solved coding question(s), "
+            "with limited explanation credit only when the answer was relevant. Integrity is shown separately and only tab switches reduce this score."
+        )
     return f"{title} report for {role} at {company}. The score is {overall}/100 based on {evidence_count} recorded evidence item{'s' if evidence_count != 1 else ''}, round-specific performance, and integrity signals."
 
 
@@ -681,7 +837,7 @@ def _practice_plan(round_type: str, weak_areas: list[str], section: dict[str, An
         return [
             topic_action,
             "Explain every concept with one definition, one example, and one tradeoff.",
-            "Use the scratchpad for SQL, process/thread sketches, transaction schedules, or protocol flows when helpful.",
+            "Practice SQL, process/thread sketches, transaction schedules, or protocol flows aloud with concise examples.",
             *_from_weak_areas(weak_areas),
         ][:6]
     return [
@@ -978,6 +1134,7 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
         # eval — so the roadmap is never hardcoded/repeated and coaching never claims
         # "basic interaction" on a no-show.
         dsa_eval = _reconcile_dsa_evaluation(dsa_eval, session, report)
+        dsa_eval = _simplify_dsa_evaluation(dsa_eval, session, report)
         report["dsa_evaluation"] = dsa_eval
         verdict_signal = (dsa_eval.get("final_verdict") or {}).get("signal", "")
         if verdict_signal:
@@ -1327,7 +1484,7 @@ def _reconcile_dsa_evaluation(ev: dict[str, Any], session: dict[str, Any], base:
     sess = dsa.get("session_scores") if isinstance(dsa.get("session_scores"), dict) else {}
     sess_overall = float(sess.get("overall", 0) or 0)
     overall = float(base.get("overall_score", 0) or 0)
-    engaged = exchange_count > 0 and (overall >= 1.0 or total > 0 or sess_overall > 0.01)
+    engaged = total > 0 or overall >= 1.0 or sess_overall > 0.01 or exchange_count > 0
 
     # Weak/strong skills derived from the eval's OWN core-metric scores → consistent
     # with the cards the candidate sees, no matter which path produced them.
@@ -1373,6 +1530,94 @@ def _reconcile_dsa_evaluation(ev: dict[str, Any], session: dict[str, Any], base:
         dsa=dsa,
     )
     return ev
+
+
+def _simplify_dsa_evaluation(ev: dict[str, Any], session: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
+    """Keep the DSA report focused on simple candidate-facing fields."""
+    if not isinstance(ev, dict):
+        return ev
+
+    scoring = _dsa_question_scoring(session)
+    total_q = int(scoring.get("total_questions", 1) or 1)
+    solved_q = int(scoring.get("solved_questions", 0) or 0)
+    code_score = int(round((solved_q / max(total_q, 1)) * 100))
+
+    metrics = {m.get("name"): int(m.get("score", 0) or 0) for m in ev.get("core_metrics", []) if isinstance(m, dict)}
+    communication = metrics.get("Communication & Explanation", 0)
+    concept_clarity = int(round((
+        metrics.get("Problem Solving Ability", 0)
+        + metrics.get("DSA Knowledge", 0)
+        + metrics.get("Complexity Analysis", metrics.get("Optimization Skill", 0))
+    ) / 3))
+    confidence = metrics.get("Confidence During Interview", 0)
+
+    problem_topics = (session.get("problem", {}) or {}).get("topics") or []
+    dsa = session.get("dsa", {}) if isinstance(session.get("dsa"), dict) else {}
+    known_weak = [str(x).replace("_", " ").title() for x in (dsa.get("known_weak_areas") or [])]
+    known_strong = [str(x).replace("_", " ").title() for x in (dsa.get("known_strong_areas") or [])]
+    topic_labels = [str(t).replace("_", " ").title() for t in problem_topics]
+
+    strong_topics = known_strong or (topic_labels if solved_q == total_q and solved_q > 0 else [])
+    weak_topics = known_weak or (topic_labels if solved_q < total_q else [])
+
+    simple_metrics = [
+        {
+            "name": "Coding Questions Solved",
+            "score": code_score,
+            "label": f"{solved_q}/{total_q}",
+            "note": "Calculated only from assigned questions with all runnable test cases passing.",
+        },
+        {
+            "name": "Communication",
+            "score": communication,
+            "label": _simple_metric_label(communication),
+            "note": "Based on relevant explanation and narration captured during the round.",
+        },
+        {
+            "name": "Concept Clarity",
+            "score": concept_clarity,
+            "label": _simple_metric_label(concept_clarity),
+            "note": "Combines problem-solving, DSA knowledge, and complexity reasoning signals.",
+        },
+        {
+            "name": "Confidence",
+            "score": confidence,
+            "label": _simple_metric_label(confidence),
+            "note": "Represents observed composure; it does not boost the final score.",
+        },
+    ]
+
+    return {
+        "core_metrics": simple_metrics,
+        "simple_metrics": {
+            "coding_questions_solved": {"solved": solved_q, "total": total_q, "score": code_score},
+            "communication": communication,
+            "concept_clarity": concept_clarity,
+            "confidence": confidence,
+            "weak_dsa_topics": weak_topics[:6],
+            "strong_dsa_topics": strong_topics[:6],
+            "integrity_score": (base.get("integrity") or {}).get("score", 100),
+            "overall_score": base.get("overall_score", 0),
+        },
+        "weak_dsa_topics": weak_topics[:6],
+        "strong_dsa_topics": strong_topics[:6],
+        "final_verdict": ev.get("final_verdict", {}),
+        "question_performance": _build_question_performance(
+            (dsa.get("memory") if isinstance(dsa.get("memory"), dict) else {}),
+            session,
+        ),
+        "_source": ev.get("_source", "simplified"),
+    }
+
+
+def _simple_metric_label(score: int) -> str:
+    if score >= 80:
+        return "Strong"
+    if score >= 60:
+        return "Good"
+    if score >= 40:
+        return "Developing"
+    return "Needs work"
 
 
 _WEAK_TO_TOPIC: dict[str, str] = {
@@ -1639,9 +1884,23 @@ def _build_personalized_recommendations(
     return recs[:5]
 
 
-def _build_question_performance(memory: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     turns: list[dict[str, Any]] = memory.get("turns") or []
     if not turns:
+        if session:
+            return [
+                {
+                    **q,
+                    "metrics": {
+                        "code_correctness": q.get("code_score", 0),
+                        "explanation_credit": q.get("explanation_credit", 0),
+                    },
+                    "turn_count": 0,
+                    "hints_used": 0,
+                    "followups_asked": [],
+                }
+                for q in _dsa_question_scoring(session).get("questions", [])
+            ]
         return []
 
     # Group by question index (turn field)
@@ -1650,6 +1909,10 @@ def _build_question_performance(memory: dict[str, Any]) -> list[dict[str, Any]]:
     for t in turns:
         q = int(t.get("turn", 1))
         groups[q].append(t)
+    scoring_by_q = {
+        q["question_index"]: q
+        for q in (_dsa_question_scoring(session).get("questions", []) if session else [])
+    }
 
     result = []
     for q_idx in sorted(groups):
@@ -1684,10 +1947,14 @@ def _build_question_performance(memory: dict[str, Any]) -> list[dict[str, Any]]:
         followups = [t.get("followup_asked") for t in q_turns if t.get("followup_asked")]
 
         problem_excerpt = q_turns[0].get("problem_excerpt", "") if q_turns else ""
+        scored_question = scoring_by_q.get(q_idx, {})
+        if scored_question:
+            overall = int(scored_question.get("overall_score", overall) or 0)
+            verdict = scored_question.get("verdict", verdict)
 
         result.append({
             "question_index": q_idx,
-            "problem_excerpt": problem_excerpt[:200],
+            "problem_excerpt": (scored_question.get("problem_excerpt") or problem_excerpt)[:200],
             "overall_score": overall,
             "verdict": verdict,
             "turn_count": len(q_turns),
@@ -1697,9 +1964,27 @@ def _build_question_performance(memory: dict[str, Any]) -> list[dict[str, Any]]:
                 "implementation": implementation,
                 "communication": communication,
                 "debugging": debugging,
+                "code_correctness": scored_question.get("code_score", 0),
+                "explanation_credit": scored_question.get("explanation_credit", 0),
             },
             "followups_asked": followups[:3],
         })
+
+    if session:
+        seen = {item["question_index"] for item in result}
+        for q in _dsa_question_scoring(session).get("questions", []):
+            if q["question_index"] not in seen:
+                result.append({
+                    **q,
+                    "metrics": {
+                        "code_correctness": q.get("code_score", 0),
+                        "explanation_credit": q.get("explanation_credit", 0),
+                    },
+                    "turn_count": 0,
+                    "hints_used": 0,
+                    "followups_asked": [],
+                })
+        result.sort(key=lambda item: item.get("question_index", 0))
 
     return result
 
@@ -1727,6 +2012,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
     latest_run = code_runs[-1] if code_runs else {}
     passed = int(latest_run.get("passed_testcases", 0) or 0)
     total = int(latest_run.get("total_testcases", 0) or 0)
+    question_scoring = _dsa_question_scoring(session)
+    question_rows = question_scoring.get("questions", [])
+    solved_questions = int(question_scoring.get("solved_questions", 0) or 0)
+    assigned_questions = int(question_scoring.get("total_questions", 1) or 1)
+    missing_code_runs = int(question_scoring.get("missing_code_runs", 0) or 0)
     hint_count = int(session.get("hint_count", 0) or 0)
     signals = session.get("behavioral_signals", {})
     known_weak = (dsa.get("known_weak_areas") or [])[:4]
@@ -1745,7 +2035,7 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
     # estimate derived from a neutral default.
     sess_overall_raw = float(sess_scores.get("overall", 0) or 0)  # 0–1
     exchange_count = int(session.get("exchange_count", 0) or 0)
-    engaged = exchange_count > 0 and (overall >= 1.0 or total > 0 or sess_overall_raw > 0.01)
+    engaged = total > 0 or overall >= 1.0 or sess_overall_raw > 0.01 or exchange_count > 0
 
     def _s(v: Any, default: float = 50.0) -> int:
         """Normalise a 0–1 float or 0–100 number to an integer 0–100."""
@@ -1798,7 +2088,10 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
 
     # Coding Accuracy measures whether code actually WORKED. If no code was executed
     # there is nothing to verify — it must be 0, never the implementation sub-score.
-    code_acc   = round(passed / total * 100) if total else 0
+    code_acc = (
+        int(round(sum(q.get("code_score", 0) for q in question_rows) / max(assigned_questions, 1)))
+        if question_rows else 0
+    )
     # Hint dependency is a real score only once the candidate has engaged; with zero
     # engagement "100% independent" is misleading, so it's gated below.
     hint_dep   = max(0, 100 - hint_count * 18)
@@ -1849,7 +2142,7 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         {"name": "Problem Solving Ability",    "score": ps,        "label": _label(ps),        "note": (f"Derived from approach quality and solution strategy ({_src}). {'Known strengths: ' + ', '.join(known_strong[:2]) + '.' if known_strong else 'State your approach and brute-force before optimising for a richer signal.'}") if engaged else _ne.strip()},
         {"name": "DSA Knowledge",              "score": dsa_k,     "label": _label(dsa_k),     "note": (f"Based on data structures and patterns demonstrated ({_src}). {'Flagged gaps: ' + ', '.join(known_weak[:2]) + '.' if known_weak else 'No specific gaps flagged by the session graph.'}") if engaged else _ne.strip()},
         {"name": "Optimization Skill",         "score": complexity, "label": _label(complexity), "note": (f"Derived from complexity analysis accuracy across turns ({_src}). {'Weak area detected: complexity_analysis.' if 'complexity_analysis' in _weak_set else 'State time/space complexity before coding each turn.'}") if engaged else _ne.strip()},
-        {"name": "Coding Accuracy",            "score": code_acc,  "label": _label(code_acc),  "note": (f"{'Passed ' + str(passed) + '/' + str(total) + ' runnable test cases.' if total else 'No code submission recorded — submit code for a precise correctness score.'}") if engaged else _ne.strip()},
+        {"name": "Coding Accuracy",            "score": code_acc,  "label": _label(code_acc),  "note": (f"Solved {solved_questions}/{assigned_questions} assigned question(s) with runnable code. {'No code run for ' + str(missing_code_runs) + ' question(s).' if missing_code_runs else 'Every assigned question had runnable evidence.'}") if engaged else _ne.strip()},
         {"name": "Communication & Explanation","score": comm,      "label": _label(comm),      "note": (f"Based on explanation clarity and reasoning quality across turns ({_src}). {'Weak area detected: communication.' if 'communication' in _weak_set else 'Narrate your invariant and edge cases before submitting.'}") if engaged else _ne.strip()},
         {"name": "Confidence During Interview","score": avg_conf,  "label": _label(avg_conf),  "note": (f"{'Confidence trend observed: ' + str([round(c, 2) for c in confidence_trend[-4:]]) + '.' if confidence_trend else 'Confidence estimated from session turn patterns and speech signals.'}") if engaged else _ne.strip()},
         {"name": "Hint Dependency",            "score": hint_dep,  "label": _label(hint_dep),  "note": (f"Used {hint_count} hint{'s' if hint_count != 1 else ''} during the session. {'Fewer hints = higher independent problem-solving score.' if hint_count else 'No hints requested — full independence demonstrated.'}") if engaged else _ne.strip()},
@@ -1863,7 +2156,7 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         "company_fit": {
             "score": round(overall),
             "fit_signals": known_strong[:3],
-            "concern_signals": known_weak[:3] or (["No code submission recorded."] if not total else []),
+            "concern_signals": known_weak[:3] or ([f"No code run for {missing_code_runs} assigned question(s)."] if missing_code_runs else []),
             "note": f"Company fit estimated from overall session performance ({round(overall)}/100) and identified signals.",
         },
     }
@@ -1888,7 +2181,7 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         "optimization_quality": {"score": complexity, "note": f"Optimization signals at {company}: complexity accuracy and approach quality are key signals at this company."},
         "communication_clarity": {"score": comm, "note": f"Communication at {company}: interviewers expect clear narration of approach, invariant, and complexity."},
         "followup_handling":     {"score": fu_handling, "note": fu_note},
-        "coding_speed":          {"score": code_acc, "note": f"{'No submission recorded.' if not total else f'{passed}/{total} tests passed — speed and accuracy both matter.'}"},
+        "coding_speed":          {"score": code_acc, "note": f"{solved_questions}/{assigned_questions} assigned question(s) solved with runnable code; unfinished/no-run questions are heavily penalized."},
         "debugging_behavior":    {"score": dbg, "note": "Debugging behavior derived from error recovery signals during the session."},
         "summary": f"Overall performance at {company} maps to a {'strong' if overall >= 75 else ('borderline' if overall >= 58 else 'developing')} candidate profile. {'Focus on optimization depth and edge case reasoning to meet the bar.' if overall < 75 else 'Maintain this level and strengthen the weakest metric.'}",
     }
@@ -1915,12 +2208,12 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         }
         for w in known_weak[:4]
     ]
-    if not weakness_analysis and total and passed < total:
+    if not weakness_analysis and (missing_code_runs or (total and passed < total)):
         weakness_analysis = [{
             "area": "Test Case Coverage",
-            "specific_issue": f"Code passed {passed}/{total} test cases — some cases still failing.",
-            "why_it_matters": "Failing visible tests is an immediate red flag in any coding interview.",
-            "improvement": "Trace through each failing case manually. Identify whether it is a logic bug, edge case, or overflow.",
+            "specific_issue": f"Solved {solved_questions}/{assigned_questions} assigned question(s) with runnable code; {missing_code_runs} question(s) had no code run.",
+            "why_it_matters": "Interviewers primarily score working solutions for every assigned question.",
+            "improvement": "Run code for every question before ending. For failing cases, trace the exact input manually before changing code.",
         }]
     if not weakness_analysis and not engaged:
         weakness_analysis = [{
@@ -1939,11 +2232,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         }
         for s in known_strong[:3]
     ]
-    if total and passed == total:
+    if solved_questions == assigned_questions and assigned_questions > 0:
         strength_recognition.insert(0, {
             "strength": "Code Correctness",
-            "evidence": f"Code passed all {total} runnable test cases.",
-            "interview_value": "Passing all test cases is the minimum bar for any hire signal at FAANG-style interviews.",
+            "evidence": f"Runnable code solved all {assigned_questions} assigned question(s).",
+            "interview_value": "Solving every assigned question with code is the strongest signal in this DSA report.",
         })
     # Improvement recommendations — built from actual session signals
     improvement_recommendations = _build_personalized_recommendations(
@@ -2002,7 +2295,7 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
             {"metric": "Complexity Analysis", "candidate_score": complexity, "faang_bar": 80, "gap_note": f"{'On target.' if complexity >= 80 else f'Gap of {80 - complexity} pts — always state and justify O() before coding.'}"},
             {"metric": "Hint Independence",   "candidate_score": hint_dep,  "faang_bar": 85, "gap_note": f"{'On target.' if hint_dep >= 85 else f'Gap of {85 - hint_dep} pts — practice driving to solutions without external prompts.'}"},
         ],
-        "overall_readiness_note": f"Current performance places you at approximately {faang_score}/100 FAANG readiness, estimated {level} level. {'No code submission limits accuracy — always submit to generate precise signals.' if not total else f'With {passed}/{total} tests passing, the next focus should be edge case coverage and optimization narration.'}",
+        "overall_readiness_note": f"Current performance places you at approximately {faang_score}/100 FAANG readiness, estimated {level} level. Solved {solved_questions}/{assigned_questions} assigned question(s) with runnable code; missing code runs are penalized before integrity is shown separately.",
     }
 
     # Final verdict mapping
@@ -2020,10 +2313,10 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
     final_verdict = {
         "signal": verdict_signal,
         "confidence_score": min(88, round(overall)),
-        "summary": f"Session score: {round(overall)}/100. {'No code submission was recorded, limiting evaluation accuracy.' if not total else f'Code correctness ({passed}/{total} tests) and problem-solving approach were the primary evaluation signals.'} {'Focus areas: ' + ', '.join(known_weak[:2]) + '.' if known_weak else ''}",
-        "biggest_strength":   known_strong[0].replace("_", " ").title() if known_strong else ("Code correctness" if total and passed == total else "Session engagement"),
-        "biggest_weakness":   known_weak[0].replace("_", " ").title() if known_weak else ("No code submission — correctness cannot be evaluated" if not total else "Edge case coverage and optimization narration"),
-        "most_important_next_step": "Submit a code solution in every session — even incomplete code generates evaluation signals that are otherwise missing." if not total else "Before every submission, enumerate edge cases and state the time/space complexity out loud.",
+        "summary": f"Session score: {round(overall)}/100. Runnable correctness across assigned questions was the primary signal: {solved_questions}/{assigned_questions} solved. {'Focus areas: ' + ', '.join(known_weak[:2]) + '.' if known_weak else ''}",
+        "biggest_strength":   known_strong[0].replace("_", " ").title() if known_strong else ("Code correctness" if solved_questions == assigned_questions and assigned_questions > 0 else "Session engagement"),
+        "biggest_weakness":   known_weak[0].replace("_", " ").title() if known_weak else (f"No code run for {missing_code_runs} assigned question(s)" if missing_code_runs else "Edge case coverage and optimization narration"),
+        "most_important_next_step": "Run code for every assigned question before ending the interview." if missing_code_runs else "Before every submission, enumerate edge cases and state the time/space complexity out loud.",
     }
 
     return {
@@ -2037,7 +2330,7 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         "benchmarking": benchmarking,
         "strength_recognition": strength_recognition,
         "final_verdict": final_verdict,
-        "question_performance": _build_question_performance(memory_raw),
+        "question_performance": _build_question_performance(memory_raw, session),
         "_source": "heuristic",
     }
 
@@ -2164,7 +2457,6 @@ def _build_cs_deep_context(session: dict[str, Any], base: dict[str, Any]) -> dic
         "topics_covered": (cs.get("topics_covered") or [])[:8],
         "strong_topics": (cs.get("strong_topics") or [])[:5],
         "weak_topics": (cs.get("weak_topics") or [])[:5],
-        "scratchpad_observations": (cs.get("scratchpad_history") or [])[-4:],
         "questions_summary": question_summary,
         "heuristic_signals": {
             "strengths": (section.get("strengths") or [])[:4],
