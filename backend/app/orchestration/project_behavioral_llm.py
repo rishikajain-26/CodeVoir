@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.services.llm_service import llm_service
+
+logger = logging.getLogger(__name__)
+
+
+def _clip(value: Any, limit: int) -> str:
+    text = str(value or "").strip()
+    return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
 
 
 def _to_float(value: Any) -> float:
@@ -195,7 +203,7 @@ def build_project_behavioral_evaluation_payload(
         "phase": phase,
         "job_role": session.get("job_role", ""),
         "target_company": session.get("target_company", ""),
-        "job_description": session.get("job_description", ""),
+        "job_description": _clip(session.get("job_description", ""), 600),
         "company_profile": company_profile,
         "jd_signals": jd_signals,
         "resume_signals": resume_signals,
@@ -205,10 +213,10 @@ def build_project_behavioral_evaluation_payload(
             "active_project": resume_signals.get("selected_project", ""),
             "selected_project_source": resume_signals.get("selected_project_source", ""),
         },
-        "prior_turns": memory.get("turns", [])[-8:],
+        "prior_turns": memory.get("turns", [])[-4:],
         "conversation_history": [
             {"role": m["role"], "content": m["content"]}
-            for m in session.get("messages", [])[-10:]
+            for m in session.get("messages", [])[-6:]
             if m.get("role") in ("candidate", "interviewer")
         ],
         "required_json_fields": list(ProjectBehavioralLLMEvaluation.model_fields.keys()),
@@ -242,17 +250,18 @@ def evaluate_project_behavioral_with_llm(
         PROJECT_BEHAVIORAL_EVALUATION_SYSTEM_PROMPT,
         json.dumps(payload, ensure_ascii=True),
         ProjectBehavioralLLMEvaluation,
-        max_tokens=750,
+        max_tokens=1000,
         temperature=0.2,
     )
     if result:
         return result.as_graph_evaluation()
 
+    logger.warning("Project behavioral structured LLM parse failed; falling back to text LLM.")
     next_question = llm_service.generate(
         "You are a realistic Project + Behavioural interviewer. The structured evaluator failed, "
         "so write only the next interviewer message in plain text. Respect candidate corrections and project-switch requests, "
-        "then ask at most one natural follow-up question.",
-        json.dumps(payload, ensure_ascii=True),
+        "then ask at most one natural follow-up question. Do not write JSON.",
+        _build_project_behavioral_text_fallback_payload(payload),
         fallback="",
         temperature=0.35,
         max_tokens=200,
@@ -280,4 +289,34 @@ def evaluate_project_behavioral_with_llm(
         "followup_intent": "move_forward",
         "next_question": next_question,
         "next_question_reason": "Structured LLM output could not be parsed; used natural LLM response.",
+    }
+
+
+def _build_project_behavioral_text_fallback_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    resume_signals = payload.get("resume_signals") or {}
+    company_profile = payload.get("company_profile") or {}
+    return {
+        "round_type": "project_behavioral",
+        "phase": payload.get("phase", ""),
+        "target_company": payload.get("target_company", ""),
+        "job_role": payload.get("job_role", ""),
+        "job_description_summary": _clip(payload.get("job_description", ""), 700),
+        "company_style": company_profile.get("interview_style", ""),
+        "company_focus_areas": company_profile.get("focus_areas", [])[:8],
+        "active_project": resume_signals.get("selected_project", ""),
+        "project_summary": _clip(resume_signals.get("project_summary", ""), 700),
+        "candidate_answer": _clip(payload.get("candidate_answer", ""), 1200),
+        "prior_turns": [
+            {
+                "phase": turn.get("phase", ""),
+                "answer_excerpt": _clip(turn.get("answer_excerpt", ""), 350),
+                "next_question": _clip(turn.get("next_question", ""), 350),
+            }
+            for turn in payload.get("prior_turns", [])[-4:]
+            if isinstance(turn, dict)
+        ],
+        "instruction": (
+            "Reply as the interviewer only. If the answer is vague, ask for ownership, tradeoffs, "
+            "metrics, STAR result, or technical depth. Ask exactly one question."
+        ),
     }

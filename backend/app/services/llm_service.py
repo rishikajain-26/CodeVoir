@@ -83,8 +83,10 @@ class LLMService:
             result = response_schema.model_validate(parsed_json)
             health.record_ok()
             return result
-        except Exception as exc:
-            health.record_exception(exc)
+        except Exception:
+            # The provider responded, so the model is reachable. Callers can use
+            # their local fallback without making the global AI status look down.
+            health.record_ok()
             return None
 
     def _generate_litellm(

@@ -215,9 +215,9 @@ class StartSessionRequest(BaseModel):
 class MessageRequest(BaseModel):
     session_id: str
     user_text: str
-    behavioral_metrics: dict[str, Any] = {}
-    code_context: dict[str, Any] = {}
-    scratchpad: dict[str, Any] = {}
+    behavioral_metrics: dict[str, Any] = Field(default_factory=dict)
+    code_context: dict[str, Any] = Field(default_factory=dict)
+    scratchpad: Any = Field(default_factory=dict)
 
 
 class CodeSubmitRequest(BaseModel):
@@ -269,6 +269,8 @@ async def _lifespan(app: FastAPI):
         _scheduler_task.cancel()
         try:
             await _scheduler_task
+        except asyncio.CancelledError:
+            pass
         except Exception:
             pass
 
@@ -457,9 +459,9 @@ async def oauth_login():
 @app.get("/api/auth/callback")
 async def oauth_callback(request: Request, code: str = "", state: str = ""):
     if not code:
-        raise HTTPException(status_code=400, detail="OAuth callback is missing code.")
+        return RedirectResponse(f"{_frontend_url()}?auth_error=oauth_missing_code")
     if not state or state != request.cookies.get("oauth_state"):
-        raise HTTPException(status_code=400, detail="OAuth state check failed.")
+        return RedirectResponse(f"{_frontend_url()}?auth_error=oauth_state")
     token_payload = _oauth_exchange_code(code, request.cookies.get("oauth_verifier", ""))
     userinfo = _oauth_userinfo(token_payload.get("access_token", ""))
     profile = _profile_from_userinfo(userinfo)
@@ -603,12 +605,13 @@ async def interview_message(payload: MessageRequest):
     session["messages"].append({"role": "candidate", "content": user_text, "ts": _now()})
     session["exchange_count"] = int(session.get("exchange_count", 0) or 0) + 1
     session["question_count"] = session["exchange_count"]
+    scratchpad = _normalize_scratchpad(payload.scratchpad)
     _ingest_code_context(session, payload.code_context, source="message")
     if session.get("round_type") != "cs_fundamentals":
-        _ingest_scratchpad(session, payload.scratchpad)
+        _ingest_scratchpad(session, scratchpad)
     _update_behavior(session, user_text, payload.behavioral_metrics)
     prior_problem_id = str((session.get("problem") or {}).get("id", ""))
-    ai_text = await _next_interview_turn(session, user_text, payload.scratchpad, payload.behavioral_metrics)
+    ai_text = await _next_interview_turn(session, user_text, scratchpad, payload.behavioral_metrics)
     session["messages"].append({"role": "interviewer", "content": ai_text, "ts": _now()})
     progress = _dsa_progress_payload(session)
     if progress.get("time_expired") and session.get("round_type") == "dsa":
@@ -942,6 +945,8 @@ def _xp_title(level: int) -> str:
 @app.get("/api/feedback/{session_id}")
 async def get_feedback(session_id: str):
     session = _require_session(session_id)
+    if session.get("report"):
+        return session["report"]
     report = await _feedback_report(session)
     session["report"] = report
     session["phase"] = "complete"
@@ -1476,6 +1481,17 @@ def _ingest_scratchpad(session: dict[str, Any], scratchpad: dict[str, Any]) -> N
         "ts": _now(),
     })
     session["scratchpad_history"] = session["scratchpad_history"][-20:]
+
+
+def _normalize_scratchpad(scratchpad: Any) -> dict[str, Any]:
+    if not scratchpad:
+        return {}
+    if isinstance(scratchpad, dict):
+        return scratchpad
+    if isinstance(scratchpad, str):
+        content = scratchpad.strip()
+        return {"content": content, "mode": "text"} if content else {}
+    return {}
 
 
 async def _next_interview_turn(
