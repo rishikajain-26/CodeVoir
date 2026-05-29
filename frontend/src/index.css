@@ -78,6 +78,93 @@ body,
   transform: translateY(-1px);
 }
 
+.dsa-report-shell {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(34, 211, 238, 0.16), transparent 24rem),
+    radial-gradient(circle at 86% 8%, rgba(16, 185, 129, 0.13), transparent 22rem),
+    radial-gradient(circle at 50% 58%, rgba(59, 130, 246, 0.10), transparent 30rem),
+    linear-gradient(135deg, #020617 0%, #07111f 54%, #030712 100%);
+}
+
+.report-hero,
+.report-panel,
+.report-pop-card {
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.report-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(8, 47, 73, 0.76), rgba(15, 23, 42, 0.72) 48%, rgba(6, 78, 59, 0.48)),
+    rgba(2, 6, 23, 0.62);
+}
+
+.report-hero::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto auto -18%;
+  width: 34rem;
+  height: 34rem;
+  background: conic-gradient(from 120deg, rgba(34, 211, 238, 0.0), rgba(34, 211, 238, 0.18), rgba(16, 185, 129, 0.10), rgba(34, 211, 238, 0.0));
+  filter: blur(18px);
+  animation: report-sweep 9s linear infinite;
+  pointer-events: none;
+}
+
+.report-panel {
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.78)),
+    rgba(15, 23, 42, 0.72);
+}
+
+.report-pop-card {
+  position: relative;
+  overflow: hidden;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.report-pop-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: translateX(-120%);
+  transition: transform 520ms ease;
+  pointer-events: none;
+}
+
+.report-pop-card:hover {
+  border-color: rgba(34, 211, 238, 0.42);
+  box-shadow: 0 26px 78px rgba(34, 211, 238, 0.12);
+}
+
+.report-pop-card:hover::before {
+  transform: translateX(120%);
+}
+
+.verdict-glow {
+  animation: report-card-in 520ms ease both, dashboard-breathe 5s ease-in-out infinite;
+}
+
+@keyframes report-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes report-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .interview-setup-card {
   border-radius: 8px;
   border: 1px solid rgba(56, 189, 248, 0.18);

@@ -604,7 +604,8 @@ async def interview_message(payload: MessageRequest):
     session["exchange_count"] = int(session.get("exchange_count", 0) or 0) + 1
     session["question_count"] = session["exchange_count"]
     _ingest_code_context(session, payload.code_context, source="message")
-    _ingest_scratchpad(session, payload.scratchpad)
+    if session.get("round_type") != "cs_fundamentals":
+        _ingest_scratchpad(session, payload.scratchpad)
     _update_behavior(session, user_text, payload.behavioral_metrics)
     prior_problem_id = str((session.get("problem") or {}).get("id", ""))
     ai_text = await _next_interview_turn(session, user_text, payload.scratchpad, payload.behavioral_metrics)
@@ -664,7 +665,9 @@ async def submit_code(payload: CodeSubmitRequest):
     session["code_snapshots"].append({"language": payload.language, "code": payload.code[-8000:], "ts": _now()})
     session["latest_code_analysis"] = _code_insights(payload.code, payload.language, problem)
     result = _run_code_tests(payload.code, problem["testcases"], payload.language, problem)
+    _tag_dsa_code_run(session, result, problem)
     session["code_runs"].append(result)
+    session.setdefault("dsa_question_results", []).append(dict(result))
     session["latest_code_run"] = result
     review = _code_review(payload.code, result, problem, payload.language)
     progress = _dsa_progress_payload(session)
@@ -712,9 +715,11 @@ async def run_tests_only(payload: CodeSubmitRequest):
             },
         )
     result = _run_code_tests(payload.code, problem["testcases"], payload.language, problem)
+    _tag_dsa_code_run(session, result, problem)
     session["code_snapshots"].append({"language": payload.language, "code": payload.code[-8000:], "ts": _now()})
     session["latest_code_analysis"] = _code_insights(payload.code, payload.language, problem)
     session["code_runs"].append(result)
+    session.setdefault("dsa_question_results", []).append(dict(result))
     session["latest_code_run"] = result
     _persist(session)
     return {"result": result}
@@ -1248,6 +1253,18 @@ def _maybe_advance_dsa_question(session: dict[str, Any], *, reason: str) -> dict
     return progress
 
 
+def _tag_dsa_code_run(session: dict[str, Any], result: dict[str, Any], problem: dict[str, Any]) -> None:
+    """Attach question identity so report scoring can evaluate the full round."""
+    if session.get("round_type") != "dsa":
+        return
+    progress = session.get("dsa_progress") or {}
+    result["question_index"] = int(progress.get("current_question_index", 1) or 1)
+    result["problem_id"] = str(problem.get("id", problem.get("title", "")))
+    result["problem_title"] = problem.get("title", "")
+    result["problem_difficulty"] = problem.get("difficulty", "")
+    result["problem_topics"] = problem.get("topics", [])
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -1294,7 +1311,7 @@ def _opening_prompt(session: dict[str, Any]) -> str:
             if (topic.get("topic") if isinstance(topic, dict) else str(topic))
         ] or config.get("fallback_topics", ["DBMS", "OOP", "Operating Systems", "Computer Networks"])
         topic_text = ", ".join(topics[:4])
-        return f"We will start the CS Fundamentals round{company_text}. I will ask concept, comparison, and practical scenario questions across {topic_text}. You can answer verbally or use the scratchpad whenever it helps; I will evaluate it as text, not execute it."
+        return f"We will start the CS Fundamentals round{company_text}. I will ask concept, comparison, and practical scenario questions across {topic_text}. Please answer verbally or through AI chat."
     company_text = f" for {session['target_company']}" if session.get("target_company") else ""
     jd_text = " I will also use the pasted job description." if session.get("job_description", "").strip() else ""
     return f"We will start the Project + Behavioural round{company_text}. Walk me through your resume and strongest project first.{jd_text} I will probe project ownership, tradeoffs, measurable impact, and realistic behavioral examples."
@@ -1348,7 +1365,7 @@ def _cs_opening_question(session: dict[str, Any]) -> str:
             max_tokens=180,
         )
         if question.strip():
-            return f"{question.strip()} You may use the scratchpad for SQL, pseudocode, diagrams, or examples; I will evaluate it as candidate-written text."
+            return question.strip()
 
     return _llm_unavailable_round_message()
 
@@ -1492,7 +1509,7 @@ async def _next_interview_turn(
     if session["round_type"] == "cs_fundamentals":
         if run_cs_fundamentals_turn:
             try:
-                result = run_cs_fundamentals_turn(session, user_text, scratchpad or {})
+                result = run_cs_fundamentals_turn(session, user_text)
                 return result.get("ai_text") or _llm_unavailable_round_message()
             except Exception as exc:
                 session.setdefault("llm_errors", []).append({"ts": _now(), "provider": "cs_graph", "error": str(exc)[:300]})
