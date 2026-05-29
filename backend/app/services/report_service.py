@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -1087,12 +1088,29 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
     company-tailored feedback, weakness analysis, learning plan, benchmarking, and final verdict.
     Falls back gracefully to the pure-heuristic report when the model is unavailable."""
     report = build_feedback_report(session)
+    round_type = report.get("round_type", "")
 
-    # Layer 1: general LLM synthesis (all round types)
-    try:
-        synth = await _llm_report_synthesis(session, report)
-    except Exception:
-        synth = None
+    async def _safe_synthesis() -> dict[str, Any] | None:
+        try:
+            return await _llm_report_synthesis(session, report)
+        except Exception:
+            return None
+
+    async def _safe_round_eval() -> dict[str, Any] | None:
+        try:
+            if round_type == "dsa":
+                return await _run_dsa_deep_eval(session, report)
+            if round_type == "cs_fundamentals":
+                return await _run_cs_deep_eval(session, report)
+            if round_type == "project_behavioral":
+                return await _run_pb_deep_eval(session, report)
+        except Exception:
+            return None
+        return None
+
+    # Layer 1 and Layer 2 are independent LLM calls, so run them together to
+    # reduce wait time without replacing the real model-based report.
+    synth, round_eval = await asyncio.gather(_safe_synthesis(), _safe_round_eval())
 
     if synth:
         summary = str(synth.get("summary", "")).strip()
@@ -1118,14 +1136,8 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
             report["topic_mastery"] = topic_mastery
         report["ai_generated"] = bool(summary or strengths or weaknesses or parameters)
 
-    # Layer 2: round-specific comprehensive evaluation
-    round_type = report.get("round_type", "")
-
     if round_type == "dsa":
-        try:
-            dsa_eval = await _run_dsa_deep_eval(session, report)
-        except Exception:
-            dsa_eval = None
+        dsa_eval = round_eval
         # Always provide dsa_evaluation — fall back to heuristic when LLM is unavailable
         if not dsa_eval:
             dsa_eval = _build_heuristic_dsa_evaluation(session, report)
@@ -1141,10 +1153,7 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
             report["hiring_signal"] = verdict_signal
 
     elif round_type == "cs_fundamentals":
-        try:
-            cs_eval = await _run_cs_deep_eval(session, report)
-        except Exception:
-            cs_eval = None
+        cs_eval = round_eval
         if cs_eval:
             report["cs_evaluation"] = cs_eval
             verdict_signal = (cs_eval.get("final_verdict") or {}).get("signal", "")
@@ -1152,10 +1161,7 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
                 report["hiring_signal"] = verdict_signal
 
     elif round_type == "project_behavioral":
-        try:
-            pb_eval = await _run_pb_deep_eval(session, report)
-        except Exception:
-            pb_eval = None
+        pb_eval = round_eval
         if pb_eval:
             report["pb_evaluation"] = pb_eval
             verdict_signal = (pb_eval.get("final_verdict") or {}).get("signal", "")

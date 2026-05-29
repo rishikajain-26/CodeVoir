@@ -58,14 +58,17 @@ def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         user_text=state.get("user_text", ""),
         phase=phase,
     )
-    evaluation = llm_evaluation or _evaluate_answer(
-        state.get("user_text", ""),
-        state.get("strategy", {}),
-        state.get("resume_signals", {}),
-        state.get("jd_signals", {}),
-        state.get("company_profile", {}),
-        state.get("session", {}),
-    )
+    if not llm_evaluation or not str(llm_evaluation.get("next_question", "")).strip():
+        evaluation = _evaluate_answer(
+            state.get("user_text", ""),
+            state.get("strategy", {}),
+            state.get("resume_signals", {}),
+            state.get("jd_signals", {}),
+            state.get("company_profile", {}),
+            state.get("session", {}),
+        )
+    else:
+        evaluation = llm_evaluation
     evaluation = _ground_project_behavioral_score(
         evaluation,
         state.get("user_text", ""),
@@ -514,6 +517,14 @@ def _evaluate_answer(
         flags.append(
             f"Unsupported high-impact claim detected ({', '.join(unsupported_claims[:2])}); interviewers need verifiable context before giving credit."
         )
+    next_question = _fallback_project_next_question(
+        phase=_phase_for_turn(int(session.get("question_count", 0) or 0)),
+        resume_signals=resume_signals,
+        flags=flags,
+        technical_terms=technical_terms,
+        has_metric=has_metric,
+        has_observable_result=has_observable_result,
+    )
 
     return {
         "evaluation_source": "local_fallback",
@@ -547,7 +558,52 @@ def _evaluate_answer(
         },
         "exaggeration_risk": credibility_risk,
         "accountability_gap": accountability_gap,
+        "followup_intent": _fallback_followup_intent(flags, technical_terms, has_metric, has_observable_result),
+        "next_question": next_question,
+        "next_question_reason": "Local project interview fallback generated a grounded follow-up.",
     }
+
+
+def _fallback_followup_intent(
+    flags: list[str],
+    technical_terms: list[str],
+    has_metric: bool,
+    has_observable_result: bool,
+) -> str:
+    joined = " ".join(flags).lower()
+    if "ownership" in joined:
+        return "clarify_ownership"
+    if not technical_terms:
+        return "technical_depth"
+    if not has_metric or not has_observable_result:
+        return "quantify_impact"
+    if "star" in joined:
+        return "complete_star"
+    return "move_forward"
+
+
+def _fallback_project_next_question(
+    *,
+    phase: str,
+    resume_signals: dict[str, Any],
+    flags: list[str],
+    technical_terms: list[str],
+    has_metric: bool,
+    has_observable_result: bool,
+) -> str:
+    project = resume_signals.get("selected_project") or "that project"
+    joined = " ".join(flags).lower()
+    if "ownership" in joined:
+        return f"What exactly was your personal contribution in {project}, and which part did you own end to end?"
+    if not technical_terms:
+        return f"Go deeper technically on {project}: what architecture or implementation tradeoff did you choose, and why?"
+    if not has_metric or not has_observable_result:
+        return f"What measurable or observable result came from your work on {project}, and how did you validate it?"
+    if phase == "behavioural_star":
+        return f"Tell me about one difficult moment from {project} using STAR: situation, task, your action, and result."
+    if phase == "technical_tradeoffs":
+        return f"What was the hardest tradeoff in {project}, and what alternative did you reject?"
+    return f"Thanks. Let us go one level deeper on {project}: what was the hardest decision you personally made, and what did it change?"
 
 
 def _ground_project_behavioral_score(
