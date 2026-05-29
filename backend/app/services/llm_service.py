@@ -58,30 +58,33 @@ class LLMService:
     def generate_structured(
         self,
         system_prompt: str,
-        user_payload: str,
-        schema: Type[T],
+        user_payload: dict[str, Any] | str,
+        response_schema: Any,
         *,
-        max_tokens: int = 650,
         temperature: float = 0.2,
-    ) -> T | None:
-        """Call the LLM and parse the response into a validated Pydantic model.
-
-        Returns None if the LLM is not configured, generation fails, or the
-        response cannot be validated against the schema.
-        """
+        max_tokens: int = 750,
+    ) -> Any | None:
+        from app.services.llm import health
         from app.utils.json_utils import clean_json_response, extract_json_object
 
-        if not self.is_configured():
-            return None
-        text, _ = self._generate_litellm(system_prompt, user_payload, temperature, max_tokens)
+        text, failure_reason = self._generate_litellm(system_prompt, user_payload, temperature, max_tokens)
         if not text:
+            health.record_fail(failure_reason or "structured_empty_or_error")
             return None
         try:
             cleaned = clean_json_response(text)
-            extracted = extract_json_object(cleaned)
-            parsed = json.loads(extracted)
-            return schema.model_validate(parsed)
-        except (ValueError, ValidationError, Exception):
+            parsed_json = json.loads(extract_json_object(cleaned))
+            if (
+                isinstance(parsed_json, dict)
+                and len(parsed_json) == 1
+                and not any(key in response_schema.model_fields for key in parsed_json)
+            ):
+                parsed_json = next(iter(parsed_json.values()))
+            result = response_schema.model_validate(parsed_json)
+            health.record_ok()
+            return result
+        except Exception as exc:
+            health.record_exception(exc)
             return None
 
     def _generate_litellm(

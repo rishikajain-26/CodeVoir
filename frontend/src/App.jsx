@@ -3,7 +3,7 @@ import Editor from "@monaco-editor/react"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { motion } from "framer-motion"
 import OpportunitiesPage from "./pages/OpportunitiesPage"
-import { AlertTriangle, ArrowLeft, BarChart3, Bot, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, MoreHorizontal, Play, RefreshCw, Search, Send, Shield, Sparkles, Square, Target, TrendingUp, Trophy, Upload, X, Zap } from "lucide-react"
+import { AlertTriangle, ArrowLeft, BarChart3, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, MoreHorizontal, Play, Search, Send, Shield, Sparkles, Square, Target, TrendingUp, Trophy, Upload, X, Zap } from "lucide-react"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 // Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
@@ -141,7 +141,7 @@ export default function App() {
   const isDsaRound = activeRound === "dsa"
   const isCsRound = activeRound === "cs_fundamentals"
   const isProjectRound = !isDsaRound && !isCsRound
-  const roundTitle = isDsaRound ? "DSA + Code Interview" : isCsRound ? "CS Fundamentals Interview" : "Project + Behavioural Interview"
+  const roundTitle = isDsaRound ? "DSA round" : isCsRound ? "CS Fundamentals Interview" : "Project and Behavioural Round"
   const availableSetupRounds = companyRounds.resolved ? companyRounds.rounds || [] : []
   const selectedSetupRound = availableSetupRounds.find((round) => round.id === form.round_type)
   const canStartConfiguredInterview = Boolean(companyRounds.resolved && selectedSetupRound && !companyLoading && form.target_company.trim())
@@ -944,9 +944,6 @@ export default function App() {
                 <h2 className="font-display text-3xl font-semibold tracking-normal text-white">Start live interview</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Select a company and CodeVoir will show only the interview rounds backed by available data.</p>
               </div>
-              <div className="hidden rounded border border-sky-400/20 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100 md:block">
-                {availableSetupRounds.length || 0} rounds available
-              </div>
             </div>
             <div className="mt-6 grid gap-5 md:grid-cols-2">
               <Field label="Target company">
@@ -992,7 +989,6 @@ export default function App() {
       <header className="relative z-10 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/70 px-4 py-3 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <button onClick={() => setScreen("dashboard")} className="rounded border border-slate-700 bg-slate-950 px-2 py-2 text-slate-200" title="Back to dashboard"><ArrowLeft size={18} /></button>
-          <Bot className="text-cyan-300" />
           <div>
             <div className="font-semibold">{roundTitle}</div>
             <div className="text-xs text-slate-400">{voiceState.replace("_", " ")}{liveTranscript ? ` - "${liveTranscript.slice(0, 70)}"` : ""}</div>
@@ -1052,9 +1048,9 @@ export default function App() {
           ) : isCsRound ? (
             <CsRoundPanel messages={messages} lastAiMessage={lastAiMessage} session={session} form={form} />
           ) : (
-            <RoundContext title="Project + Behavioural" items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Focus: resume projects, JD fit, ownership, tradeoffs, STAR examples", form.job_description ? "Job description was provided before the round." : "No job description was provided."]} />
+            <RoundContext items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Focus: resume projects, JD fit, ownership, tradeoffs, STAR examples", form.job_description ? "Job description was provided before the round." : "No job description was provided."]} />
           )}
-        </aside>
+        </aside>}
 
         {isDsaRound && <section className="h-[calc(100vh-96px)] min-h-0">
           <div className="dashboard-glass h-full">
@@ -1073,7 +1069,7 @@ export default function App() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <button onClick={runTests} disabled={isBusy} className="inline-flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-4 py-2 font-semibold text-slate-100 disabled:opacity-50"><Play size={17} /> Run</button>
-                    <button onClick={submitCode} disabled={isBusy} className="inline-flex items-center gap-2 rounded bg-amber-300 px-4 py-2 font-semibold text-[#07120f] disabled:opacity-50"><Send size={17} /> Submit</button>
+                    <button onClick={submitCode} disabled={isBusy} className="inline-flex items-center gap-2 rounded border border-cyan-600 bg-cyan-950 px-4 py-2 font-semibold text-cyan-100 disabled:opacity-50"><Send size={17} /> Submit</button>
                   </div>
                   {codeResult && <span className="text-sm text-slate-300">{codeResult.passed_testcases}/{codeResult.total_testcases} tests passed · {codeResult.overall_score}% · {codeResult.language}</span>}
                 </div>
@@ -1757,8 +1753,6 @@ function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh,
       {error && <div className="fixed left-1/2 top-20 z-50 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950/95 px-4 py-3 text-sm text-red-100 shadow-2xl">{error}</div>}
       <DashboardNav
         displayName={displayName}
-        loading={loading}
-        onRefresh={onRefresh}
         onLogout={onLogout}
       />
 
@@ -1797,13 +1791,12 @@ const dashboardStagger = {
   show: { transition: { staggerChildren: 0.08 } },
 }
 
-function DashboardNav({ displayName, loading, onRefresh, onLogout }) {
+function DashboardNav({ displayName, onLogout }) {
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#030712]/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6">
         <div aria-hidden="true" />
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
-          <DashboardButton onClick={onRefresh} disabled={loading} icon={<RefreshCw size={15} className={loading ? "animate-spin" : ""} />} label="Refresh" variant="ghost" />
           <DashboardButton onClick={onLogout} icon={<LogOut size={15} />} label="Logout" variant="ghost" />
         </div>
       </div>
@@ -2298,7 +2291,7 @@ function ProblemBlock({ title, items }) {
 }
 
 function RoundContext({ title, items }) {
-  return <div className="space-y-4 p-5 text-sm text-slate-300"><div><div className="text-xs uppercase text-slate-500">Round context</div><h3 className="mt-1 text-lg font-semibold text-slate-100">{title}</h3></div><div className="grid gap-2">{items.filter(Boolean).map((item) => <div key={item} className="rounded bg-slate-950 p-3">{item}</div>)}</div></div>
+  return <div className="space-y-4 p-5 text-sm text-slate-300">{title && <div><div className="text-xs uppercase text-slate-500">Round context</div><h3 className="mt-1 text-lg font-semibold text-slate-100">{title}</h3></div>}<div className="grid gap-2">{items.filter(Boolean).map((item) => <div key={item} className="rounded bg-slate-950 p-3">{item}</div>)}</div></div>
 }
 
 function CsRoundPanel({ messages, lastAiMessage, session, form }) {
@@ -2373,6 +2366,61 @@ function CsRoundPanel({ messages, lastAiMessage, session, form }) {
               {latestAnswer.length > 220 ? `${latestAnswer.slice(0, 220)}...` : latestAnswer}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProjectBehavioralWorkspace({ lastAiMessage, contextItems }) {
+  const company = contextItems.find((item) => item.startsWith("Company:"))?.replace("Company:", "").trim() || "General"
+  const role = contextItems.find((item) => item.startsWith("Role:"))?.replace("Role:", "").trim() || "Software Engineer"
+
+  return (
+    <div className="grid w-full content-start overflow-hidden rounded-lg border border-cyan-400/40 bg-slate-950/86 font-sans shadow-[0_26px_95px_rgba(34,211,238,0.16)] backdrop-blur-xl">
+      <div className="border-b border-cyan-400/20 bg-gradient-to-r from-sky-950/40 via-slate-950/70 to-cyan-950/20 px-6 py-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 font-display text-xs font-bold uppercase tracking-[0.24em] text-cyan-200">
+            <span className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.75)]" />
+            Project + Behavioural Round
+          </div>
+          <div className="hidden rounded border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 font-display text-xs font-bold uppercase tracking-[0.18em] text-cyan-100 sm:block">
+            Live interview
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-sm font-semibold text-slate-100">
+            Role: {role}
+          </span>
+          <span className="rounded border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-sm font-semibold text-slate-100">
+            Company: {company}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-7">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded border border-cyan-400/35 bg-cyan-400/10 text-cyan-200">
+              <Brain size={18} />
+            </div>
+            <div>
+              <div className="font-display text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Question stream</div>
+              <div className="text-sm font-semibold text-cyan-50">Live interviewer prompt</div>
+            </div>
+          </div>
+          <div className="flex h-10 items-center gap-1.5 text-cyan-300">
+            <span className="h-4 w-1 rounded-full bg-cyan-300/60" />
+            <span className="h-7 w-1 rounded-full bg-cyan-300" />
+            <span className="h-5 w-1 rounded-full bg-cyan-300/70" />
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-cyan-400/45 bg-gradient-to-br from-sky-950/72 via-slate-950 to-cyan-950/38 p-6 shadow-[0_0_52px_rgba(34,211,238,0.14)]">
+          <div className="border-l-4 border-cyan-300 pl-4 font-display text-2xl font-semibold leading-[1.45] tracking-normal text-cyan-50">
+            {lastAiMessage || "The interviewer question will appear here."}
+          </div>
         </div>
       </div>
     </div>
@@ -3784,13 +3832,55 @@ function PBBenchmarkSection({ benchmarking }) {
 }
 
 function PBFeedback({ report, onRestart, onBack }) {
-  const ev = report.pb_evaluation || {}
-  const verdict = ev.final_verdict || {}
-  const proj = ev.project_evaluation || {}
-  const beh = ev.behavioral_evaluation || {}
-  const comm = ev.communication_profile || {}
-  const breakdown = report.round_breakdown || {}
   const integrity = report.integrity || {}
+  const strengths = report.strengths || []
+  const weaknesses = report.weak_areas || []
+  const suggestions = report.study_plan || []
+  const score = Math.max(0, Math.min(100, Number(report.overall_score) || 0))
+
+  return (
+    <main className="dashboard-shell min-h-screen text-slate-100">
+      <BackgroundCanvas />
+      <div className="relative z-10 mx-auto max-w-6xl px-4 py-8">
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
+          <div>
+            {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
+            <div className="font-display text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Project + Behavioral Report</div>
+            <h1 className="mt-2 font-display text-3xl font-semibold text-white">{report.target_company || "Company"} interview result</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{report.summary}</p>
+          </div>
+          <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-6 py-4 text-right shadow-[0_0_40px_rgba(34,211,238,0.12)]">
+            <div className="text-xs uppercase tracking-widest text-cyan-300">Total score</div>
+            <div className={`mt-1 text-5xl font-bold ${scoreColor(score).text}`}>{score}<span className="text-base text-slate-500">/100</span></div>
+            <div className="mt-1 text-xs text-slate-400">Answer quality only</div>
+          </div>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+          <div className="grid gap-5">
+            <SimpleReportPanel title="Strengths" items={strengths} empty="No clear strengths were demonstrated yet." />
+            <SimpleReportPanel title="Weaknesses" items={weaknesses} empty="No specific weaknesses were recorded." />
+            <SimpleReportPanel title="Suggestions" items={suggestions} empty="No suggestions available yet." />
+          </div>
+
+          <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Integrity score</div>
+            <div className={`mt-3 text-4xl font-bold ${scoreColor(integrity.score ?? 100).text}`}>{integrity.score ?? 100}<span className="text-base text-slate-500">/100</span></div>
+            <div className="mt-3 grid gap-1 text-xs leading-5 text-slate-400">
+              <span>{integrity.violations?.length || 0} proctoring event{integrity.violations?.length !== 1 ? "s" : ""}</span>
+              <span>Tab switches: {integrity.focus_loss || 0}</span>
+              <span>Paste events: {integrity.paste_events || 0}</span>
+            </div>
+            <p className="mt-4 border-t border-slate-800 pt-4 text-xs leading-5 text-slate-500">Integrity is shown separately and is not blended into the Project + Behavioral total score.</p>
+          </div>
+        </div>
+
+        <button onClick={onRestart} className="mt-8 rounded bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300 transition-colors">
+          Start Another Interview
+        </button>
+      </div>
+    </main>
+  )
 
   return (
     <main className="dashboard-shell min-h-screen text-slate-100">
@@ -4024,6 +4114,24 @@ function PBFeedback({ report, onRestart, onBack }) {
         </button>
       </div>
     </main>
+  )
+}
+
+function SimpleReportPanel({ title, items, empty }) {
+  const visible = (items || []).filter(Boolean)
+  return (
+    <section className="rounded-lg border border-sky-400/18 bg-slate-950/70 p-5 shadow-[0_18px_58px_rgba(2,6,23,0.28)]">
+      <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">{title}</h2>
+      <div className="mt-4 grid gap-3">
+        {visible.length ? visible.map((item, index) => (
+          <div key={`${title}-${index}`} className="rounded border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm leading-6 text-slate-200">
+            {item}
+          </div>
+        )) : (
+          <div className="rounded border border-dashed border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-500">{empty}</div>
+        )}
+      </div>
+    </section>
   )
 }
 

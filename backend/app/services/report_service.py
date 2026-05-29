@@ -149,7 +149,7 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
     turns = memory.get("turns", [])
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
-    avg_score = _avg_turn_scores(turns) if turns else (_avg_scores_to_hundred(latest_scores) if latest_scores else 0)
+    avg_score = _avg_project_question_scores(turns) if turns else 0
     strengths = []
     weak_areas = list(latest_flags)
     jd_skills = memory.get("jd_signals", {}).get("skills", [])
@@ -217,13 +217,11 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
             f"{len(contradiction_history)} potential metric contradiction{'s' if len(contradiction_history) != 1 else ''} detected across turns."
         )
     parameter_scores = _project_parameter_scores(turns, latest_scores, latest_flags)
-    if parameter_scores:
-        avg_score = _avg_dict({item["name"]: item["score"] for item in parameter_scores})
 
     return {
         "type": "project_behavioral",
         "title": "Project + Behavioural Round",
-        "round_score": round(avg_score or 35, 1),
+        "round_score": round(avg_score, 1),
         "parameter_scores": parameter_scores,
         "scoring_explanation": (
             "Project + Behavioural scoring is based on interview evidence: personal ownership, verified impact, "
@@ -370,6 +368,29 @@ def _project_parameter_scores(
             "note": "Starts high, then drops for unsupported high-impact claims, exaggeration risk, or metric contradictions.",
         },
     ]
+
+
+def _avg_project_question_scores(turns: list[dict[str, Any]]) -> float:
+    values = []
+    for turn in turns:
+        scores = turn.get("scores", {}) or {}
+        if isinstance(scores.get("question_score"), (int, float)):
+            values.append(_score_to_hundred(scores["question_score"]))
+            continue
+        if scores:
+            ownership = _score_to_hundred(scores.get("ownership", 0))
+            technical_depth = _score_to_hundred(scores.get("technical_depth", 0))
+            impact = _score_to_hundred(scores.get("impact", 0))
+            star = _score_to_hundred(scores.get("star_completeness", 0))
+            context = _score_to_hundred(scores.get("context_alignment", 0))
+            values.append(
+                ownership * 0.22
+                + technical_depth * 0.22
+                + impact * 0.20
+                + star * 0.18
+                + context * 0.18
+            )
+    return round(sum(values) / len(values), 1) if values else 0.0
 
 
 def _cs_strength_evidence(questions: list[dict[str, Any]]) -> list[str]:
@@ -767,6 +788,8 @@ def _overall_score(
             return round(max(0.0, min(100.0, base - integrity_penalty)), 1)
         # No graph scores and no code: very low, capped at 5 (they showed up but did nothing)
         return round(min(5.0, exchange_count * 0.5), 1)
+    if session and session.get("round_type") == "project_behavioral":
+        return round(max(0.0, min(100.0, float(round_score or 0))), 1)
     # Non-DSA rounds: text-analysis based scoring
     avg = sum(scores.values()) / max(1, len(scores)) if scores else 0
     communication = avg * 20 if avg > 0 else 0
@@ -787,6 +810,7 @@ def _hiring_signal(overall: float) -> str:
 def _summary(session: dict[str, Any], section: dict[str, Any], overall: float) -> str:
     company = session.get("target_company") or "the target company"
     role = session.get("job_role") or "the role"
+    round_type = session.get("round_type", "")
     title = section.get("title", "Interview")
     evidence_count = len(section.get("evidence", []))
     if session.get("round_type", "dsa") == "dsa":

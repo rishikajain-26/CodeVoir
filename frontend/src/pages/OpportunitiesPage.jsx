@@ -24,20 +24,38 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-const API = ""
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+const API_BASES = [...new Set(["", API])]
+
+async function opportunityFetch(path, options = {}) {
+  let lastError = null
+  for (const base of API_BASES) {
+    try {
+      const res = await fetch(`${base}${path}`, options)
+      if (!res.ok && base === "" && [405, 501].includes(res.status)) {
+        lastError = new Error(`${res.status} from local dev server`)
+        continue
+      }
+      return res
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError || new Error("Opportunity service is unavailable")
+}
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const TYPE_CFG = {
-  hackathon:   { label: "Hackathon",   bg: "bg-purple-500/20 text-purple-300 border border-purple-500/30", icon: "🏆", grad: "from-purple-900/40 to-indigo-900/40" },
-  competition: { label: "Competition", bg: "bg-orange-500/20 text-orange-300 border border-orange-500/30",  icon: "🥇", grad: "from-orange-900/40 to-red-900/40" },
-  job:         { label: "Job",         bg: "bg-blue-500/20 text-blue-300 border border-blue-500/30",        icon: "💼", grad: "from-blue-900/40 to-cyan-900/40" },
-  internship:  { label: "Internship",  bg: "bg-green-500/20 text-green-300 border border-green-500/30",    icon: "🎓", grad: "from-green-900/40 to-teal-900/40" },
+  hackathon:   { label: "Hackathon",   bg: "bg-sky-400/10 text-sky-100 border border-sky-400/25", icon: "🏆", grad: "from-sky-950/60 to-blue-950/45" },
+  competition: { label: "Competition", bg: "bg-cyan-400/10 text-cyan-100 border border-cyan-400/25",  icon: "🥇", grad: "from-cyan-950/55 to-slate-950/40" },
+  job:         { label: "Job",         bg: "bg-blue-400/10 text-blue-100 border border-blue-400/25",        icon: "💼", grad: "from-blue-950/55 to-sky-950/45" },
+  internship:  { label: "Internship",  bg: "bg-teal-400/10 text-teal-100 border border-teal-400/25",    icon: "🎓", grad: "from-teal-950/50 to-blue-950/45" },
 }
 
 const SOURCE_CFG = {
-  unstop:   { label: "Unstop",   bg: "bg-yellow-500/20 text-yellow-300" },
-  devfolio: { label: "Devfolio", bg: "bg-indigo-500/20 text-indigo-300" },
+  unstop:   { label: "Unstop",   bg: "bg-sky-400/10 text-sky-100 border border-sky-400/20" },
+  devfolio: { label: "Devfolio", bg: "bg-blue-400/10 text-blue-100 border border-blue-400/20" },
 }
 
 const CARDS_PER_VIEW = 3
@@ -64,7 +82,7 @@ function OpportunityCard({ opp }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col h-full overflow-hidden rounded-lg border border-slate-700/60 bg-slate-950/60 backdrop-blur-xl
-                 hover:border-purple-500/40 hover:shadow-[0_0_24px_rgba(139,92,246,0.12)] transition-all duration-300 group"
+                 hover:border-sky-400/40 hover:shadow-[0_0_24px_rgba(56,189,248,0.12)] transition-all duration-300 group"
     >
       {/* Cover */}
       <div className={`relative h-32 bg-gradient-to-br ${tc.grad} overflow-hidden`}>
@@ -86,8 +104,8 @@ function OpportunityCard({ opp }) {
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${tc.bg}`}>{tc.label}</span>
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${sc.bg}`}>{sc.label}</span>
           {opp.platform_company && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/90 text-black flex items-center gap-0.5">
-              <Star size={8} className="fill-black" /> Codevoir
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-400/90 text-slate-950 flex items-center gap-0.5">
+              <Star size={8} className="fill-slate-950" /> Codevoir
             </span>
           )}
         </div>
@@ -96,9 +114,9 @@ function OpportunityCard({ opp }) {
         <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
           {matchPct > 0 && (
             <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-              matchPct >= 70 ? "bg-emerald-500/80 text-white" :
-              matchPct >= 40 ? "bg-yellow-500/80 text-black" :
-              "bg-white/20 text-white"
+              matchPct >= 70 ? "bg-sky-400/90 text-slate-950" :
+              matchPct >= 40 ? "bg-blue-400/80 text-white" :
+              "bg-white/15 text-white"
             }`}>
               {matchPct}% match
             </span>
@@ -129,14 +147,14 @@ function OpportunityCard({ opp }) {
           {opp.deadline_label && opp.deadline_label !== "Expired" && (
             <span className={`flex items-center gap-1 ${
               opp.deadline_label.includes("d left") && parseInt(opp.deadline_label) <= 7
-                ? "text-red-300" : "text-orange-300"
+                ? "text-sky-200" : "text-sky-300"
             }`}>
               <Calendar size={10} />
               {opp.deadline_label}
             </span>
           )}
           {reward && (
-            <span className="flex items-center gap-1 text-emerald-300 truncate max-w-[120px]">
+            <span className="flex items-center gap-1 text-cyan-300 truncate max-w-[120px]">
               <Trophy size={10} className="shrink-0" />
               {String(reward).slice(0, 22)}
             </span>
@@ -164,7 +182,7 @@ function OpportunityCard({ opp }) {
 
         {/* Matched skills callout */}
         {opp.matched_skills?.length > 0 && (
-          <p className="text-[11px] text-purple-300 flex items-center gap-1">
+          <p className="text-[11px] text-sky-300 flex items-center gap-1">
             <CheckCircle size={10} className="shrink-0" />
             Matches: {opp.matched_skills.join(", ")}
           </p>
@@ -207,7 +225,7 @@ export default function OpportunitiesPage({ onBack }) {
 
   // Fetch DB status on mount
   useEffect(() => {
-    fetch(`${API}/api/opportunities/status`)
+    opportunityFetch("/api/opportunities/status")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => d && setDbStatus(d))
       .catch(() => {})
@@ -260,7 +278,7 @@ export default function OpportunitiesPage({ onBack }) {
       if (targetCompanies.trim()) fd.append("target_companies", targetCompanies.trim())
       if (preferredTypes.length) fd.append("preferred_types", preferredTypes.join(","))
 
-      const res = await fetch(`${API}/api/opportunities/analyze`, { method: "POST", body: fd })
+      const res = await opportunityFetch("/api/opportunities/analyze", { method: "POST", body: fd })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || `Server error ${res.status}`)
@@ -278,8 +296,8 @@ export default function OpportunitiesPage({ onBack }) {
   }
 
   const triggerCrawl = async () => {
-    await fetch(`${API}/api/opportunities/crawl`, { method: "POST" })
-    const status = await fetch(`${API}/api/opportunities/status`).then(r => r.json()).catch(() => null)
+    await opportunityFetch("/api/opportunities/crawl", { method: "POST" })
+    const status = await opportunityFetch("/api/opportunities/status").then(r => r.json()).catch(() => null)
     if (status) setDbStatus(status)
   }
 
@@ -292,39 +310,19 @@ export default function OpportunitiesPage({ onBack }) {
   return (
     <div className="dashboard-shell min-h-screen text-white">
       {/* Sticky header */}
-      <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/70 px-6 py-4 backdrop-blur-xl flex items-center justify-between">
+      <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/70 px-6 py-4 backdrop-blur-xl">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm"
+          className="inline-flex items-center gap-2 rounded border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100 shadow-[0_0_24px_rgba(56,189,248,.14)] transition hover:border-sky-300 hover:bg-sky-400/20"
         >
-          <ArrowLeft size={15} />
-          Back
+          <ArrowLeft size={16} />
+          Back to dashboard
         </button>
-        <div className="flex items-center gap-2.5">
-          <Zap size={17} className="text-purple-400" />
-          <span className="font-display font-bold text-white tracking-normal">Opportunity Finder</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          {dbStatus && (
-            <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              {dbStatus.total_opportunities?.toLocaleString()} cached
-            </span>
-          )}
-          <button
-            onClick={triggerCrawl}
-            className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white transition-all text-[11px]"
-            title="Refresh opportunity data"
-          >
-            Refresh
-          </button>
-        </div>
       </header>
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {/* Hero */}
         <div className="dashboard-glass mb-10 px-6 py-8 text-center">
-          <div className="dashboard-kicker mx-auto mb-5"><Zap size={14} /> Matched opportunities</div>
           <h1 className="font-display text-3xl sm:text-5xl font-semibold tracking-normal text-white mb-3">
             Find Your Perfect Opportunity
           </h1>
@@ -343,9 +341,9 @@ export default function OpportunitiesPage({ onBack }) {
             </label>
             <div
               className={`relative rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
-                isDragging ? "border-purple-500 bg-purple-500/10" :
-                resumeFile ? "border-emerald-500/60 bg-emerald-500/5" :
-                "border-white/20 hover:border-purple-500/50 hover:bg-purple-500/5"
+                isDragging ? "border-sky-400 bg-sky-400/10" :
+                resumeFile ? "border-sky-400/60 bg-sky-400/5" :
+                "border-white/20 hover:border-sky-400/50 hover:bg-sky-400/5"
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -361,7 +359,7 @@ export default function OpportunitiesPage({ onBack }) {
               />
               {resumeFile ? (
                 <div className="flex items-center justify-center gap-3">
-                  <CheckCircle size={22} className="text-emerald-400 shrink-0" />
+                  <CheckCircle size={22} className="text-sky-300 shrink-0" />
                   <div className="text-left min-w-0">
                     <p className="text-white text-sm font-medium truncate">{resumeFile.name}</p>
                     <p className="text-gray-400 text-xs">{(resumeFile.size / 1024).toFixed(0)} KB</p>
@@ -377,7 +375,7 @@ export default function OpportunitiesPage({ onBack }) {
                 <>
                   <Upload size={30} className="mx-auto mb-3 text-gray-600" />
                   <p className="text-gray-400 text-sm">
-                    Drop your resume or <span className="text-purple-400">click to browse</span>
+                    Drop your resume or <span className="text-sky-300">click to browse</span>
                   </p>
                   <p className="text-gray-600 text-xs mt-1">PDF or TXT · max 5 MB</p>
                 </>
@@ -399,10 +397,9 @@ export default function OpportunitiesPage({ onBack }) {
                   onChange={(e) => setSkills(e.target.value)}
                   placeholder="Python, React, Machine Learning..."
                   className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm
-                             placeholder-gray-500 focus:outline-none focus:border-purple-500/60 transition-colors"
+                             placeholder-gray-500 focus:outline-none focus:border-sky-400/60 transition-colors"
                 />
               </div>
-              <p className="text-xs text-gray-600 mt-1">Comma-separated, merged with resume skills</p>
             </div>
 
             <div>
@@ -417,7 +414,7 @@ export default function OpportunitiesPage({ onBack }) {
                   onChange={(e) => setTargetCompanies(e.target.value)}
                   placeholder="Google, Flipkart, Razorpay..."
                   className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm
-                             placeholder-gray-500 focus:outline-none focus:border-purple-500/60 transition-colors"
+                             placeholder-gray-500 focus:outline-none focus:border-sky-400/60 transition-colors"
                 />
               </div>
             </div>
@@ -433,7 +430,7 @@ export default function OpportunitiesPage({ onBack }) {
                     onClick={() => toggleType(t)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
                       preferredTypes.includes(t)
-                        ? "bg-purple-600 text-white shadow-[0_0_10px_rgba(139,92,246,0.4)]"
+                        ? "bg-sky-400 text-slate-950 shadow-[0_0_10px_rgba(56,189,248,0.38)]"
                         : "bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10"
                     }`}
                   >
@@ -484,7 +481,7 @@ export default function OpportunitiesPage({ onBack }) {
             {/* Profile summary */}
             {results.profile && Object.values(results.profile).some(Boolean) && (
               <div className="dashboard-glass p-5 mb-6">
-                <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-4">
+                <div className="flex items-center gap-2 text-sky-300 text-sm font-medium mb-4">
                   <CheckCircle size={14} />
                   Resume Analysed
                 </div>
@@ -531,7 +528,7 @@ export default function OpportunitiesPage({ onBack }) {
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {results.profile.skills.slice(0, 16).map((s, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-purple-500/15 border border-purple-500/30 rounded text-[11px] text-purple-200 capitalize">
+                        <span key={i} className="px-2 py-0.5 bg-sky-400/10 border border-sky-400/25 rounded text-[11px] text-sky-100 capitalize">
                           {s}
                         </span>
                       ))}
@@ -552,7 +549,7 @@ export default function OpportunitiesPage({ onBack }) {
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {results.profile.interests.map((int, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-indigo-500/15 border border-indigo-500/30 rounded text-[11px] text-indigo-200 capitalize">
+                        <span key={i} className="px-2 py-0.5 bg-blue-400/10 border border-blue-400/25 rounded text-[11px] text-blue-100 capitalize">
                           {int}
                         </span>
                       ))}
@@ -590,7 +587,7 @@ export default function OpportunitiesPage({ onBack }) {
                         {results.profile.experience.slice(0, 3).map((e, i) => (
                           <li key={i} className="text-xs text-gray-300">
                             <span className="text-white font-medium">{e.role}</span>
-                            {e.company && <span className="text-purple-300"> @ {e.company}</span>}
+                            {e.company && <span className="text-sky-300"> @ {e.company}</span>}
                           </li>
                         ))}
                       </ul>
@@ -619,7 +616,7 @@ export default function OpportunitiesPage({ onBack }) {
                       onClick={() => { setActiveFilter(f.key); setCarouselIdx(0) }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                         activeFilter === f.key
-                          ? "bg-purple-600 text-white"
+                          ? "bg-sky-400 text-slate-950"
                           : "bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10"
                       }`}
                     >
@@ -640,8 +637,8 @@ export default function OpportunitiesPage({ onBack }) {
                   disabled={carouselIdx === 0}
                   aria-label="Previous"
                   className="absolute -left-5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full
-                             bg-[#1a1a30] border border-white/20 flex items-center justify-center
-                             text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed
+                             bg-slate-950/80 border border-sky-400/20 flex items-center justify-center
+                             text-sky-100 hover:bg-sky-400/10 disabled:opacity-20 disabled:cursor-not-allowed
                              transition-all shadow-lg"
                 >
                   <ChevronLeft size={18} />
@@ -651,8 +648,8 @@ export default function OpportunitiesPage({ onBack }) {
                   disabled={carouselIdx >= maxIdx}
                   aria-label="Next"
                   className="absolute -right-5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full
-                             bg-[#1a1a30] border border-white/20 flex items-center justify-center
-                             text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed
+                             bg-slate-950/80 border border-sky-400/20 flex items-center justify-center
+                             text-sky-100 hover:bg-sky-400/10 disabled:opacity-20 disabled:cursor-not-allowed
                              transition-all shadow-lg"
                 >
                   <ChevronRight size={18} />
@@ -684,7 +681,7 @@ export default function OpportunitiesPage({ onBack }) {
                         aria-label={`Page ${i + 1}`}
                         className={`rounded-full transition-all duration-300 ${
                           currentPage === i
-                            ? "w-6 h-2 bg-purple-500"
+                            ? "w-6 h-2 bg-sky-400"
                             : "w-2 h-2 bg-white/20 hover:bg-white/40"
                         }`}
                       />
