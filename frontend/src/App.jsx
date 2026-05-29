@@ -100,6 +100,8 @@ export default function App() {
   const [resumeReview, setResumeReview] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
+  const [scratchpad, setScratchpad] = useState("")
+  const [scratchpadMode, setScratchpadMode] = useState("notes")
   const [language, setLanguage] = useState("python")
   const [code, setCode] = useState(defaultCode)
   const [codeResult, setCodeResult] = useState(null)
@@ -135,6 +137,7 @@ export default function App() {
   const codeRef = useRef(defaultCode)
   const languageRef = useRef("python")
   const currentAudioRef = useRef(null)   // tracks active ElevenLabs Audio element
+  const flowTokenRef = useRef(0)
 
   const currentProblem = session?.problem
   const activeRound = session?.round_type || form.round_type
@@ -197,6 +200,14 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get("auth_token")
+    const authError = params.get("auth_error")
+    if (authError) {
+      window.history.replaceState({}, "", window.location.pathname)
+      setError("That sign-in link expired or was already used. Please click Sign in again.")
+      window.setTimeout(() => setError(""), 6000)
+      if (authToken()) loadAuthenticatedProfile()
+      return
+    }
     if (token) {
       window.localStorage.setItem("codevoir_auth_token", token)
       window.history.replaceState({}, "", window.location.pathname)
@@ -318,15 +329,18 @@ export default function App() {
       setError("Select a company from the available data and choose one of its supported rounds.")
       return
     }
+    const requestToken = flowTokenRef.current
     setIsBusy(true)
     setError("")
     try {
       const created = await postJson("/api/session/start", { ...form, user_id: userProfile.user_id })
+      if (requestToken !== flowTokenRef.current) return
       if (resume) {
         const fd = new FormData()
         fd.append("session_id", created.session_id)
         fd.append("file", resume)
         await apiFetch("/api/resume/upload", { method: "POST", body: fd })
+        if (requestToken !== flowTokenRef.current) return
       }
       setSession(created)
       setDsaProgress(created.dsa_progress || null)
@@ -335,9 +349,10 @@ export default function App() {
       setScreen("interview")
       speak(created.ai_text)
     } catch (err) {
+      if (requestToken !== flowTokenRef.current) return
       setError(err.message || "Could not start interview. Check that the backend is running.")
     } finally {
-      setIsBusy(false)
+      if (requestToken === flowTokenRef.current) setIsBusy(false)
     }
   }
 
@@ -368,12 +383,20 @@ export default function App() {
     setInput("")
     setLiveTranscript("")
     setMessages((prev) => [...prev, { role: "candidate", content: clean }])
+    const requestToken = flowTokenRef.current
     setIsBusy(true)
     // Show "thinking" indicator while backend retries LLM
     setMessages((prev) => [...prev, { role: "thinking", content: "" }])
     try {
-      const payload = { session_id: session.session_id, user_text: clean, behavioral_metrics: behavioralMetrics, code_context: currentCodeContext("message") }
+      const payload = {
+        session_id: session.session_id,
+        user_text: clean,
+        behavioral_metrics: behavioralMetrics,
+        code_context: currentCodeContext("message"),
+        scratchpad: scratchpad.trim() ? { content: scratchpad.trim(), mode: scratchpadMode } : {},
+      }
       const reply = await postJson("/api/interview/message", payload)
+      if (requestToken !== flowTokenRef.current) return
       // Remove thinking indicator
       setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
       if (typeof reply.llm_offline === "boolean") setLlmOffline(reply.llm_offline)
@@ -410,13 +433,14 @@ export default function App() {
       setMessages((prev) => [...prev, msgObj])
       speak(reply.ai_text)
     } catch (err) {
+      if (requestToken !== flowTokenRef.current) return
       setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
       const detail = friendlyError(err)
       setError(detail)
       setMessages((prev) => [...prev, { role: "interviewer", content: `I hit a connection issue while replying: ${detail}. Please try again or use manual text for this turn.` }])
       window.setTimeout(() => setError(""), 6000)
     } finally {
-      setIsBusy(false)
+      if (requestToken === flowTokenRef.current) setIsBusy(false)
     }
   }
 
@@ -480,14 +504,29 @@ export default function App() {
   }
 
   async function finishInterview() {
-    if (!session) return
+    if (!session || isBusy) return
+    const sessionId = session.session_id
+    const requestToken = ++flowTokenRef.current
     stopVoiceCapture()
     _stopCurrentSpeech()
-    const report = await apiFetch(`/api/feedback/${session.session_id}`).then((r) => r.json())
-    setFeedback(report)
-    setSelectedReport(report)
-    loadDashboard()
-    setScreen("feedback")
+    setError("")
+    setIsBusy(true)
+    try {
+      const res = await apiFetch(`/api/feedback/${sessionId}`)
+      if (!res.ok) throw new Error(await res.text())
+      const report = await res.json()
+      if (requestToken !== flowTokenRef.current) return
+      setFeedback(report)
+      setSelectedReport(report)
+      loadDashboard().catch(() => {})
+      setScreen("feedback")
+    } catch (err) {
+      if (requestToken !== flowTokenRef.current) return
+      setError(friendlyError(err))
+      window.setTimeout(() => setError(""), 7000)
+    } finally {
+      if (requestToken === flowTokenRef.current) setIsBusy(false)
+    }
   }
 
   async function loadDashboard() {
@@ -504,18 +543,25 @@ export default function App() {
   }
 
   async function openReport(sessionId) {
+    const requestToken = ++flowTokenRef.current
     setIsBusy(true)
     setError("")
+    setFeedback(null)
     try {
-      const report = await apiFetch(`/api/feedback/${sessionId}`).then((r) => r.json())
+      setScreen("feedback")
+      const res = await apiFetch(`/api/feedback/${sessionId}`)
+      if (!res.ok) throw new Error(await res.text())
+      const report = await res.json()
+      if (requestToken !== flowTokenRef.current) return
       setSelectedReport(report)
       setFeedback(report)
-      setScreen("feedback")
     } catch (err) {
+      if (requestToken !== flowTokenRef.current) return
+      setScreen("dashboard")
       setError(friendlyError(err))
       window.setTimeout(() => setError(""), 6000)
     } finally {
-      setIsBusy(false)
+      if (requestToken === flowTokenRef.current) setIsBusy(false)
     }
   }
 
@@ -562,6 +608,21 @@ export default function App() {
   }
 
   function startRound(roundType = "dsa") {
+    flowTokenRef.current += 1
+    stopVoiceCapture()
+    _stopCurrentSpeech()
+    setSession(null)
+    setMessages([])
+    setInput("")
+    setScratchpad("")
+    setCodeResult(null)
+    setDsaProgress(null)
+    setFeedback(null)
+    setSelectedReport(null)
+    setError("")
+    setWarning("")
+    setChatOpen(false)
+    setIsBusy(false)
     setForm((prev) => ({ ...prev, round_type: roundType, difficulty: roundType === "dsa" ? prev.difficulty : "medium" }))
     setScreen("setup")
   }
@@ -1050,10 +1111,10 @@ export default function App() {
           ) : (
             <RoundContext items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Focus: resume projects, JD fit, ownership, tradeoffs, STAR examples", form.job_description ? "Job description was provided before the round." : "No job description was provided."]} />
           )}
-        </aside>}
+        </aside>
 
-        {isDsaRound && <section className="h-[calc(100vh-96px)] min-h-0">
-          <div className="dashboard-glass h-full">
+        <section className="h-[calc(100vh-96px)] min-h-0">
+          {isDsaRound ? <div className="dashboard-glass h-full">
             <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
               <div className="flex items-center gap-2 font-semibold"><Code2 size={18} /> Code</div>
               <select className="w-40 py-2 text-sm" value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Coding language">
@@ -1089,8 +1150,8 @@ export default function App() {
                 </div>}
               </div>
             </div>
-          </div>
-        </section>}
+          </div> : <InterviewWorkspace input={input} setInput={setInput} isBusy={isBusy} sendMessage={sendMessage} toggleMic={toggleMic} autoVoice={autoVoice} voiceState={voiceState} liveTranscript={liveTranscript} lastAiMessage={lastAiMessage} isCsRound={isCsRound} scratchpad={scratchpad} setScratchpad={setScratchpad} scratchpadMode={scratchpadMode} setScratchpadMode={setScratchpadMode} />}
+        </section>
 
         {chatOpen && <aside className="fixed bottom-5 right-5 z-40 flex h-[520px] w-[460px] max-w-[96vw] flex-col rounded border border-slate-700 bg-slate-950 shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-800 p-3">
@@ -2280,6 +2341,30 @@ function Field({ label, children }) {
   return <label className="grid gap-2 text-sm text-slate-300"><span>{label}</span>{children}</label>
 }
 
+function FeedbackLoading({ onBack }) {
+  return (
+    <main className="dashboard-shell min-h-screen text-slate-100">
+      <BackgroundCanvas />
+      <section className="relative z-10 grid min-h-screen place-items-center px-6">
+        <div className="dashboard-glass max-w-xl p-8 text-center">
+          <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-cyan-300/40 bg-cyan-400/10 text-cyan-200 shadow-[0_0_36px_rgba(34,211,238,.18)]">
+            <BarChart3 size={26} />
+          </div>
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Generating report</div>
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-normal text-white">Building your interview feedback.</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-400">Your round is complete. CodeVoir is preparing the report now, so old interview replies will not leak into the next round.</p>
+          <div className="mx-auto mt-6 h-2 max-w-xs overflow-hidden rounded-full bg-slate-900">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-cyan-300" />
+          </div>
+          <button onClick={onBack} className="mt-6 rounded border border-slate-700 bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-400 hover:text-cyan-100">
+            Back to dashboard
+          </button>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 // eslint-disable-next-line no-unused-vars
 function Panel({ title, icon, children }) {
   return <div className="min-h-0 rounded border border-slate-800 bg-slate-900"><div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-sm font-semibold">{icon}{title}</div><div className="p-3">{children}</div></div>
@@ -2292,6 +2377,65 @@ function ProblemBlock({ title, items }) {
 
 function RoundContext({ title, items }) {
   return <div className="space-y-4 p-5 text-sm text-slate-300">{title && <div><div className="text-xs uppercase text-slate-500">Round context</div><h3 className="mt-1 text-lg font-semibold text-slate-100">{title}</h3></div>}<div className="grid gap-2">{items.filter(Boolean).map((item) => <div key={item} className="rounded bg-slate-950 p-3">{item}</div>)}</div></div>
+}
+
+function InterviewWorkspace({ input, setInput, isBusy, sendMessage, toggleMic, autoVoice, voiceState, liveTranscript, lastAiMessage, isCsRound, scratchpad, setScratchpad, scratchpadMode, setScratchpadMode }) {
+  return (
+    <div className="dashboard-glass grid h-full min-h-0 grid-rows-[auto_1fr_auto] overflow-hidden">
+      <div className="border-b border-slate-800/80 px-5 py-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">{isCsRound ? "CS fundamentals" : "Project + behavioural"}</div>
+        <h2 className="mt-1 text-xl font-semibold text-slate-50">Live interview workspace</h2>
+      </div>
+
+      <div className="min-h-0 space-y-4 overflow-y-auto p-5">
+        <section className="rounded-lg border border-cyan-400/25 bg-slate-950/80 p-5 shadow-[0_0_40px_rgba(34,211,238,.08)]">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold text-slate-300">Current question</div>
+            {isBusy && <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-xs text-cyan-100">Thinking...</span>}
+          </div>
+          <p className="whitespace-pre-wrap text-balance text-2xl font-semibold leading-10 text-cyan-50">
+            {lastAiMessage || "Loading your first question..."}
+          </p>
+        </section>
+
+        {isCsRound && (
+          <section className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-200">Scratchpad</div>
+                <div className="text-xs text-slate-500">Use this for rough notes. It is sent as context with your answer.</div>
+              </div>
+              <select value={scratchpadMode} onChange={(event) => setScratchpadMode(event.target.value)} className="w-36 py-2 text-xs">
+                <option value="notes">Notes</option>
+                <option value="outline">Outline</option>
+                <option value="examples">Examples</option>
+              </select>
+            </div>
+            <textarea value={scratchpad} onChange={(event) => setScratchpad(event.target.value)} placeholder="Optional notes for this CS answer..." className="h-28 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-cyan-400" />
+          </section>
+        )}
+
+        {liveTranscript && (
+          <div className="rounded border border-cyan-400/25 bg-cyan-950/40 p-3 text-sm text-cyan-100">
+            Hearing: {liveTranscript}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-slate-800/80 p-5">
+        <label className="mb-2 block text-sm font-semibold text-slate-300">Your answer</label>
+        <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder="Answer the interviewer here, or use voice." className="h-36 w-full resize-y rounded border border-slate-700 bg-slate-950 p-4 text-sm text-slate-100 outline-none focus:border-cyan-400" />
+        <div className="mt-3 flex gap-3">
+          <button onClick={() => sendMessage()} disabled={isBusy || !input.trim()} className="flex-1 rounded bg-cyan-400 px-4 py-3 font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
+            Send answer
+          </button>
+          <button onClick={toggleMic} className={`rounded border px-4 py-3 ${autoVoice || voiceState === "listening" ? "border-red-400 bg-red-950 text-red-100" : "border-cyan-600 bg-cyan-950 text-cyan-100"}`} title="Toggle microphone">
+            {autoVoice || voiceState === "listening" ? <Square size={18} /> : <Mic size={18} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function CsRoundPanel({ messages, lastAiMessage, session, form }) {
@@ -4269,6 +4413,12 @@ function friendlyError(err) {
   try {
     const parsed = JSON.parse(text)
     if (typeof parsed.detail === "string") return parsed.detail
+    if (Array.isArray(parsed.detail)) {
+      return parsed.detail
+        .map((item) => item?.msg || item?.message || "")
+        .filter(Boolean)
+        .join("; ") || "The request format was invalid."
+    }
     return parsed.detail?.message || text
   } catch {
     return text.slice(0, 220)
