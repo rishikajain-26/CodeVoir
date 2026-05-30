@@ -3,7 +3,7 @@ import Editor from "@monaco-editor/react"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { motion } from "framer-motion"
 import OpportunitiesPage from "./pages/OpportunitiesPage"
-import { AlertTriangle, ArrowLeft, BarChart3, Brain, Briefcase, Calendar, Camera, Code2, FileText, LogIn, LogOut, Mic, MoreHorizontal, Play, Search, Send, Shield, Sparkles, Square, Target, TrendingUp, Trophy, Upload, X, Zap } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Brain, Briefcase, Calendar, Camera, ChevronRight, Code2, FileText, LogIn, LogOut, Mic, MoreHorizontal, Play, Search, Send, Shield, ShieldCheck, Sparkles, Square, Target, TrendingUp, Trophy, Upload, Users, Lock, X, Zap } from "lucide-react"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 // Use the Vite proxy (/api → 127.0.0.1:8000) as primary, direct URL as fallback.
@@ -960,6 +960,7 @@ export default function App() {
       onOpenReport={openReport}
       onLogout={logout}
       onOpportunities={() => setScreen("opportunities")}
+      onDocsAssistant={() => alert("Documentation Assistant is coming soon!")}
       onReportsPage={() => setScreen("reports")}
       isBusy={isBusy}
     />
@@ -984,58 +985,63 @@ export default function App() {
 
   if (screen === "setup") {
     return (
-      <main className="dashboard-shell min-h-screen text-slate-100">
+      <main className="dashboard-shell min-h-screen text-slate-100 codevoir-dashboard-page">
         <BackgroundCanvas />
         {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
-        <section className="relative z-10 border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <header className="relative z-10 border-b border-white/10 backdrop-blur-xl">
+          <div className="w-full flex items-center justify-between px-6 py-3">
             <div className="flex items-center gap-3">
-              <button onClick={() => setScreen("dashboard")} className="grid h-10 w-10 place-items-center rounded border border-slate-700 bg-slate-950 text-slate-200" title="Back to dashboard"><ArrowLeft size={20} /></button>
+              <button onClick={() => setScreen("dashboard")} className="setup-back-btn transition-all shadow-sm" title="Back to dashboard"><ArrowLeft size={20} /></button>
               <div>
-                <h1 className="font-display text-xl font-semibold tracking-normal">CodeVoir Interview Lab</h1>
+                <h1 className="font-display text-xl font-semibold tracking-normal text-white">CodeVoir Interview Lab</h1>
               </div>
             </div>
           </div>
-        </section>
+        </header>
 
-        <section className="relative z-10 mx-auto grid min-h-[calc(100vh-73px)] max-w-6xl content-center gap-6 px-6 py-10">
-          <div className="interview-setup-card">
-            <div className="interview-setup-header">
-              <div>
-                <h2 className="font-display text-3xl font-semibold tracking-normal text-white">Start live interview</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Select a company and CodeVoir will show only the interview rounds backed by available data.</p>
+        <section className="relative z-10 mx-auto grid min-h-[calc(100vh-100px)] w-full max-w-6xl xl:max-w-7xl content-center gap-6 px-4 py-6">
+          <div className="interview-setup-card grid lg:grid-cols-[1.15fr_0.85fr] gap-8 items-center">
+            <div>
+              <div className="interview-setup-header">
+                <div>
+                  <h2 className="font-display text-3xl font-semibold tracking-normal text-white">Start live interview</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Select a company and CodeVoir will show only the interview rounds backed by available data.</p>
+                </div>
               </div>
+              <div className="mt-6 grid gap-5 md:grid-cols-2">
+                <Field label="Target company">
+                  <input list="company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Search company with interview data" />
+                  <datalist id="company-options">
+                    {(companyDirectory.length ? companyDirectory : companies.map((company) => ({ company, rounds: [] }))).map((item) => <option key={item.company} value={item.company} label={item.rounds?.map((round) => round.label).join(", ")} />)}
+                  </datalist>
+                </Field>
+                <Field label="Available round">
+                  <select value={selectedSetupRound ? form.round_type : ""} onChange={(e) => setForm({ ...form, round_type: e.target.value, difficulty: e.target.value === "dsa" ? form.difficulty : "medium" })} disabled={!availableSetupRounds.length}>
+                    {!availableSetupRounds.length && <option value="">Select a company first</option>}
+                    {availableSetupRounds.map((round) => <option key={round.id} value={round.id}>{round.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="Job role"><input value={form.job_role} onChange={(e) => setForm({ ...form, job_role: e.target.value })} /></Field>
+                {form.round_type === "dsa" && <Field label="Difficulty"><select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}><option>easy</option><option>medium</option><option>hard</option></select></Field>}
+                <Field label="Timer minutes"><input type="number" min="10" max="90" value={form.timer_minutes} onChange={(e) => setForm({ ...form, timer_minutes: Number(e.target.value) })} /></Field>
+              </div>
+              {isProjectRound && <label className="mt-4 grid gap-2 text-sm text-slate-300">
+                <span>Job description</span>
+                <textarea value={form.job_description} onChange={(e) => setForm({ ...form, job_description: e.target.value })} placeholder="Paste the job description for Project + Behavioural interview personalization" className="h-28 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-cyan-400" />
+              </label>}
+              {isProjectRound && <label className="mt-4 flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
+                <Upload size={18} />
+                <span>{resume ? resume.name : "Upload resume for personalised project and behavioural questions"}</span>
+                <input className="hidden" type="file" accept=".pdf,.txt" onChange={(e) => setResume(e.target.files?.[0] || null)} />
+              </label>}
+              <button className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-[#0a66c2] px-6 font-bold text-white shadow-[0_4px_14px_rgba(10,102,194,0.15)] transition hover:scale-[1.02] hover:bg-[#004182] disabled:opacity-50" onClick={startSession} disabled={isBusy || !canStartConfiguredInterview}>
+                <Play size={18} /> Start interview
+              </button>
             </div>
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <Field label="Target company">
-                <input list="company-options" value={form.target_company} onChange={(e) => setForm({ ...form, target_company: e.target.value })} placeholder="Search company with interview data" />
-                <datalist id="company-options">
-                  {(companyDirectory.length ? companyDirectory : companies.map((company) => ({ company, rounds: [] }))).map((item) => <option key={item.company} value={item.company} label={item.rounds?.map((round) => round.label).join(", ")} />)}
-                </datalist>
-              </Field>
-              <Field label="Available round">
-                <select value={selectedSetupRound ? form.round_type : ""} onChange={(e) => setForm({ ...form, round_type: e.target.value, difficulty: e.target.value === "dsa" ? form.difficulty : "medium" })} disabled={!availableSetupRounds.length}>
-                  {!availableSetupRounds.length && <option value="">Select a company first</option>}
-                  {availableSetupRounds.map((round) => <option key={round.id} value={round.id}>{round.label}</option>)}
-                </select>
-              </Field>
-              <Field label="Job role"><input value={form.job_role} onChange={(e) => setForm({ ...form, job_role: e.target.value })} /></Field>
-              <Field label="Experience"><select value={form.experience_level} onChange={(e) => setForm({ ...form, experience_level: e.target.value })}><option>fresher</option><option>mid</option><option>senior</option></select></Field>
-              {form.round_type === "dsa" && <Field label="Difficulty"><select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}><option>easy</option><option>medium</option><option>hard</option></select></Field>}
-              <Field label="Timer minutes"><input type="number" min="10" max="90" value={form.timer_minutes} onChange={(e) => setForm({ ...form, timer_minutes: Number(e.target.value) })} /></Field>
+            <div className="hidden lg:flex flex-col items-center justify-center p-4">
+              <SetupCarousel />
+              <p className="text-xs text-slate-500 font-semibold tracking-wider uppercase mt-4 text-center">CodeVoir Interview Engine</p>
             </div>
-            {isProjectRound && <label className="mt-4 grid gap-2 text-sm text-slate-300">
-              <span>Job description</span>
-              <textarea value={form.job_description} onChange={(e) => setForm({ ...form, job_description: e.target.value })} placeholder="Paste the job description for Project + Behavioural interview personalization" className="h-28 w-full resize-y rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100 outline-none focus:border-cyan-400" />
-            </label>}
-            {isProjectRound && <label className="mt-4 flex cursor-pointer items-center gap-3 rounded border border-dashed border-slate-700 p-4 text-sm text-slate-300">
-              <Upload size={18} />
-              <span>{resume ? resume.name : "Upload resume for personalised project and behavioural questions"}</span>
-              <input className="hidden" type="file" accept=".pdf,.txt" onChange={(e) => setResume(e.target.files?.[0] || null)} />
-            </label>}
-            <button className="mt-6 inline-flex h-12 items-center gap-2 rounded bg-sky-400 px-5 font-bold text-slate-950 shadow-[0_0_26px_rgba(56,189,248,.22)] transition hover:scale-[1.02] hover:bg-sky-300 disabled:opacity-50" onClick={startSession} disabled={isBusy || !canStartConfiguredInterview}>
-              <Play size={18} /> Start interview
-            </button>
           </div>
 
         </section>
@@ -1044,15 +1050,15 @@ export default function App() {
   }
 
   return (
-    <main className="dashboard-shell grid h-screen grid-rows-[auto_1fr] text-slate-100">
+    <main className="dashboard-shell grid h-screen grid-rows-[auto_1fr] text-slate-100 codevoir-dashboard-page">
       <BackgroundCanvas />
       {error && <div className="fixed left-1/2 top-4 z-50 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
       <header className="relative z-10 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/70 px-4 py-3 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <button onClick={() => setScreen("dashboard")} className="rounded border border-slate-700 bg-slate-950 px-2 py-2 text-slate-200" title="Back to dashboard"><ArrowLeft size={18} /></button>
+          <button onClick={() => setScreen("dashboard")} className="setup-back-btn transition-all shadow-sm" title="Back to dashboard"><ArrowLeft size={18} /></button>
           <div>
-            <div className="font-semibold">{roundTitle}</div>
-            <div className="text-xs text-slate-400">{voiceState.replace("_", " ")}{liveTranscript ? ` - "${liveTranscript.slice(0, 70)}"` : ""}</div>
+            <div className="font-semibold text-white">{roundTitle}</div>
+            <div className="text-xs text-slate-200">{voiceState.replace("_", " ")}{liveTranscript ? ` - "${liveTranscript.slice(0, 70)}"` : ""}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1109,7 +1115,7 @@ export default function App() {
           ) : isCsRound ? (
             <CsRoundPanel messages={messages} lastAiMessage={lastAiMessage} session={session} form={form} />
           ) : (
-            <RoundContext items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`, "Focus: resume projects, JD fit, ownership, tradeoffs, STAR examples", form.job_description ? "Job description was provided before the round." : "No job description was provided."]} />
+            <RoundContext items={[`Company: ${session?.target_company || form.target_company || "General"}`, `Role: ${form.job_role}`]} />
           )}
         </aside>
 
@@ -1178,19 +1184,56 @@ export default function App() {
 
 function WelcomePage({ error, onAuthenticate }) {
   return (
-    <main className="dashboard-shell min-h-screen text-white">
+    <main className="dashboard-shell min-h-screen text-white codevoir-welcome-page">
       <BackgroundCanvas />
+      
+      <header className="welcome-navbar">
+        <div className="welcome-navbar-logo text-white font-extrabold text-2xl" style={{ cursor: 'default', userSelect: 'none' }}>CV</div>
+        <div className="welcome-navbar-actions">
+          <button type="button" onClick={onAuthenticate} className="welcome-nav-link">Log in</button>
+          <button type="button" onClick={onAuthenticate} className="welcome-nav-btn">Sign in</button>
+        </div>
+      </header>
+
       {error && <div className="fixed left-1/2 top-4 z-30 max-w-xl -translate-x-1/2 rounded border border-red-300 bg-red-950 px-4 py-3 text-sm text-red-100">{error}</div>}
-      <section className="relative z-10 mx-auto grid min-h-screen max-w-7xl gap-10 px-6 py-10 lg:grid-cols-[minmax(0,.95fr)_minmax(360px,.65fr)] lg:items-center">
+      <section className="relative z-10 mx-auto grid min-h-screen max-w-7xl gap-10 px-6 pb-10 pt-24 lg:grid-cols-[minmax(0,.95fr)_minmax(360px,.65fr)] lg:items-center">
         <motion.div className="grid max-w-3xl gap-6" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
+          <p className="welcome-greeting">Welcome to</p>
           <h1 className="font-display text-6xl font-semibold leading-[1.02] tracking-normal text-white md:text-8xl">
-            CodeVoir
+            <span className="welcome-title-brand">CodeVoir</span>
             <span className="block text-amber-300">Interview Arena</span>
           </h1>
-          <p className="max-w-2xl text-lg leading-8 text-slate-300">CodeVoir brings company-specific DSA practice, CS fundamentals, project deep-dives, behavioural probing, live code execution that turn every attempt into a clearer next step.</p>
-          <div className="grid max-w-xl gap-3 sm:grid-cols-2">
-            <WelcomeStat icon={<Code2 size={20} />} label="AI interview rounds" value="DSA, CS, projects" />
-            <WelcomeStat icon={<Zap size={20} />} label="Opportunities" value="Upskill and apply" />
+          <p className="max-w-2xl text-lg leading-8 text-slate-300">Practice, learn, revise, and get discovered—all in one place. CodeVoir transforms complex documentation into interview-ready knowledge, generates intelligent revision resources, delivers company-focused interview preparation, and connects you with opportunities aligned to your skills and aspirations.</p>
+          <div className="grid max-w-2xl gap-4 sm:grid-cols-3">
+            <WelcomeStat icon={<Code2 size={20} />} label="AI interview rounds" value="DSA, CS, projects" iconBg="icon-bg-blue" />
+            <WelcomeStat icon={<Zap size={20} />} label="Opportunities" value="Upskill and apply" iconBg="icon-bg-green" />
+            <WelcomeStat icon={<FileText size={20} />} label="Simplified learning" value="Upload and study" iconBg="icon-bg-purple" />
+          </div>
+
+          <div className="welcome-trust-badge">
+            <div className="trust-col">
+              <ShieldCheck size={18} className="trust-icon" />
+              <div className="trust-text">
+                <span className="trust-label">Trusted by</span>
+                <span className="trust-value">Top Companies</span>
+              </div>
+            </div>
+            <div className="trust-divider" />
+            <div className="trust-col">
+              <Users size={18} className="trust-icon" />
+              <div className="trust-text">
+                <span className="trust-label">Personalized</span>
+                <span className="trust-value">Preparation</span>
+              </div>
+            </div>
+            <div className="trust-divider" />
+            <div className="trust-col">
+              <BarChart3 size={18} className="trust-icon" />
+              <div className="trust-text">
+                <span className="trust-label">Track Progress</span>
+                <span className="trust-value">& Improve</span>
+              </div>
+            </div>
           </div>
         </motion.div>
 
@@ -1199,9 +1242,14 @@ function WelcomePage({ error, onAuthenticate }) {
             <OrbitingLogoSystem stats={defaultDashboard.stats} />
           </div>
           <section className="welcome-signin-panel">
-            <button type="button" onClick={onAuthenticate} className="inline-flex w-full items-center justify-center gap-2 rounded bg-amber-300 px-5 py-4 font-bold text-[#07120f] shadow-lg shadow-amber-900/20 transition hover:scale-[1.015] hover:bg-amber-200">
+            <h3 className="welcome-panel-title">Elevate your interviews</h3>
+            <p className="welcome-panel-subtitle">Access your personalized preparation space.</p>
+            <button type="button" onClick={onAuthenticate} className="welcome-signin-btn">
               <LogIn size={18} /> Sign in to CodeVoir
             </button>
+            <div className="welcome-secure-badge">
+              <Lock size={12} /> Secure Authentication
+            </div>
           </section>
         </motion.div>
       </section>
@@ -1209,12 +1257,21 @@ function WelcomePage({ error, onAuthenticate }) {
   )
 }
 
-function WelcomeStat({ icon, label, value }) {
-  return <div className="dashboard-glass p-4">
-    <div className="text-amber-200">{icon}</div>
-    <div className="mt-3 text-sm text-slate-400">{label}</div>
-    <div className="font-semibold text-white">{value}</div>
-  </div>
+function WelcomeStat({ icon, label, value, iconBg }) {
+  return (
+    <div className="welcome-stat-card">
+      <div className="welcome-stat-top">
+        <div className={`welcome-stat-icon-box ${iconBg || ""}`}>{icon}</div>
+        <div className="welcome-stat-arrow-btn">
+          <ArrowRight size={14} />
+        </div>
+      </div>
+      <div className="welcome-stat-content">
+        <div className="welcome-stat-label">{label}</div>
+        <div className="welcome-stat-value">{value}</div>
+      </div>
+    </div>
+  )
 }
 
 /*
@@ -1795,26 +1852,27 @@ function AnalyticsEmpty({ text }) {
   </div>
 }
 
-function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, onOpportunities, onReportsPage, isBusy }) {
+function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, onOpportunities, onDocsAssistant, onReportsPage, isBusy }) {
+  const [profileOpen, setProfileOpen] = useState(false)
   const stats = dashboard.stats || defaultDashboard.stats
   const interviews = dashboard.interviews || []
   const completed = interviews.filter((item) => item.has_report)
   const displayName = (userProfile.name || "Rishika Jain").toUpperCase()
   const metrics = [
     { icon: <Briefcase size={17} />, label: "Interviews", value: stats.total_interviews || 0 },
-    { icon: <FileText size={17} />, label: "Reports", value: stats.completed_interviews || 0 },
     { icon: <Target size={17} />, label: "Companies", value: stats.companies_practiced || 0 },
     { icon: <TrendingUp size={17} />, label: "Average", value: `${stats.average_score || 0}/100`, tone: "teal" },
     { icon: <Trophy size={17} />, label: "Best", value: `${stats.best_score || 0}/100`, tone: "amber" },
   ]
 
   return (
-    <main className="dashboard-shell min-h-screen text-slate-100">
+    <main className="dashboard-shell min-h-screen text-slate-100 codevoir-dashboard-page">
       <BackgroundCanvas />
       {error && <div className="fixed left-1/2 top-20 z-50 max-w-xl -translate-x-1/2 rounded border border-red-400 bg-red-950/95 px-4 py-3 text-sm text-red-100 shadow-2xl">{error}</div>}
       <DashboardNav
         displayName={displayName}
         onLogout={onLogout}
+        onOpenProfile={() => setProfileOpen(true)}
       />
 
       <section className="relative z-10 mx-auto grid max-w-7xl gap-5 px-6 pb-14 pt-20">
@@ -1824,20 +1882,30 @@ function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh,
           completed={completed.length}
           onStart={() => onStart()}
           onOpportunities={onOpportunities}
+          onDocsAssistant={onDocsAssistant}
           onRefresh={onRefresh}
           loading={loading}
         />
         <StatsBar metrics={metrics} />
-        <DashboardWorkspace
-          userProfile={userProfile}
-          stats={stats}
-          interviews={interviews}
-          completed={completed}
-          onOpenReport={onOpenReport}
+        <DashboardReportsSection 
+          interviews={interviews} 
+          onOpenReport={onOpenReport} 
+          onStart={() => onStart()} 
+          isBusy={isBusy} 
           onReportsPage={onReportsPage}
-          isBusy={isBusy}
         />
+
       </section>
+
+      {profileOpen && (
+        <>
+          <button type="button" className="profile-drawer-backdrop" onClick={() => setProfileOpen(false)} aria-label="Close user panel" />
+          <UserProfilePanel
+            userProfile={userProfile}
+            onClose={() => setProfileOpen(false)}
+          />
+        </>
+      )}
     </main>
   )
 }
@@ -1852,13 +1920,22 @@ const dashboardStagger = {
   show: { transition: { staggerChildren: 0.08 } },
 }
 
-function DashboardNav({ displayName, onLogout }) {
+function DashboardNav({ displayName, onLogout, onOpenProfile }) {
+  const initial = displayName ? displayName[0] : "M"
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#030712]/70 backdrop-blur-xl">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#003366]/90 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6">
-        <div aria-hidden="true" />
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        <div className="welcome-navbar-logo text-white font-extrabold text-2xl" style={{ cursor: 'default', userSelect: 'none' }}>CV</div>
+        <div className="flex shrink-0 items-center justify-end gap-3">
           <DashboardButton onClick={onLogout} icon={<LogOut size={15} />} label="Logout" variant="ghost" />
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="profile-avatar-btn"
+            title="Open profile"
+          >
+            {initial}
+          </button>
         </div>
       </div>
     </header>
@@ -1874,17 +1951,45 @@ function DashboardButton({ icon, label, variant, ...props }) {
   return <button {...props} className={`inline-flex h-10 items-center gap-2 rounded px-3 text-sm font-semibold transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]}`}>{icon}<span>{label}</span></button>
 }
 
-function DashboardHero({ displayName, stats, completed, onStart, onOpportunities }) {
+function DashboardHero({ displayName, stats, completed, onStart, onOpportunities, onDocsAssistant }) {
   return (
     <motion.section className="dashboard-hero" initial="hidden" animate="show" variants={dashboardStagger}>
       <motion.div variants={dashboardCard} className="dashboard-hero-copy">
         <h2 className="font-display text-5xl font-semibold leading-[1.02] tracking-normal text-white md:text-7xl">
-          Build sharper interviews from every company round.
+          Discover. Prepare. <span className="text-accent-gradient">Get hired.</span>
         </h2>
+        <p className="mt-2 max-w-2xl text-base md:text-lg text-slate-300 font-medium italic">
+          Your AI career copilot. Discover jobs and hackathons, practice exact company rounds, and convert complex docs into interactive flashcards instantly.
+        </p>
 
         <div className="dashboard-action-stack">
-          <button onClick={onStart} className="dashboard-primary-action"><Play size={18} /> Start interview</button>
-          <button onClick={onOpportunities} className="dashboard-secondary-action"><Zap size={17} /> Opportunities</button>
+          <div className="dashboard-action-card">
+            <img 
+              src="/minimal_coder.png" 
+              alt="Prep Interview" 
+              className="dashboard-action-img" 
+              style={{ objectFit: 'contain', padding: '16px 16px 0 16px' }}
+            />
+            <button onClick={onStart} className="dashboard-primary-action"><Play size={18} /> Start interview</button>
+          </div>
+          <div className="dashboard-action-card">
+            <img 
+              src="/minimal_career.png" 
+              alt="Opportunities" 
+              className="dashboard-action-img" 
+              style={{ objectFit: 'contain', padding: '16px 16px 0 16px' }}
+            />
+            <button onClick={onOpportunities} className="dashboard-secondary-action"><Zap size={17} /> Opportunities</button>
+          </div>
+          <div className="dashboard-action-card">
+            <img 
+              src="/minimal_docs.png" 
+              alt="Documentation Assistant" 
+              className="dashboard-action-img" 
+              style={{ objectFit: 'contain', padding: '16px 16px 0 16px' }}
+            />
+            <button onClick={onDocsAssistant} className="dashboard-secondary-action"><FileText size={17} /> Documentation Assistant</button>
+          </div>
         </div>
 
       </motion.div>
@@ -1938,72 +2043,102 @@ function RoundShortcuts({ onStart }) {
 
 function StatsBar({ metrics }) {
   return (
-    <motion.section className="dashboard-glass grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5" initial="hidden" animate="show" variants={dashboardStagger}>
+    <motion.section className="dashboard-glass grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4" initial="hidden" animate="show" variants={dashboardStagger}>
       {metrics.map((metric) => <DashboardMetric key={metric.label} {...metric} />)}
     </motion.section>
   )
 }
 
-function DashboardWorkspace({ userProfile, stats, interviews, completed, onReportsPage }) {
-  const [profileOpen, setProfileOpen] = useState(false)
+function DashboardReportsSection({ interviews, onOpenReport, onStart, isBusy, onReportsPage }) {
+  const completed = interviews.filter((item) => item.has_report)
+  
   return (
-    <motion.section className="dashboard-workspace" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.55 }}>
-      <button type="button" onClick={() => setProfileOpen(true)} className="profile-drawer-trigger" title="Open user panel" aria-label="Open user panel">
-        <MoreHorizontal size={22} />
-      </button>
-      {profileOpen && (
-        <>
-          <button type="button" className="profile-drawer-backdrop" onClick={() => setProfileOpen(false)} aria-label="Close user panel" />
-          <UserProfilePanel
-            userProfile={userProfile}
-            stats={stats}
-            completed={completed}
-            onClose={() => setProfileOpen(false)}
-            onReportsPage={onReportsPage}
-          />
-        </>
+    <motion.section 
+      className="dashboard-reports-section mt-10" 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      transition={{ delay: 0.15, duration: 0.55 }}
+    >
+      <div className="flex items-center justify-between mb-6">
+        <h2 
+          className="font-display text-2xl font-bold text-slate-800 cursor-pointer hover:text-[#0a66c2] transition-colors flex items-center gap-1.5"
+          onClick={onReportsPage}
+        >
+          Interview Reports
+          <ChevronRight size={22} className="text-[#0a66c2]" />
+        </h2>
+      </div>
+
+      {completed.length > 0 ? (
+        <div className="report-empty-state cursor-pointer hover:shadow-lg transition-all duration-300" onClick={onReportsPage}>
+          <div className="report-empty-grid">
+            <div className="report-empty-copy">
+              <span className="text-xs font-bold text-[#0a66c2] bg-[#eef2ff] px-2.5 py-1 rounded-full uppercase tracking-wider mb-3 inline-block">
+                {completed.length} Report{completed.length === 1 ? "" : "s"} Available
+              </span>
+              <h3 className="report-empty-title">Detailed Performance Feedback</h3>
+              <p className="report-empty-subtitle">
+                Access comprehensive skill gap breakdowns, topic masteries, behavioral evaluations, and playback of your submitted code for all completed interview sessions.
+              </p>
+              <button onClick={(e) => { e.stopPropagation(); onReportsPage(); }} className="report-empty-btn">
+                View All Reports <ArrowRight size={16} className="ml-1.5" />
+              </button>
+            </div>
+            <div className="report-empty-visual">
+              <img src="/dashboard_analytics_vector.png" alt="Reports feedback" className="report-empty-img" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="report-empty-state">
+          <div className="report-empty-grid">
+            <div className="report-empty-copy">
+              <h3 className="report-empty-title">Your feedback dashboard is waiting</h3>
+              <p className="report-empty-subtitle">
+                Complete your first company-specific AI interview round to unlock detailed skill gaps, topic masteries, behavioral feedback, and runnable code playback.
+              </p>
+              <button onClick={onStart} className="report-empty-btn">
+                <Play size={16} /> Start your first interview
+              </button>
+            </div>
+            <div className="report-empty-visual">
+              <img src="/interview_prep_vector.png" alt="No reports" className="report-empty-img" />
+            </div>
+          </div>
+        </div>
       )}
     </motion.section>
   )
 }
 
-function UserProfilePanel({ userProfile, stats, completed, onClose, onReportsPage }) {
-  const initials = (userProfile.name || "Rishika Jain").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "RJ"
+function DashboardWorkspace({ userProfile, stats, interviews, completed, onReportsPage, onStart }) {
+  const dsaReports = interviews.filter((item) => item.round_type === "dsa").length
+  const completedDsa = completed.filter((item) => item.round_type === "dsa").length
+  const dsaAverage = stats.average_score || 0
+  return (
+    <motion.section className="dashboard-workspace" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.55 }}>
+      <DSATrackCard dsaReports={dsaReports} completedDsa={completedDsa} dsaAverage={dsaAverage} onStart={() => onStart("dsa")} />
+      <RoundShortcuts onStart={onStart} />
+    </motion.section>
+  )
+}
+
+function UserProfilePanel({ userProfile, onClose }) {
+  const initials = (userProfile.name || "Mridu").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "M"
   return (
     <aside className="profile-side-panel profile-drawer-panel">
       <button type="button" onClick={onClose} className="profile-drawer-close" title="Close user panel" aria-label="Close user panel">
-        <X size={18} />
+        <X size={13} />
       </button>
-      <div className="profile-avatar">{initials}</div>
-      <div>
-        <h2 className="font-display text-xl font-semibold tracking-normal text-white">{userProfile.name || "Rishika Jain"}</h2>
-        <p className="mt-1 text-sm text-slate-400">{userProfile.email || "Candidate workspace"}</p>
-      </div>
-
-      <nav className="profile-tabs" aria-label="Dashboard sections">
-        <button
-          className="profile-tab profile-tab-active"
-          onClick={() => {
-            onClose()
-            onReportsPage()
-          }}
-        >
-          <FileText size={16} /> Reports
-        </button>
-      </nav>
-
-      <div className="profile-summary">
-        <div>
-          <span>Total interviews</span>
-          <strong>{stats.total_interviews || 0}</strong>
-        </div>
-        <div>
-          <span>Reports ready</span>
-          <strong>{completed.length}</strong>
-        </div>
-        <div>
-          <span>Best score</span>
-          <strong>{stats.best_score || 0}/100</strong>
+      <div className="flex items-center gap-3">
+        <div className="profile-avatar flex-shrink-0">{initials}</div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-white truncate" style={{ margin: 0 }}>
+            {userProfile.name || "Mridu"}
+          </h2>
+          <p className="text-xs text-slate-400 truncate mt-0.5" style={{ margin: 0 }}>
+            {userProfile.email || "mridubd7454@gmail.com"}
+          </p>
         </div>
       </div>
     </aside>
@@ -2021,10 +2156,10 @@ function ReportsSearchPage({ dashboard, onBack, onOpenReport, isBusy }) {
   const companies = [...new Set(interviews.map((item) => item.target_company || "General"))].sort()
 
   return (
-    <main className="dashboard-shell min-h-screen text-slate-100">
+    <main className="dashboard-shell min-h-screen text-slate-100 codevoir-dashboard-page">
       <BackgroundCanvas />
-      <section className="relative z-10 border-b border-sky-400/10 bg-slate-950/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
+      <header className="relative z-10 border-b border-sky-400/10 bg-slate-950/70 backdrop-blur-xl">
+        <div className="w-full flex items-center justify-between gap-4 px-4 py-4">
           <div className="flex min-w-0 items-center gap-3">
             <button onClick={onBack} className="grid h-10 w-10 place-items-center rounded border border-sky-400/30 bg-sky-400/10 text-sky-100 shadow-[0_0_24px_rgba(56,189,248,.16)] transition hover:border-sky-300 hover:bg-sky-400/20" title="Back to dashboard"><ArrowLeft size={20} /></button>
             <div>
@@ -2032,9 +2167,9 @@ function ReportsSearchPage({ dashboard, onBack, onOpenReport, isBusy }) {
             </div>
           </div>
         </div>
-      </section>
+      </header>
 
-      <section className="relative z-10 mx-auto grid max-w-7xl gap-5 px-6 py-8">
+      <section className="relative z-10 mx-auto grid max-w-7xl gap-5 px-6 pb-8 pt-3">
         <div className="report-search-card p-5">
           <label className="relative block">
             <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-200" size={18} />
@@ -2337,13 +2472,71 @@ function clampScore(value) {
   return Math.max(0, Math.min(100, Math.round(score)))
 }
 
+function SetupCarousel() {
+  const slides = [
+    {
+      img: "/setup_illustration.png",
+      title: "Real-time Live Simulator",
+      desc: "Interactive voice and code environment with real-time feedback."
+    },
+    {
+      img: "/coding_prep_scene.png",
+      title: "Targeted Coding Rounds",
+      desc: "DSA prep tailored specifically to your target company."
+    },
+    {
+      img: "/interview_prep_vector.png",
+      title: "Behavioral Personalization",
+      desc: "AI questions tailored to your resume and job description."
+    }
+  ];
+
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % slides.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="w-full flex flex-col items-center justify-center p-2">
+      <div className="relative w-full max-w-[420px] aspect-square rounded-2xl overflow-hidden border border-slate-200/80 bg-white/40 shadow-sm backdrop-blur-sm flex items-center justify-center">
+        {slides.map((slide, idx) => (
+          <div
+            key={idx}
+            className={`absolute inset-0 transition-opacity duration-700 flex flex-col ${idx === current ? "opacity-100 z-10" : "opacity-0 z-0"}`}
+          >
+            <img src={slide.img} alt={slide.title} className="h-full w-full object-cover" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 text-center">
+        <h3 className="text-sm font-semibold text-slate-800 transition-all duration-300">{slides[current].title}</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-[320px] mx-auto transition-all duration-300">{slides[current].desc}</p>
+      </div>
+      <div className="flex gap-1.5 mt-3">
+        {slides.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setCurrent(idx)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${idx === current ? "w-4 bg-[#0a66c2]" : "w-1.5 bg-slate-300"}`}
+            aria-label={`Slide ${idx + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function Field({ label, children }) {
   return <label className="grid gap-2 text-sm text-slate-300"><span>{label}</span>{children}</label>
 }
 
 function FeedbackLoading({ onBack }) {
   return (
-    <main className="dashboard-shell min-h-screen text-slate-100">
+    <main className="dashboard-shell min-h-screen text-slate-100 codevoir-dashboard-page">
       <BackgroundCanvas />
       <section className="relative z-10 grid min-h-screen place-items-center px-6">
         <div className="dashboard-glass max-w-xl p-8 text-center">
@@ -2576,9 +2769,9 @@ function Feedback({ report, onRestart, onBack }) {
   const roundItems = roundBreakdownItems(breakdown)
   const integrity = report.integrity || {}
 
-  return <main className="dashboard-shell min-h-screen p-6 text-slate-100">
+  return <main className="dashboard-shell min-h-screen p-6 text-slate-100 codevoir-dashboard-page">
     <BackgroundCanvas />
-    <section className="dashboard-glass relative z-10 mx-auto max-w-6xl p-6">
+    <section className="dashboard-glass relative z-10 mx-auto w-full max-w-[95%] xl:max-w-[1400px] p-6">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <button onClick={onBack} className="mb-4 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>
@@ -2732,16 +2925,16 @@ function MetricCard({ metric }) {
   return (
     <motion.div className="report-pop-card rounded border border-slate-800 bg-slate-950 p-3" whileHover={{ y: -4, scale: 1.015 }} transition={{ type: "spring", stiffness: 320, damping: 22 }}>
       <div className="flex items-start justify-between gap-2">
-        <div className="text-sm font-medium text-slate-200 leading-5">{metric.name}</div>
+        <div className="text-sm font-semibold text-slate-200 leading-5">{metric.name}</div>
         <div className={`text-lg font-bold shrink-0 ${text}`}>{score}</div>
       </div>
       <div className="mt-2 flex items-center gap-2">
         <div className="flex-1 h-1.5 rounded bg-slate-800">
           <div className={`h-1.5 rounded ${bar} transition-all`} style={{ width: `${score}%` }} />
         </div>
-        {metric.label && <span className={`text-xs font-medium shrink-0 ${labelColor(metric.label)}`}>{metric.label}</span>}
+        {metric.label && <span className={`text-xs font-semibold shrink-0 ${labelColor(metric.label)}`}>{metric.label}</span>}
       </div>
-      {metric.note && <p className="mt-2 text-xs leading-5 text-slate-400">{metric.note}</p>}
+      {metric.note && <p className="mt-2 text-[13px] leading-relaxed text-slate-400 font-medium">{metric.note}</p>}
     </motion.div>
   )
 }
@@ -2755,7 +2948,7 @@ function VerdictCard({ verdict, overallScore }) {
     <motion.div className={`verdict-glow rounded border-2 ${border} ${bg} p-5`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Final Verdict</div>
+          <div className="text-xs uppercase tracking-widest text-slate-400 mb-1 font-semibold">Final Verdict</div>
           <div className="flex items-center gap-2">
             <div className={`h-3 w-3 rounded-full ${dot}`} />
             <span className={`text-xl font-bold ${text}`}>{signal || "Pending"}</span>
@@ -2767,28 +2960,28 @@ function VerdictCard({ verdict, overallScore }) {
         </div>
       </div>
       <div className="mt-3">
-        <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+        <div className="flex items-center justify-between text-xs text-slate-400 mb-1 font-semibold">
           <span>Confidence</span><span>{confidence}%</span>
         </div>
         <div className="h-1.5 rounded bg-slate-800">
           <div className={`h-1.5 rounded ${confBar}`} style={{ width: `${confidence}%` }} />
         </div>
       </div>
-      {verdict?.summary && <p className="mt-3 text-sm leading-6 text-slate-300">{verdict.summary}</p>}
+      {verdict?.summary && <p className="mt-3 text-sm leading-relaxed text-slate-300 font-medium">{verdict.summary}</p>}
       {(verdict?.biggest_strength || verdict?.biggest_weakness || verdict?.most_important_next_step) && (
         <div className="mt-3 grid gap-2">
           {verdict.biggest_strength && (
-            <div className="rounded bg-emerald-950/50 border border-emerald-800/40 px-3 py-2 text-xs text-emerald-200">
+            <div className="rounded bg-emerald-950/50 border border-emerald-800/40 px-3 py-2 text-[13px] leading-relaxed text-emerald-200 font-medium">
               <span className="font-semibold text-emerald-400">Top strength: </span>{verdict.biggest_strength}
             </div>
           )}
           {verdict.biggest_weakness && (
-            <div className="rounded bg-amber-950/50 border border-amber-800/40 px-3 py-2 text-xs text-amber-200">
+            <div className="rounded bg-amber-950/50 border border-amber-800/40 px-3 py-2 text-[13px] leading-relaxed text-amber-200 font-medium">
               <span className="font-semibold text-amber-400">Key gap: </span>{verdict.biggest_weakness}
             </div>
           )}
           {verdict.most_important_next_step && (
-            <div className="rounded bg-blue-950/50 border border-blue-800/40 px-3 py-2 text-xs text-blue-200">
+            <div className="rounded bg-blue-950/50 border border-blue-800/40 px-3 py-2 text-[13px] leading-relaxed text-blue-200 font-medium">
               <span className="font-semibold text-blue-400">Priority action: </span>{verdict.most_important_next_step}
             </div>
           )}
@@ -2807,9 +3000,9 @@ function DSAReportStat({ label, value, helper, tone = "cyan" }) {
   }
   return (
     <motion.div className={`report-pop-card rounded border bg-gradient-to-br ${tones[tone] || tones.cyan} to-slate-950/80 p-4`} whileHover={{ y: -5, scale: 1.02 }}>
-      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-400 font-semibold">{label}</div>
       <div className="mt-2 text-3xl font-bold text-white">{value}</div>
-      {helper && <div className="mt-1 text-xs leading-5 text-slate-400">{helper}</div>}
+      {helper && <div className="mt-1.5 text-[13px] leading-relaxed text-slate-400 font-medium">{helper}</div>}
     </motion.div>
   )
 }
@@ -2890,50 +3083,50 @@ function RecommendationCard({ rec }) {
 
 function QuestionPerformanceCard({ qp }) {
   const verdictColor = {
-    Solved: "text-emerald-300 bg-emerald-900/40",
-    Partial: "text-cyan-300 bg-cyan-900/40",
-    Explained: "text-blue-300 bg-blue-900/40",
-    Incorrect: "text-amber-300 bg-amber-900/40",
-    "Not attempted": "text-red-300 bg-red-900/40",
-    Strong: "text-emerald-400 bg-emerald-900/40",
-    Satisfactory: "text-blue-400 bg-blue-900/40",
-    "Needs Work": "text-amber-400 bg-amber-900/40",
-    Weak: "text-red-400 bg-red-900/40",
+    Solved: "text-emerald-400 bg-emerald-950",
+    Partial: "text-cyan-400 bg-cyan-950",
+    Explained: "text-blue-400 bg-blue-950",
+    Incorrect: "text-amber-400 bg-amber-950",
+    "Not attempted": "text-red-400 bg-red-950",
+    Strong: "text-emerald-400 bg-emerald-950",
+    Satisfactory: "text-blue-400 bg-blue-950",
+    "Needs Work": "text-amber-400 bg-amber-950",
+    Weak: "text-red-400 bg-red-950",
   }
   const vc = verdictColor[qp.verdict] || verdictColor["Needs Work"]
   const metrics = qp.metrics || {}
   const bars = [
-    { label: "Code", val: metrics.code_correctness ?? metrics.implementation ?? 0 },
-    { label: "Explain", val: metrics.explanation_credit ?? metrics.approach_quality ?? 0 },
+    { label: "Code Accuracy", val: metrics.code_correctness ?? metrics.implementation ?? 0 },
+    { label: "Approach", val: metrics.explanation_credit ?? metrics.approach_quality ?? 0 },
     { label: "Communication", val: metrics.communication || 0 },
   ]
   return (
-    <motion.div className="report-pop-card rounded border border-slate-700 bg-slate-900 p-4" whileHover={{ y: -4, scale: 1.01 }}>
-      <div className="flex items-start justify-between mb-3">
+    <motion.div className="report-pop-card rounded-2xl border border-slate-700 bg-slate-900 p-5" whileHover={{ y: -4, scale: 1.01 }}>
+      <div className="flex items-start justify-between mb-4">
         <div>
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Question {qp.question_index}</span>
-          {qp.problem_excerpt && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{qp.problem_excerpt}</p>}
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Question {qp.question_index}</span>
+          {qp.problem_excerpt && <p className="text-[13px] font-medium leading-relaxed text-slate-400 mt-1 line-clamp-2">{qp.problem_excerpt}</p>}
         </div>
-        <div className="flex flex-col items-end gap-1 ml-3 shrink-0">
-          <span className={`rounded px-2 py-0.5 text-xs font-semibold ${vc}`}>{qp.verdict}</span>
-          <span className="text-lg font-bold text-slate-100">{qp.overall_score}<span className="text-xs font-normal text-slate-500">/100</span></span>
+        <div className="flex flex-col items-end gap-1.5 ml-3 shrink-0">
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${vc}`}>{qp.verdict}</span>
+          <span className="text-xl font-extrabold text-slate-100">{qp.overall_score}<span className="text-xs font-semibold text-slate-500">/100</span></span>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         {bars.map(({ label, val }) => {
           const { bar, text } = scoreColor(val)
           return (
             <div key={label}>
-              <div className="flex justify-between text-xs mb-0.5"><span className="text-slate-500">{label}</span><span className={text}>{val}</span></div>
-              <div className="h-1 rounded bg-slate-800"><div className={`h-1 rounded ${bar}`} style={{ width: `${val}%` }} /></div>
+              <div className="flex justify-between text-[13px] font-semibold mb-1"><span className="text-slate-400">{label}</span><span className={text}>{val}</span></div>
+              <div className="h-2 rounded-full bg-slate-800"><div className={`h-2 rounded-full ${bar}`} style={{ width: `${val}%` }} /></div>
             </div>
           )
         })}
       </div>
       {(qp.hints_used > 0 || (qp.followups_asked || []).length > 0) && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {qp.hints_used > 0 && <span className="rounded bg-amber-900/30 px-2 py-0.5 text-xs text-amber-400">{qp.hints_used} hint{qp.hints_used !== 1 ? "s" : ""} used</span>}
-          {(qp.followups_asked || []).slice(0, 1).map((f, i) => <span key={i} className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400 max-w-xs truncate">{f}</span>)}
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-800/60 pt-3">
+          {qp.hints_used > 0 && <span className="rounded-full bg-amber-950/20 border border-amber-800/30 px-2.5 py-1 text-xs font-semibold text-amber-200">{qp.hints_used} hint{qp.hints_used !== 1 ? "s" : ""} used</span>}
+          {(qp.followups_asked || []).slice(0, 1).map((f, i) => <span key={i} className="rounded-full bg-slate-850 px-2.5 py-1 text-xs font-semibold text-slate-300 max-w-xs truncate">{f}</span>)}
         </div>
       )}
     </motion.div>
@@ -3070,38 +3263,61 @@ function DSAFeedback({ report, onRestart, onBack }) {
   const weakTopics = ev.weak_dsa_topics || []
 
   return (
-    <main className="dashboard-shell dsa-report-shell min-h-screen text-slate-100">
+    <main className="dashboard-shell dsa-report-shell min-h-screen text-slate-100 codevoir-dashboard-page">
+      <section className="relative z-20 bg-gradient-to-r from-[#004182] to-[#0a66c2] shadow-md border-b border-[#003366]">
+        <div className="mx-auto w-full max-w-[95%] xl:max-w-[1400px] flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-4">
+            {onBack && (
+              <button onClick={onBack} className="inline-flex items-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2 text-sm font-semibold text-white transition-all">
+                <ArrowLeft size={16} /> Back to dashboard
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
       <BackgroundCanvas />
-      <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
+      <div className="relative z-10 mx-auto w-full max-w-[95%] xl:max-w-[1400px] px-4 md:px-6 py-8">
 
         {/* Header */}
-        <motion.div className="report-hero mb-6 flex flex-wrap items-start justify-between gap-4 rounded border border-cyan-300/20 p-5" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <div>
-            {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
-              <span>DSA Interview Report</span>
-              {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
-              {report.job_role && <span className="text-slate-500">{report.job_role}</span>}
+        <motion.div className="report-hero mb-6 flex flex-col md:flex-row items-stretch justify-between gap-6 rounded border border-cyan-300/20 p-6" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-2 font-bold">
+              <span>Overall Evaluation Summary</span>
             </div>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{report.summary || verdict.summary}</p>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-100 mb-2">
+              {report.target_company ? `${report.target_company} — ` : ""}DSA Round Report
+            </h1>
+            {breakdown.problem && (
+              <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm text-slate-500 font-semibold mb-3">
+                <span className="capitalize text-slate-700">{breakdown.problem.difficulty || "medium"} difficulty</span>
+                {breakdown.problem.topics?.length > 0 && (
+                  <>
+                    <span className="text-slate-400">·</span>
+                    <span className="text-slate-600">Topics: {breakdown.problem.topics.slice(0, 3).join(", ")}</span>
+                  </>
+                )}
+                {breakdown.submission?.total_testcases > 0 && (
+                  <>
+                    <span className="text-slate-400">·</span>
+                    <span className={breakdown.submission.passed_testcases === breakdown.submission.total_testcases ? "text-emerald-600" : "text-amber-600"}>
+                      {breakdown.submission.passed_testcases}/{breakdown.submission.total_testcases} tests passed
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+            <p className="mt-1 max-w-3xl text-sm md:text-[15px] leading-relaxed text-slate-300 font-medium">{report.summary || verdict.summary}</p>
             {report.skill_gap && (
-              <div className="mt-3 rounded border border-amber-700/30 bg-amber-950/20 px-3 py-2 text-xs leading-5 text-amber-200 max-w-2xl">
+              <div className="mt-3 rounded border border-amber-700/30 bg-amber-950/20 px-3 py-2 text-xs md:text-sm leading-5 text-amber-200 max-w-2xl font-medium">
                 <span className="font-semibold text-amber-400">Key skill gap: </span>{report.skill_gap}
               </div>
             )}
           </div>
-          {breakdown.problem?.title && (
-            <div className="rounded border border-slate-800 bg-slate-900 px-4 py-3 text-right text-sm shrink-0">
-              <div className="text-slate-500 text-xs mb-0.5">Problem</div>
-              <div className="font-semibold text-slate-100">{breakdown.problem.title}</div>
-              <div className="text-slate-400 text-xs mt-0.5">{breakdown.problem.difficulty} · {(breakdown.problem.topics || []).slice(0, 3).join(", ")}</div>
-              {breakdown.submission?.total_testcases > 0 && (
-                <div className={`mt-1 text-xs font-medium ${breakdown.submission.passed_testcases === breakdown.submission.total_testcases ? "text-emerald-400" : "text-amber-400"}`}>
-                  {breakdown.submission.passed_testcases}/{breakdown.submission.total_testcases} tests passed
-                </div>
-              )}
+          <div className="hidden lg:flex items-center justify-center shrink-0 w-56 p-1">
+            <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-200/60 bg-white/40 shadow-[0_4px_20px_rgba(0,0,0,0.05)] backdrop-blur-sm">
+              <img src="/report_illustration.png" alt="Evaluation graph" className="h-full w-full object-cover" />
             </div>
-          )}
+          </div>
         </motion.div>
 
         <motion.div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" initial="hidden" animate="show" variants={dashboardStagger}>
@@ -3569,32 +3785,48 @@ function CSFeedback({ report, onRestart, onBack }) {
   const integrity = report.integrity || {}
 
   return (
-    <main className="dashboard-shell min-h-screen text-slate-100">
+    <main className="dashboard-shell min-h-screen text-slate-100 codevoir-dashboard-page">
+      <section className="relative z-20 bg-gradient-to-r from-[#004182] to-[#0a66c2] shadow-md border-b border-[#003366]">
+        <div className="mx-auto w-full max-w-[95%] xl:max-w-[1400px] flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-4">
+            {onBack && (
+              <button onClick={onBack} className="inline-flex items-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2 text-sm font-semibold text-white transition-all">
+                <ArrowLeft size={16} /> Back to dashboard
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
       <BackgroundCanvas />
-      <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
+      <div className="relative z-10 mx-auto w-full max-w-[95%] xl:max-w-[1400px] px-4 md:px-6 py-8">
 
         {/* Header */}
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
-          <div>
-            {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
-            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-1">
-              <span>CS Fundamentals Report</span>
-              {report.target_company && <span className="rounded bg-cyan-900/40 px-2 py-0.5">{report.target_company}</span>}
-              {report.job_role && <span className="text-slate-500">{report.job_role}</span>}
+        <div className="report-hero mb-6 flex flex-col md:flex-row items-stretch justify-between gap-6 rounded border border-cyan-300/20 p-6">
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-cyan-400 mb-2 font-bold">
+              <span>Overall Evaluation Summary</span>
             </div>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{report.summary || verdict.summary}</p>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-100 mb-2">
+              {report.target_company ? `${report.target_company} — ` : ""}CS Fundamentals Report
+            </h1>
+            <p className="mt-1 max-w-3xl text-sm md:text-[15px] leading-relaxed text-slate-300 font-medium">{report.summary || verdict.summary}</p>
             {report.skill_gap && (
-              <div className="mt-3 rounded border border-amber-700/30 bg-amber-950/20 px-3 py-2 text-xs leading-5 text-amber-200 max-w-2xl">
+              <div className="mt-3 rounded border border-amber-700/30 bg-amber-950/20 px-3 py-2 text-xs md:text-sm leading-5 text-amber-200 max-w-2xl font-medium">
                 <span className="font-semibold text-amber-400">Key gap: </span>{report.skill_gap}
               </div>
             )}
           </div>
+          <div className="hidden lg:flex items-center justify-center shrink-0 w-56 p-1">
+            <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-200/60 bg-white/40 shadow-[0_4px_20px_rgba(0,0,0,0.05)] backdrop-blur-sm">
+              <img src="/report_illustration.png" alt="Evaluation graph" className="h-full w-full object-cover" />
+            </div>
+          </div>
           {breakdown.topics_covered?.length > 0 && (
-            <div className="rounded border border-slate-800 bg-slate-900 px-4 py-3 text-sm shrink-0">
-              <div className="text-slate-500 text-xs mb-1">Topics covered</div>
-              <div className="flex flex-wrap gap-1">
+            <div className="rounded border border-slate-800 bg-slate-900 px-5 py-4 text-sm shrink-0 flex flex-col justify-center">
+              <div className="text-slate-500 text-xs mb-1 font-semibold">Topics covered</div>
+              <div className="flex flex-wrap gap-1 mt-1">
                 {breakdown.topics_covered.map((t) => (
-                  <span key={t} className="rounded bg-cyan-900/40 px-2 py-0.5 text-xs text-cyan-300">{t}</span>
+                  <span key={t} className="rounded bg-cyan-900/40 px-2 py-0.5 text-xs text-cyan-300 font-medium">{t}</span>
                 ))}
               </div>
             </div>
@@ -3983,20 +4215,37 @@ function PBFeedback({ report, onRestart, onBack }) {
   const score = Math.max(0, Math.min(100, Number(report.overall_score) || 0))
 
   return (
-    <main className="dashboard-shell min-h-screen text-slate-100">
-      <BackgroundCanvas />
-      <div className="relative z-10 mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-6">
-          <div>
-            {onBack && <button onClick={onBack} className="mb-3 inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200"><ArrowLeft size={16} /> Back to dashboard</button>}
-            <div className="font-display text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Project + Behavioral Report</div>
-            <h1 className="mt-2 font-display text-3xl font-semibold text-white">{report.target_company || "Company"} interview result</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{report.summary}</p>
+    <main className="dashboard-shell min-h-screen text-slate-100 codevoir-dashboard-page">
+      <section className="relative z-20 bg-gradient-to-r from-[#004182] to-[#0a66c2] shadow-md border-b border-[#003366]">
+        <div className="mx-auto w-full max-w-[95%] xl:max-w-[1400px] flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-4">
+            {onBack && (
+              <button onClick={onBack} className="inline-flex items-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2 text-sm font-semibold text-white transition-all">
+                <ArrowLeft size={16} /> Back to dashboard
+              </button>
+            )}
           </div>
-          <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-6 py-4 text-right shadow-[0_0_40px_rgba(34,211,238,0.12)]">
-            <div className="text-xs uppercase tracking-widest text-cyan-300">Total score</div>
+        </div>
+      </section>
+      <BackgroundCanvas />
+      <div className="relative z-10 mx-auto w-full max-w-[95%] xl:max-w-[1400px] px-4 md:px-6 py-8">
+        <div className="report-hero mb-6 flex flex-col md:flex-row items-stretch justify-between gap-6 rounded border border-cyan-300/20 p-6">
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="font-display text-xs font-bold uppercase tracking-[0.22em] text-cyan-300 mb-2 font-semibold">Overall Evaluation Summary</div>
+            <h1 className="mt-1 font-display text-2xl font-bold text-white mb-2">
+              {report.target_company ? `${report.target_company} — ` : ""}Project + Behavioral Report
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm md:text-[15px] leading-relaxed text-slate-300 font-medium">{report.summary}</p>
+          </div>
+          <div className="hidden lg:flex items-center justify-center shrink-0 w-56 p-1">
+            <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-200/60 bg-white/40 shadow-[0_4px_20px_rgba(0,0,0,0.05)] backdrop-blur-sm">
+              <img src="/report_illustration.png" alt="Evaluation graph" className="h-full w-full object-cover" />
+            </div>
+          </div>
+          <div className="rounded border border-cyan-400/30 bg-cyan-400/10 px-6 py-4 text-right shadow-[0_0_40px_rgba(34,211,238,0.12)] shrink-0 flex flex-col justify-center">
+            <div className="text-xs uppercase tracking-widest text-cyan-300 font-semibold">Total score</div>
             <div className={`mt-1 text-5xl font-bold ${scoreColor(score).text}`}>{score}<span className="text-base text-slate-500">/100</span></div>
-            <div className="mt-1 text-xs text-slate-400">Answer quality only</div>
+            <div className="mt-1 text-xs text-slate-400 font-medium">Answer quality only</div>
           </div>
         </div>
 
@@ -4027,7 +4276,7 @@ function PBFeedback({ report, onRestart, onBack }) {
   )
 
   return (
-    <main className="dashboard-shell min-h-screen text-slate-100">
+    <main className="dashboard-shell min-h-screen text-slate-100 codevoir-dashboard-page">
       <BackgroundCanvas />
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
 
@@ -4264,15 +4513,15 @@ function PBFeedback({ report, onRestart, onBack }) {
 function SimpleReportPanel({ title, items, empty }) {
   const visible = (items || []).filter(Boolean)
   return (
-    <section className="rounded-lg border border-sky-400/18 bg-slate-950/70 p-5 shadow-[0_18px_58px_rgba(2,6,23,0.28)]">
-      <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">{title}</h2>
+    <section className="rounded-2xl border border-sky-400/18 bg-slate-950/70 p-5 shadow-[0_18px_58px_rgba(2,6,23,0.28)]">
+      <h2 className="font-display text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">{title}</h2>
       <div className="mt-4 grid gap-3">
         {visible.length ? visible.map((item, index) => (
-          <div key={`${title}-${index}`} className="rounded border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm leading-6 text-slate-200">
+          <div key={`${title}-${index}`} className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm leading-6 text-slate-200">
             {item}
           </div>
         )) : (
-          <div className="rounded border border-dashed border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-500">{empty}</div>
+          <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-500">{empty}</div>
         )}
       </div>
     </section>

@@ -82,7 +82,7 @@ function OpportunityCard({ opp }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col h-full overflow-hidden rounded-lg border border-slate-700/60 bg-slate-950/60 backdrop-blur-xl
-                 hover:border-sky-400/40 hover:shadow-[0_0_24px_rgba(56,189,248,0.12)] transition-all duration-300 group"
+                 hover:border-sky-400/40 hover:shadow-[0_0_24px_rgba(56,189,248,0.12)] transition-all duration-300 group opportunity-card"
     >
       {/* Cover */}
       <div className={`relative h-32 bg-gradient-to-br ${tc.grad} overflow-hidden`}>
@@ -308,7 +308,7 @@ export default function OpportunitiesPage({ onBack }) {
   const visible = filteredOpps.slice(carouselIdx, carouselIdx + CARDS_PER_VIEW)
 
   return (
-    <div className="dashboard-shell min-h-screen text-white">
+    <div className="dashboard-shell min-h-screen text-slate-900 codevoir-dashboard-page">
       {/* Sticky header */}
       <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/70 px-6 py-4 backdrop-blur-xl">
         <button
@@ -320,29 +320,29 @@ export default function OpportunitiesPage({ onBack }) {
         </button>
       </header>
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Hero */}
-        <div className="dashboard-glass mb-10 px-6 py-8 text-center">
-          <h1 className="font-display text-3xl sm:text-5xl font-semibold tracking-normal text-white mb-3">
+        <div className="mb-10 text-center">
+          <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-3">
             Find Your Perfect Opportunity
           </h1>
-          <p className="text-gray-400 max-w-xl mx-auto text-sm sm:text-base">
+          <p className="text-slate-600 max-w-xl mx-auto text-sm sm:text-base leading-relaxed">
             Upload your resume — we analyze your skills, year and interests to surface hackathons,
             jobs and internships matched to&nbsp;you.
           </p>
         </div>
 
         {/* Input grid */}
-        <div className="dashboard-glass grid md:grid-cols-2 gap-6 mb-8 p-5">
+        <div className="dashboard-glass opp-form-card grid md:grid-cols-2 gap-16 mb-8 p-5">
           {/* Resume upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2.5">
               Resume <span className="text-gray-500 font-normal">(PDF or TXT)</span>
             </label>
             <div
-              className={`relative rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
-                isDragging ? "border-sky-400 bg-sky-400/10" :
-                resumeFile ? "border-sky-400/60 bg-sky-400/5" :
+              className={`relative rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-all opp-dropzone ${
+                isDragging ? "active border-sky-400 bg-sky-400/10" :
+                resumeFile ? "active border-sky-400/60 bg-sky-400/5" :
                 "border-white/20 hover:border-sky-400/50 hover:bg-sky-400/5"
               }`}
               onDragOver={handleDragOver}
@@ -384,9 +384,9 @@ export default function OpportunitiesPage({ onBack }) {
           </div>
 
           {/* Optional filters */}
-          <div className="space-y-4">
+          <div className="space-y-6 opp-filters-stack">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Additional Skills <span className="text-gray-500 font-normal">(optional)</span>
               </label>
               <div className="relative">
@@ -396,14 +396,14 @@ export default function OpportunitiesPage({ onBack }) {
                   value={skills}
                   onChange={(e) => setSkills(e.target.value)}
                   placeholder="Python, React, Machine Learning..."
-                  className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm
+                  className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm opp-input
                              placeholder-gray-500 focus:outline-none focus:border-sky-400/60 transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Target Companies <span className="text-gray-500 font-normal">(optional)</span>
               </label>
               <div className="relative">
@@ -413,14 +413,14 @@ export default function OpportunitiesPage({ onBack }) {
                   value={targetCompanies}
                   onChange={(e) => setTargetCompanies(e.target.value)}
                   placeholder="Google, Flipkart, Razorpay..."
-                  className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm
+                  className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm opp-input
                              placeholder-gray-500 focus:outline-none focus:border-sky-400/60 transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2.5">
                 Opportunity Type <span className="text-gray-500 font-normal">(optional)</span>
               </label>
               <div className="flex flex-wrap gap-2">
@@ -428,9 +428,9 @@ export default function OpportunitiesPage({ onBack }) {
                   <button
                     key={t}
                     onClick={() => toggleType(t)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all opp-tag-btn ${
                       preferredTypes.includes(t)
-                        ? "bg-sky-400 text-slate-950 shadow-[0_0_10px_rgba(56,189,248,0.38)]"
+                        ? "active bg-sky-400 text-slate-950 shadow-[0_0_10px_rgba(56,189,248,0.38)]"
                         : "bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10"
                     }`}
                   >
@@ -447,7 +447,7 @@ export default function OpportunitiesPage({ onBack }) {
           <button
             onClick={handleSubmit}
             disabled={loading || (!resumeFile && !skills.trim())}
-            className="px-8 py-3.5 bg-teal-400 hover:bg-teal-300 disabled:opacity-40 disabled:cursor-not-allowed
+            className="px-8 py-3.5 bg-teal-400 hover:bg-teal-300 disabled:opacity-40 disabled:cursor-not-allowed opp-submit-btn
                        text-slate-950 font-bold rounded-lg transition-all shadow-[0_0_24px_rgba(20,184,166,0.25)]
                        hover:scale-[1.015] hover:shadow-[0_0_34px_rgba(20,184,166,0.34)] flex items-center gap-2.5 text-sm"
           >
@@ -479,149 +479,115 @@ export default function OpportunitiesPage({ onBack }) {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
 
             {/* Profile summary */}
+            {/* Profile summary */}
             {results.profile && Object.values(results.profile).some(Boolean) && (
-              <div className="dashboard-glass p-5 mb-6">
-                <div className="flex items-center gap-2 text-sky-300 text-sm font-medium mb-4">
-                  <CheckCircle size={14} />
-                  Resume Analysed
-                </div>
-
-                {/* Core profile fields */}
-                <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm mb-4">
-                  {results.profile.college_year && (
-                    <span>
-                      <span className="text-gray-500">Year: </span>
-                      <span className="text-white font-medium">
-                        {results.profile.college_year}
-                        {["st","nd","rd","th"][results.profile.college_year - 1]} Year
-                        {results.profile.graduation_year && (
-                          <span className="text-gray-500 font-normal"> (Grad {results.profile.graduation_year})</span>
-                        )}
+              <div className="dashboard-glass opp-profile-summary p-5 mb-6 relative overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-sm">
+                <div className="flex flex-col gap-4">
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                      <CheckCircle size={15} className="stroke-[2.5]" />
+                      <span>Resume Analysed</span>
+                    </div>
+                    {results.opportunities?.length > 0 && (
+                      <span className="text-xs text-slate-500 font-medium">
+                        Matched with {results.opportunities.length} opportunities
                       </span>
-                    </span>
-                  )}
-                  {results.profile.cgpa && (
-                    <span>
-                      <span className="text-gray-500">CGPA: </span>
-                      <span className="text-white font-medium">{results.profile.cgpa.toFixed(1)} / 10</span>
-                    </span>
-                  )}
-                  {results.profile.branch && (
-                    <span>
-                      <span className="text-gray-500">Branch: </span>
-                      <span className="text-white font-medium capitalize">{results.profile.branch}</span>
-                    </span>
-                  )}
-                  {results.profile.education_level && (
-                    <span>
-                      <span className="text-gray-500">Degree: </span>
-                      <span className="text-white font-medium uppercase">{results.profile.education_level}</span>
-                    </span>
-                  )}
-                </div>
-
-                {/* Skills */}
-                {results.profile.skills?.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                      <Code size={11} /> Skills detected ({results.profile.skills.length})
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {results.profile.skills.slice(0, 16).map((s, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-sky-400/10 border border-sky-400/25 rounded text-[11px] text-sky-100 capitalize">
-                          {s}
-                        </span>
-                      ))}
-                      {results.profile.skills.length > 16 && (
-                        <span className="px-2 py-0.5 text-[11px] text-gray-500">
-                          +{results.profile.skills.length - 16} more
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
-                )}
 
-                {/* Interests */}
-                {results.profile.interests?.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                      <Tag size={11} /> Interests
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {results.profile.interests.map((int, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-blue-400/10 border border-blue-400/25 rounded text-[11px] text-blue-100 capitalize">
-                          {int}
-                        </span>
-                      ))}
-                    </div>
+                  {/* Core profile fields as flat inline badges */}
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {results.profile.college_year && (
+                      <span className="px-3 py-1 bg-blue-50 border border-blue-100 rounded-lg text-slate-700">
+                        <strong className="text-blue-600 font-semibold">Year: </strong>
+                        {results.profile.college_year}
+                        {["st","nd","rd","th"][results.profile.college_year - 1] || "th"} Year
+                        {results.profile.graduation_year && ` (Grad ${results.profile.graduation_year})`}
+                      </span>
+                    )}
+                    {results.profile.cgpa && (
+                      <span className="px-3 py-1 bg-teal-50 border border-teal-100 rounded-lg text-slate-700">
+                        <strong className="text-teal-600 font-semibold">CGPA: </strong>
+                        {results.profile.cgpa.toFixed(1)} / 10
+                      </span>
+                    )}
+                    {results.profile.branch && (
+                      <span className="px-3 py-1 bg-purple-50 border border-purple-100 rounded-lg text-slate-700 capitalize">
+                        <strong className="text-purple-600 font-semibold">Branch: </strong>
+                        {results.profile.branch}
+                      </span>
+                    )}
+                    {results.profile.education_level && (
+                      <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-slate-700 uppercase">
+                        <strong className="text-indigo-600 font-semibold">Degree: </strong>
+                        {results.profile.education_level}
+                      </span>
+                    )}
                   </div>
-                )}
 
-                {/* Projects & Experience row */}
-                <div className="flex flex-wrap gap-4 mt-1">
-                  {results.profile.projects?.length > 0 && (
-                    <div className="flex-1 min-w-[200px]">
-                      <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                        <FolderGit2 size={11} /> Projects ({results.profile.projects.length})
-                      </p>
-                      <ul className="space-y-1">
-                        {results.profile.projects.slice(0, 3).map((p, i) => (
-                          <li key={i} className="text-xs text-gray-300">
-                            <span className="text-white font-medium">{p.title}</span>
-                            {p.domain && <span className="text-gray-500"> · {p.domain}</span>}
-                          </li>
+                  {/* Skills detected */}
+                  {results.profile.skills?.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-slate-500 text-[11px] font-semibold flex items-center gap-1">
+                        <Code size={11} className="text-slate-400" />
+                        <span>Skills detected ({results.profile.skills.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {results.profile.skills.slice(0, 10).map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-slate-100 border border-slate-200/65 rounded text-[11px] text-slate-600 capitalize">
+                            {s}
+                          </span>
                         ))}
-                        {results.profile.projects.length > 3 && (
-                          <li className="text-xs text-gray-600">+{results.profile.projects.length - 3} more</li>
+                        {results.profile.skills.length > 10 && (
+                          <span className="px-2 py-0.5 text-[11px] text-slate-400 font-medium">
+                            +{results.profile.skills.length - 10} more
+                          </span>
                         )}
-                      </ul>
+                      </div>
                     </div>
                   )}
 
-                  {results.profile.experience?.length > 0 && (
-                    <div className="flex-1 min-w-[200px]">
-                      <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                        <Briefcase size={11} /> Experience
-                      </p>
-                      <ul className="space-y-1">
-                        {results.profile.experience.slice(0, 3).map((e, i) => (
-                          <li key={i} className="text-xs text-gray-300">
-                            <span className="text-white font-medium">{e.role}</span>
-                            {e.company && <span className="text-sky-300"> @ {e.company}</span>}
-                          </li>
+                  {/* Interests */}
+                  {results.profile.interests?.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-slate-500 text-[11px] font-semibold flex items-center gap-1">
+                        <Tag size={11} className="text-slate-400" />
+                        <span>Interests</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {results.profile.interests.map((int, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-slate-100 border border-slate-200/65 rounded text-[11px] text-slate-600 capitalize">
+                            {int}
+                          </span>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   )}
+
                 </div>
               </div>
             )}
 
             {/* Filter bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-              <p className="text-gray-400 text-sm">
-                Showing{" "}
-                <span className="text-white font-semibold">{filteredOpps.length}</span>{" "}
-                of {results.total_in_db?.toLocaleString()} cached opportunities
-              </p>
+            <div className="flex flex-wrap items-center justify-end gap-3 mb-5">
               <div className="flex flex-wrap gap-2">
                 {TYPE_FILTERS.map((f) => {
                   const count = f.key === "all"
                     ? results.opportunities.length
                     : results.opportunities.filter((o) => o.type === f.key).length
                   if (count === 0 && f.key !== "all") return null
+                  const isActive = activeFilter === f.key
                   return (
                     <button
                       key={f.key}
                       onClick={() => { setActiveFilter(f.key); setCarouselIdx(0) }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        activeFilter === f.key
-                          ? "bg-sky-400 text-slate-950"
-                          : "bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all opp-filter-btn ${
+                        isActive ? "active" : ""
                       }`}
                     >
                       {f.label}{" "}
-                      <span className="opacity-60">({count})</span>
+                      <span className={isActive ? "text-white/80" : "text-slate-400"}>({count})</span>
                     </button>
                   )
                 })}
@@ -637,7 +603,7 @@ export default function OpportunitiesPage({ onBack }) {
                   disabled={carouselIdx === 0}
                   aria-label="Previous"
                   className="absolute -left-5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full
-                             bg-slate-950/80 border border-sky-400/20 flex items-center justify-center
+                             bg-slate-950/80 border border-sky-400/20 flex items-center justify-center opp-nav-arrow
                              text-sky-100 hover:bg-sky-400/10 disabled:opacity-20 disabled:cursor-not-allowed
                              transition-all shadow-lg"
                 >
@@ -648,7 +614,7 @@ export default function OpportunitiesPage({ onBack }) {
                   disabled={carouselIdx >= maxIdx}
                   aria-label="Next"
                   className="absolute -right-5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full
-                             bg-slate-950/80 border border-sky-400/20 flex items-center justify-center
+                             bg-slate-950/80 border border-sky-400/20 flex items-center justify-center opp-nav-arrow
                              text-sky-100 hover:bg-sky-400/10 disabled:opacity-20 disabled:cursor-not-allowed
                              transition-all shadow-lg"
                 >
