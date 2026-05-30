@@ -49,7 +49,11 @@ def _context_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
 def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
     session = state.get("session", {})
     phase = _phase_for_turn(int(session.get("question_count", 0) or 0))
+<<<<<<< HEAD
     llm_evaluation = evaluate_project_behavioral_with_llm(
+=======
+    evaluation = evaluate_project_behavioral_with_llm(
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         session=session,
         memory=session.get("project_behavioral", {}),
         company_profile=state.get("company_profile", {}),
@@ -57,6 +61,7 @@ def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         resume_signals=state.get("resume_signals", {}),
         user_text=state.get("user_text", ""),
         phase=phase,
+<<<<<<< HEAD
     )
     if not llm_evaluation or not str(llm_evaluation.get("next_question", "")).strip():
         evaluation = _evaluate_answer(
@@ -75,6 +80,9 @@ def _evaluation_node(state: ProjectBehavioralState) -> ProjectBehavioralState:
         state.get("session", {}),
         phase,
     )
+=======
+    ) or _llm_unavailable_evaluation(state.get("resume_signals", {}))
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     return {**state, "answer_evaluation": evaluation}
 
 
@@ -399,6 +407,7 @@ def _project_summary(project: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+<<<<<<< HEAD
 def _evaluate_answer(
     user_text: str,
     strategy: dict[str, Any],
@@ -814,6 +823,8 @@ def _build_llm_payload(state: ProjectBehavioralState) -> dict[str, Any]:
     }
 
 
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 def _keyword_hits(text: str, keywords: list[str]) -> list[str]:
     lower = (text or "").lower()
     return [keyword for keyword in keywords if keyword.lower() in lower]

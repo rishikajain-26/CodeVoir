@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
 import { Canvas, useFrame } from "@react-three/fiber"
@@ -4502,4 +4503,10 @@ function chunkSpeechText(text, maxLength = 180) {
 
 function normalizeSpeech(text) {
   return (text || "").toLowerCase().replace(/[^a-z0-9+ ]/g, " ").replace(/\s+/g, " ").trim()
+=======
+import CodeVoirApp from "./pages/CodeVoirApp"
+
+export default function App() {
+  return <CodeVoirApp />
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 }

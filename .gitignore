@@ -16,6 +16,10 @@ dist/
 tools/w64devkit/
 tools/*.exe
 backend/tmp_company_wise_problems/
+<<<<<<< HEAD
+=======
+backend/.test_tmp/
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 backend/backend-server.log
 *.log
 
@@ -33,3 +37,19 @@ Thumbs.db
 # Runtime session store
 backend/data/
 CHANGELOG.docx
+<<<<<<< HEAD
+=======
+# GENERATED / LOCAL RUNTIME ARTIFACTS
+backend/uploads/
+backend/app/data/chroma/
+*.db
+*.db-shm
+*.db-wal
+# FRONTEND BUILD / SCREENSHOTS
+frontend/dist/
+frontend/dashboard-verification.png
+docs/screenshots/*.tmp
+
+# AI Learning Agent runtime index
+backend/app/data/learning_agent/
+>>>>>>> b2a9557 (WIP: saving local work before sync)

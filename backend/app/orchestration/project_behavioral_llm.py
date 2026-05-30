@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+<<<<<<< HEAD
 import logging
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.services.llm_service import llm_service
 
+<<<<<<< HEAD
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +19,8 @@ def _clip(value: Any, limit: int) -> str:
     text = str(value or "").strip()
     return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
 
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
 def _to_float(value: Any) -> float:
     try:
@@ -203,7 +209,11 @@ def build_project_behavioral_evaluation_payload(
         "phase": phase,
         "job_role": session.get("job_role", ""),
         "target_company": session.get("target_company", ""),
+<<<<<<< HEAD
         "job_description": _clip(session.get("job_description", ""), 600),
+=======
+        "job_description": session.get("job_description", ""),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "company_profile": company_profile,
         "jd_signals": jd_signals,
         "resume_signals": resume_signals,
@@ -213,10 +223,17 @@ def build_project_behavioral_evaluation_payload(
             "active_project": resume_signals.get("selected_project", ""),
             "selected_project_source": resume_signals.get("selected_project_source", ""),
         },
+<<<<<<< HEAD
         "prior_turns": memory.get("turns", [])[-4:],
         "conversation_history": [
             {"role": m["role"], "content": m["content"]}
             for m in session.get("messages", [])[-6:]
+=======
+        "prior_turns": memory.get("turns", [])[-8:],
+        "conversation_history": [
+            {"role": m["role"], "content": m["content"]}
+            for m in session.get("messages", [])[-10:]
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             if m.get("role") in ("candidate", "interviewer")
         ],
         "required_json_fields": list(ProjectBehavioralLLMEvaluation.model_fields.keys()),
@@ -250,18 +267,30 @@ def evaluate_project_behavioral_with_llm(
         PROJECT_BEHAVIORAL_EVALUATION_SYSTEM_PROMPT,
         json.dumps(payload, ensure_ascii=True),
         ProjectBehavioralLLMEvaluation,
+<<<<<<< HEAD
         max_tokens=1000,
+=======
+        max_tokens=750,
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         temperature=0.2,
     )
     if result:
         return result.as_graph_evaluation()
 
+<<<<<<< HEAD
     logger.warning("Project behavioral structured LLM parse failed; falling back to text LLM.")
     next_question = llm_service.generate(
         "You are a realistic Project + Behavioural interviewer. The structured evaluator failed, "
         "so write only the next interviewer message in plain text. Respect candidate corrections and project-switch requests, "
         "then ask at most one natural follow-up question. Do not write JSON.",
         _build_project_behavioral_text_fallback_payload(payload),
+=======
+    next_question = llm_service.generate(
+        "You are a realistic Project + Behavioural interviewer. The structured evaluator failed, "
+        "so write only the next interviewer message in plain text. Respect candidate corrections and project-switch requests, "
+        "then ask at most one natural follow-up question.",
+        json.dumps(payload, ensure_ascii=True),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         fallback="",
         temperature=0.35,
         max_tokens=200,
@@ -290,6 +319,7 @@ def evaluate_project_behavioral_with_llm(
         "next_question": next_question,
         "next_question_reason": "Structured LLM output could not be parsed; used natural LLM response.",
     }
+<<<<<<< HEAD
 
 
 def _build_project_behavioral_text_fallback_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -320,3 +350,5 @@ def _build_project_behavioral_text_fallback_payload(payload: dict[str, Any]) -> 
             "metrics, STAR result, or technical depth. Ask exactly one question."
         ),
     }
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)

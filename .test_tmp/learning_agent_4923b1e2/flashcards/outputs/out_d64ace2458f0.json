@@ -1,0 +1,25 @@
+{
+  "output_id": "out_d64ace2458f0",
+  "user_id": "alice",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_a7499d332c5d"
+  ],
+  "content": "Q: According to the selected source, what is the key idea about react reconciliation uses keys to preserve list identity?\nA: React reconciliation uses keys to preserve list identity.\n\nQ: According to the selected source, what is the key idea about dynamic programming stores overlapping subproblem results to avoid?\nA: Dynamic programming stores overlapping subproblem results to avoid repeated work.\n\nQ: According to the selected source, what is the key idea about fastapi dependency injection shares services cleanly across routes?\nA: FastAPI dependency injection shares services cleanly across routes.\n\nQ: According to the selected source, what is the key idea about binary search halves a sorted search space at?\nA: Binary search halves a sorted search space at every step.\n\nQ: According to the selected source, what is the key idea about indexes speed reads but add write overhead in?\nA: Indexes speed reads but add write overhead in databases.",
+  "sources": [
+    {
+      "doc_id": "doc_a7499d332c5d",
+      "title": "Interview notes",
+      "source_type": "text",
+      "source": "Interview notes",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": null,
+      "score": 0,
+      "preview": "React reconciliation uses keys to preserve list identity. Dynamic programming stores overlapping subproblem results to avoid repeated work. FastAPI dependency injection shares services cleanly across routes. Binary searc",
+      "match_count": 1
+    }
+  ],
+  "created_at": "2026-05-30T10:59:15.917334+00:00"
+}

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+<<<<<<< HEAD
 import { fileURLToPath } from 'node:url'
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url))
@@ -7,6 +8,11 @@ const rootDir = fileURLToPath(new URL('.', import.meta.url))
 // https://vite.dev/config/
 export default defineConfig({
   root: rootDir,
+=======
+
+// https://vite.dev/config/
+export default defineConfig({
+>>>>>>> b2a9557 (WIP: saving local work before sync)
   plugins: [react()],
   server: {
     host: "127.0.0.1",

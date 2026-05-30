@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
 import asyncio
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 import json
 import re
 from typing import Any
@@ -83,7 +86,10 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
     passed = int(latest.get("passed_testcases", 0) or 0)
     total = int(latest.get("total_testcases", 0) or 0)
     run_score = float(latest.get("overall_score", 0) or 0)
+<<<<<<< HEAD
     question_scoring = _dsa_question_scoring(session)
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     hints = int(session.get("hint_count", 0) or 0)
     code_analysis = session.get("latest_code_analysis", {})
     dsa_memory = session.get("dsa", {})
@@ -107,6 +113,7 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
         weak_areas.extend(code_analysis["optimization_prompts"][:2])
     if not total:
         weak_areas.append("No code submission was recorded, so correctness evidence is limited.")
+<<<<<<< HEAD
     if question_scoring.get("missing_code_runs"):
         weak_areas.append(
             f"No runnable code was recorded for {question_scoring['missing_code_runs']} assigned question(s); unfinished questions are scored heavily."
@@ -116,6 +123,18 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
         "title": "DSA Round",
         "round_score": question_scoring["round_score"],
         "scoring_basis": question_scoring,
+=======
+    # Use accumulated graph session score when no code run; never pad with arbitrary constant
+    _dsa_mem = session.get("dsa", {})
+    _sess_sc = _dsa_mem.get("session_scores") if isinstance(_dsa_mem.get("session_scores"), dict) else {}
+    _sess_raw = float(_sess_sc.get("overall", 0) or 0)  # 0-1 scale
+    _exchange_ct = int(session.get("exchange_count", 0) or 0)
+    _no_code_score = round(_sess_raw * 80, 1) if _sess_raw > 0 else 0
+    return {
+        "type": "dsa",
+        "title": "DSA Round",
+        "round_score": round(run_score if total else (_no_code_score if _exchange_ct > 0 else 0), 1),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "hiring_recommendation": graph_report.get("recommendation", ""),
         "recommendation_rationale": graph_report.get("recommendation_rationale", ""),
         "radar_data": graph_report.get("radar_data", {}),
@@ -133,7 +152,10 @@ def _dsa_section(session: dict[str, Any]) -> dict[str, Any]:
             "total_testcases": total,
             "overall_score": run_score,
         },
+<<<<<<< HEAD
         "question_performance": question_scoring["questions"],
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "strengths": _dedupe(strengths),
         "weak_areas": _dedupe(weak_areas),
         "evidence": _message_evidence(session, 4),
@@ -150,7 +172,11 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
     turns = memory.get("turns", [])
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
+<<<<<<< HEAD
     avg_score = _avg_project_question_scores(turns) if turns else 0
+=======
+    avg_score = _avg_turn_scores(turns) if turns else (_avg_scores_to_hundred(latest_scores) if latest_scores else 0)
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     strengths = []
     weak_areas = list(latest_flags)
     jd_skills = memory.get("jd_signals", {}).get("skills", [])
@@ -218,11 +244,20 @@ def _project_behavioral_section(session: dict[str, Any]) -> dict[str, Any]:
             f"{len(contradiction_history)} potential metric contradiction{'s' if len(contradiction_history) != 1 else ''} detected across turns."
         )
     parameter_scores = _project_parameter_scores(turns, latest_scores, latest_flags)
+<<<<<<< HEAD
+=======
+    if parameter_scores:
+        avg_score = _avg_dict({item["name"]: item["score"] for item in parameter_scores})
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
     return {
         "type": "project_behavioral",
         "title": "Project + Behavioural Round",
+<<<<<<< HEAD
         "round_score": round(avg_score, 1),
+=======
+        "round_score": round(avg_score or 35, 1),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "parameter_scores": parameter_scores,
         "scoring_explanation": (
             "Project + Behavioural scoring is based on interview evidence: personal ownership, verified impact, "
@@ -257,6 +292,10 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
     questions = memory.get("questions_asked", [])
     latest_scores = memory.get("latest_scores", {})
     latest_flags = memory.get("latest_flags", [])
+<<<<<<< HEAD
+=======
+    scratchpad_history = memory.get("scratchpad_history", [])
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     score = _avg_question_scores(questions) if questions else (_avg_scores_to_hundred(latest_scores) if latest_scores else 0)
     strengths = []
     weak_areas = list(latest_flags)
@@ -269,6 +308,11 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
     strong_evidence = _cs_strength_evidence(questions)
     if strong_evidence:
         strengths.extend(strong_evidence[:3])
+<<<<<<< HEAD
+=======
+    if scratchpad_history:
+        strengths.append(f"Used scratchpad evidence in {len(scratchpad_history)} turn{'s' if len(scratchpad_history) != 1 else ''}.")
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     if memory.get("weak_topics"):
         weak_areas.append(f"Weak topics to revise: {', '.join(memory.get('weak_topics', [])[:4])}.")
     weak_areas.extend(llm_weak_areas[:4])
@@ -303,6 +347,10 @@ def _cs_section(session: dict[str, Any]) -> dict[str, Any]:
         "weak_topics": memory.get("weak_topics", []),
         "latest_scores": latest_scores,
         "latest_flags": latest_flags,
+<<<<<<< HEAD
+=======
+        "scratchpad_observations": scratchpad_history[-5:],
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "pending_question": memory.get("pending_question", {}),
         "last_answered_topic": memory.get("last_answered_topic", ""),
         "evaluation_sources": evaluation_sources,
@@ -371,6 +419,7 @@ def _project_parameter_scores(
     ]
 
 
+<<<<<<< HEAD
 def _avg_project_question_scores(turns: list[dict[str, Any]]) -> float:
     values = []
     for turn in turns:
@@ -394,6 +443,8 @@ def _avg_project_question_scores(turns: list[dict[str, Any]]) -> float:
     return round(sum(values) / len(values), 1) if values else 0.0
 
 
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 def _cs_strength_evidence(questions: list[dict[str, Any]]) -> list[str]:
     strengths = []
     for question in questions:
@@ -584,6 +635,7 @@ def _cap_score(score: int | float, cap: int | float) -> int:
     return int(round(max(0, min(float(score), float(cap)))))
 
 
+<<<<<<< HEAD
 def _dsa_total_questions(session: dict[str, Any]) -> int:
     progress = session.get("dsa_progress") or {}
     round_config = session.get("round_config") or {}
@@ -719,6 +771,9 @@ def _early_exit_penalty(session: dict[str, Any]) -> float:
 
     # Legacy implementation below is intentionally unreachable; kept temporarily to
     # avoid a broad rewrite in this already-edited file.
+=======
+def _early_exit_penalty(session: dict[str, Any]) -> float:
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     """Penalize abandoning the round early without a working solution.
 
     Compares time used vs allocated. Ending with <50% of the allotted time used and
@@ -746,6 +801,7 @@ def _early_exit_penalty(session: dict[str, Any]) -> float:
     return round(min(15.0, (0.5 - used) * 30), 1)
 
 
+<<<<<<< HEAD
 def _tab_switch_penalty(session: dict[str, Any]) -> float:
     signals = session.get("behavioral_signals") or {}
     violations = session.get("violations") or []
@@ -759,6 +815,8 @@ def _tab_switch_penalty(session: dict[str, Any]) -> float:
     return float(min(20, focus_loss * 5))
 
 
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 def _overall_score(
     scores: dict[str, float],
     integrity_score: int,
@@ -766,6 +824,7 @@ def _overall_score(
     exchange_count: int = 0,
     session: dict[str, Any] | None = None,
 ) -> float:
+<<<<<<< HEAD
     if session and session.get("round_type", "dsa") == "dsa":
         base = float(round_score or 0)
         base -= _early_exit_penalty(session)
@@ -775,6 +834,10 @@ def _overall_score(
     if exchange_count == 0:
         return 0.0
 
+=======
+    if exchange_count == 0:
+        return 0.0
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     # For DSA: use the graph's accumulated session score as the primary signal.
     # This avoids inflating the overall via keyword-based text scores that always
     # return a non-zero floor regardless of candidate quality.
@@ -789,8 +852,11 @@ def _overall_score(
             return round(max(0.0, min(100.0, base - integrity_penalty)), 1)
         # No graph scores and no code: very low, capped at 5 (they showed up but did nothing)
         return round(min(5.0, exchange_count * 0.5), 1)
+<<<<<<< HEAD
     if session and session.get("round_type") == "project_behavioral":
         return round(max(0.0, min(100.0, float(round_score or 0))), 1)
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     # Non-DSA rounds: text-analysis based scoring
     avg = sum(scores.values()) / max(1, len(scores)) if scores else 0
     communication = avg * 20 if avg > 0 else 0
@@ -811,6 +877,7 @@ def _hiring_signal(overall: float) -> str:
 def _summary(session: dict[str, Any], section: dict[str, Any], overall: float) -> str:
     company = session.get("target_company") or "the target company"
     role = session.get("job_role") or "the role"
+<<<<<<< HEAD
     round_type = session.get("round_type", "")
     title = section.get("title", "Interview")
     evidence_count = len(section.get("evidence", []))
@@ -821,6 +888,10 @@ def _summary(session: dict[str, Any], section: dict[str, Any], overall: float) -
             f"{basis.get('solved_questions', 0)}/{basis.get('total_questions', 1)} solved coding question(s), "
             "with limited explanation credit only when the answer was relevant. Integrity is shown separately and only tab switches reduce this score."
         )
+=======
+    title = section.get("title", "Interview")
+    evidence_count = len(section.get("evidence", []))
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     return f"{title} report for {role} at {company}. The score is {overall}/100 based on {evidence_count} recorded evidence item{'s' if evidence_count != 1 else ''}, round-specific performance, and integrity signals."
 
 
@@ -838,7 +909,11 @@ def _practice_plan(round_type: str, weak_areas: list[str], section: dict[str, An
         return [
             topic_action,
             "Explain every concept with one definition, one example, and one tradeoff.",
+<<<<<<< HEAD
             "Practice SQL, process/thread sketches, transaction schedules, or protocol flows aloud with concise examples.",
+=======
+            "Use the scratchpad for SQL, process/thread sketches, transaction schedules, or protocol flows when helpful.",
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             *_from_weak_areas(weak_areas),
         ][:6]
     return [
@@ -1088,6 +1163,7 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
     company-tailored feedback, weakness analysis, learning plan, benchmarking, and final verdict.
     Falls back gracefully to the pure-heuristic report when the model is unavailable."""
     report = build_feedback_report(session)
+<<<<<<< HEAD
     round_type = report.get("round_type", "")
 
     async def _safe_synthesis() -> dict[str, Any] | None:
@@ -1111,6 +1187,14 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
     # Layer 1 and Layer 2 are independent LLM calls, so run them together to
     # reduce wait time without replacing the real model-based report.
     synth, round_eval = await asyncio.gather(_safe_synthesis(), _safe_round_eval())
+=======
+
+    # Layer 1: general LLM synthesis (all round types)
+    try:
+        synth = await _llm_report_synthesis(session, report)
+    except Exception:
+        synth = None
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
     if synth:
         summary = str(synth.get("summary", "")).strip()
@@ -1136,8 +1220,19 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
             report["topic_mastery"] = topic_mastery
         report["ai_generated"] = bool(summary or strengths or weaknesses or parameters)
 
+<<<<<<< HEAD
     if round_type == "dsa":
         dsa_eval = round_eval
+=======
+    # Layer 2: round-specific comprehensive evaluation
+    round_type = report.get("round_type", "")
+
+    if round_type == "dsa":
+        try:
+            dsa_eval = await _run_dsa_deep_eval(session, report)
+        except Exception:
+            dsa_eval = None
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         # Always provide dsa_evaluation — fall back to heuristic when LLM is unavailable
         if not dsa_eval:
             dsa_eval = _build_heuristic_dsa_evaluation(session, report)
@@ -1146,14 +1241,24 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
         # eval — so the roadmap is never hardcoded/repeated and coaching never claims
         # "basic interaction" on a no-show.
         dsa_eval = _reconcile_dsa_evaluation(dsa_eval, session, report)
+<<<<<<< HEAD
         dsa_eval = _simplify_dsa_evaluation(dsa_eval, session, report)
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         report["dsa_evaluation"] = dsa_eval
         verdict_signal = (dsa_eval.get("final_verdict") or {}).get("signal", "")
         if verdict_signal:
             report["hiring_signal"] = verdict_signal
 
     elif round_type == "cs_fundamentals":
+<<<<<<< HEAD
         cs_eval = round_eval
+=======
+        try:
+            cs_eval = await _run_cs_deep_eval(session, report)
+        except Exception:
+            cs_eval = None
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         if cs_eval:
             report["cs_evaluation"] = cs_eval
             verdict_signal = (cs_eval.get("final_verdict") or {}).get("signal", "")
@@ -1161,7 +1266,14 @@ async def build_feedback_report_async(session: dict[str, Any]) -> dict[str, Any]
                 report["hiring_signal"] = verdict_signal
 
     elif round_type == "project_behavioral":
+<<<<<<< HEAD
         pb_eval = round_eval
+=======
+        try:
+            pb_eval = await _run_pb_deep_eval(session, report)
+        except Exception:
+            pb_eval = None
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         if pb_eval:
             report["pb_evaluation"] = pb_eval
             verdict_signal = (pb_eval.get("final_verdict") or {}).get("signal", "")
@@ -1490,7 +1602,11 @@ def _reconcile_dsa_evaluation(ev: dict[str, Any], session: dict[str, Any], base:
     sess = dsa.get("session_scores") if isinstance(dsa.get("session_scores"), dict) else {}
     sess_overall = float(sess.get("overall", 0) or 0)
     overall = float(base.get("overall_score", 0) or 0)
+<<<<<<< HEAD
     engaged = total > 0 or overall >= 1.0 or sess_overall > 0.01 or exchange_count > 0
+=======
+    engaged = exchange_count > 0 and (overall >= 1.0 or total > 0 or sess_overall > 0.01)
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
     # Weak/strong skills derived from the eval's OWN core-metric scores → consistent
     # with the cards the candidate sees, no matter which path produced them.
@@ -1538,6 +1654,7 @@ def _reconcile_dsa_evaluation(ev: dict[str, Any], session: dict[str, Any], base:
     return ev
 
 
+<<<<<<< HEAD
 def _simplify_dsa_evaluation(ev: dict[str, Any], session: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
     """Keep the DSA report focused on simple candidate-facing fields."""
     if not isinstance(ev, dict):
@@ -1626,6 +1743,8 @@ def _simple_metric_label(score: int) -> str:
     return "Needs work"
 
 
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 _WEAK_TO_TOPIC: dict[str, str] = {
     "approach_quality":    "Problem decomposition & brute-force-to-optimal transitions",
     "complexity_analysis": "Big-O analysis — time and space complexity reasoning",
@@ -1890,6 +2009,7 @@ def _build_personalized_recommendations(
     return recs[:5]
 
 
+<<<<<<< HEAD
 def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     turns: list[dict[str, Any]] = memory.get("turns") or []
     if not turns:
@@ -1907,6 +2027,11 @@ def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] 
                 }
                 for q in _dsa_question_scoring(session).get("questions", [])
             ]
+=======
+def _build_question_performance(memory: dict[str, Any]) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = memory.get("turns") or []
+    if not turns:
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         return []
 
     # Group by question index (turn field)
@@ -1915,10 +2040,13 @@ def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] 
     for t in turns:
         q = int(t.get("turn", 1))
         groups[q].append(t)
+<<<<<<< HEAD
     scoring_by_q = {
         q["question_index"]: q
         for q in (_dsa_question_scoring(session).get("questions", []) if session else [])
     }
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
     result = []
     for q_idx in sorted(groups):
@@ -1953,6 +2081,7 @@ def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] 
         followups = [t.get("followup_asked") for t in q_turns if t.get("followup_asked")]
 
         problem_excerpt = q_turns[0].get("problem_excerpt", "") if q_turns else ""
+<<<<<<< HEAD
         scored_question = scoring_by_q.get(q_idx, {})
         if scored_question:
             overall = int(scored_question.get("overall_score", overall) or 0)
@@ -1961,6 +2090,12 @@ def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] 
         result.append({
             "question_index": q_idx,
             "problem_excerpt": (scored_question.get("problem_excerpt") or problem_excerpt)[:200],
+=======
+
+        result.append({
+            "question_index": q_idx,
+            "problem_excerpt": problem_excerpt[:200],
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             "overall_score": overall,
             "verdict": verdict,
             "turn_count": len(q_turns),
@@ -1970,12 +2105,16 @@ def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] 
                 "implementation": implementation,
                 "communication": communication,
                 "debugging": debugging,
+<<<<<<< HEAD
                 "code_correctness": scored_question.get("code_score", 0),
                 "explanation_credit": scored_question.get("explanation_credit", 0),
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             },
             "followups_asked": followups[:3],
         })
 
+<<<<<<< HEAD
     if session:
         seen = {item["question_index"] for item in result}
         for q in _dsa_question_scoring(session).get("questions", []):
@@ -1992,6 +2131,8 @@ def _build_question_performance(memory: dict[str, Any], session: dict[str, Any] 
                 })
         result.sort(key=lambda item: item.get("question_index", 0))
 
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     return result
 
 
@@ -2018,11 +2159,14 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
     latest_run = code_runs[-1] if code_runs else {}
     passed = int(latest_run.get("passed_testcases", 0) or 0)
     total = int(latest_run.get("total_testcases", 0) or 0)
+<<<<<<< HEAD
     question_scoring = _dsa_question_scoring(session)
     question_rows = question_scoring.get("questions", [])
     solved_questions = int(question_scoring.get("solved_questions", 0) or 0)
     assigned_questions = int(question_scoring.get("total_questions", 1) or 1)
     missing_code_runs = int(question_scoring.get("missing_code_runs", 0) or 0)
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     hint_count = int(session.get("hint_count", 0) or 0)
     signals = session.get("behavioral_signals", {})
     known_weak = (dsa.get("known_weak_areas") or [])[:4]
@@ -2041,7 +2185,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
     # estimate derived from a neutral default.
     sess_overall_raw = float(sess_scores.get("overall", 0) or 0)  # 0–1
     exchange_count = int(session.get("exchange_count", 0) or 0)
+<<<<<<< HEAD
     engaged = total > 0 or overall >= 1.0 or sess_overall_raw > 0.01 or exchange_count > 0
+=======
+    engaged = exchange_count > 0 and (overall >= 1.0 or total > 0 or sess_overall_raw > 0.01)
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
     def _s(v: Any, default: float = 50.0) -> int:
         """Normalise a 0–1 float or 0–100 number to an integer 0–100."""
@@ -2094,10 +2242,14 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
 
     # Coding Accuracy measures whether code actually WORKED. If no code was executed
     # there is nothing to verify — it must be 0, never the implementation sub-score.
+<<<<<<< HEAD
     code_acc = (
         int(round(sum(q.get("code_score", 0) for q in question_rows) / max(assigned_questions, 1)))
         if question_rows else 0
     )
+=======
+    code_acc   = round(passed / total * 100) if total else 0
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     # Hint dependency is a real score only once the candidate has engaged; with zero
     # engagement "100% independent" is misleading, so it's gated below.
     hint_dep   = max(0, 100 - hint_count * 18)
@@ -2148,7 +2300,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         {"name": "Problem Solving Ability",    "score": ps,        "label": _label(ps),        "note": (f"Derived from approach quality and solution strategy ({_src}). {'Known strengths: ' + ', '.join(known_strong[:2]) + '.' if known_strong else 'State your approach and brute-force before optimising for a richer signal.'}") if engaged else _ne.strip()},
         {"name": "DSA Knowledge",              "score": dsa_k,     "label": _label(dsa_k),     "note": (f"Based on data structures and patterns demonstrated ({_src}). {'Flagged gaps: ' + ', '.join(known_weak[:2]) + '.' if known_weak else 'No specific gaps flagged by the session graph.'}") if engaged else _ne.strip()},
         {"name": "Optimization Skill",         "score": complexity, "label": _label(complexity), "note": (f"Derived from complexity analysis accuracy across turns ({_src}). {'Weak area detected: complexity_analysis.' if 'complexity_analysis' in _weak_set else 'State time/space complexity before coding each turn.'}") if engaged else _ne.strip()},
+<<<<<<< HEAD
         {"name": "Coding Accuracy",            "score": code_acc,  "label": _label(code_acc),  "note": (f"Solved {solved_questions}/{assigned_questions} assigned question(s) with runnable code. {'No code run for ' + str(missing_code_runs) + ' question(s).' if missing_code_runs else 'Every assigned question had runnable evidence.'}") if engaged else _ne.strip()},
+=======
+        {"name": "Coding Accuracy",            "score": code_acc,  "label": _label(code_acc),  "note": (f"{'Passed ' + str(passed) + '/' + str(total) + ' runnable test cases.' if total else 'No code submission recorded — submit code for a precise correctness score.'}") if engaged else _ne.strip()},
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         {"name": "Communication & Explanation","score": comm,      "label": _label(comm),      "note": (f"Based on explanation clarity and reasoning quality across turns ({_src}). {'Weak area detected: communication.' if 'communication' in _weak_set else 'Narrate your invariant and edge cases before submitting.'}") if engaged else _ne.strip()},
         {"name": "Confidence During Interview","score": avg_conf,  "label": _label(avg_conf),  "note": (f"{'Confidence trend observed: ' + str([round(c, 2) for c in confidence_trend[-4:]]) + '.' if confidence_trend else 'Confidence estimated from session turn patterns and speech signals.'}") if engaged else _ne.strip()},
         {"name": "Hint Dependency",            "score": hint_dep,  "label": _label(hint_dep),  "note": (f"Used {hint_count} hint{'s' if hint_count != 1 else ''} during the session. {'Fewer hints = higher independent problem-solving score.' if hint_count else 'No hints requested — full independence demonstrated.'}") if engaged else _ne.strip()},
@@ -2162,7 +2318,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         "company_fit": {
             "score": round(overall),
             "fit_signals": known_strong[:3],
+<<<<<<< HEAD
             "concern_signals": known_weak[:3] or ([f"No code run for {missing_code_runs} assigned question(s)."] if missing_code_runs else []),
+=======
+            "concern_signals": known_weak[:3] or (["No code submission recorded."] if not total else []),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             "note": f"Company fit estimated from overall session performance ({round(overall)}/100) and identified signals.",
         },
     }
@@ -2187,7 +2347,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         "optimization_quality": {"score": complexity, "note": f"Optimization signals at {company}: complexity accuracy and approach quality are key signals at this company."},
         "communication_clarity": {"score": comm, "note": f"Communication at {company}: interviewers expect clear narration of approach, invariant, and complexity."},
         "followup_handling":     {"score": fu_handling, "note": fu_note},
+<<<<<<< HEAD
         "coding_speed":          {"score": code_acc, "note": f"{solved_questions}/{assigned_questions} assigned question(s) solved with runnable code; unfinished/no-run questions are heavily penalized."},
+=======
+        "coding_speed":          {"score": code_acc, "note": f"{'No submission recorded.' if not total else f'{passed}/{total} tests passed — speed and accuracy both matter.'}"},
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "debugging_behavior":    {"score": dbg, "note": "Debugging behavior derived from error recovery signals during the session."},
         "summary": f"Overall performance at {company} maps to a {'strong' if overall >= 75 else ('borderline' if overall >= 58 else 'developing')} candidate profile. {'Focus on optimization depth and edge case reasoning to meet the bar.' if overall < 75 else 'Maintain this level and strengthen the weakest metric.'}",
     }
@@ -2214,12 +2378,21 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         }
         for w in known_weak[:4]
     ]
+<<<<<<< HEAD
     if not weakness_analysis and (missing_code_runs or (total and passed < total)):
         weakness_analysis = [{
             "area": "Test Case Coverage",
             "specific_issue": f"Solved {solved_questions}/{assigned_questions} assigned question(s) with runnable code; {missing_code_runs} question(s) had no code run.",
             "why_it_matters": "Interviewers primarily score working solutions for every assigned question.",
             "improvement": "Run code for every question before ending. For failing cases, trace the exact input manually before changing code.",
+=======
+    if not weakness_analysis and total and passed < total:
+        weakness_analysis = [{
+            "area": "Test Case Coverage",
+            "specific_issue": f"Code passed {passed}/{total} test cases — some cases still failing.",
+            "why_it_matters": "Failing visible tests is an immediate red flag in any coding interview.",
+            "improvement": "Trace through each failing case manually. Identify whether it is a logic bug, edge case, or overflow.",
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         }]
     if not weakness_analysis and not engaged:
         weakness_analysis = [{
@@ -2238,11 +2411,19 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         }
         for s in known_strong[:3]
     ]
+<<<<<<< HEAD
     if solved_questions == assigned_questions and assigned_questions > 0:
         strength_recognition.insert(0, {
             "strength": "Code Correctness",
             "evidence": f"Runnable code solved all {assigned_questions} assigned question(s).",
             "interview_value": "Solving every assigned question with code is the strongest signal in this DSA report.",
+=======
+    if total and passed == total:
+        strength_recognition.insert(0, {
+            "strength": "Code Correctness",
+            "evidence": f"Code passed all {total} runnable test cases.",
+            "interview_value": "Passing all test cases is the minimum bar for any hire signal at FAANG-style interviews.",
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         })
     # Improvement recommendations — built from actual session signals
     improvement_recommendations = _build_personalized_recommendations(
@@ -2301,7 +2482,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
             {"metric": "Complexity Analysis", "candidate_score": complexity, "faang_bar": 80, "gap_note": f"{'On target.' if complexity >= 80 else f'Gap of {80 - complexity} pts — always state and justify O() before coding.'}"},
             {"metric": "Hint Independence",   "candidate_score": hint_dep,  "faang_bar": 85, "gap_note": f"{'On target.' if hint_dep >= 85 else f'Gap of {85 - hint_dep} pts — practice driving to solutions without external prompts.'}"},
         ],
+<<<<<<< HEAD
         "overall_readiness_note": f"Current performance places you at approximately {faang_score}/100 FAANG readiness, estimated {level} level. Solved {solved_questions}/{assigned_questions} assigned question(s) with runnable code; missing code runs are penalized before integrity is shown separately.",
+=======
+        "overall_readiness_note": f"Current performance places you at approximately {faang_score}/100 FAANG readiness, estimated {level} level. {'No code submission limits accuracy — always submit to generate precise signals.' if not total else f'With {passed}/{total} tests passing, the next focus should be edge case coverage and optimization narration.'}",
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     }
 
     # Final verdict mapping
@@ -2319,10 +2504,17 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
     final_verdict = {
         "signal": verdict_signal,
         "confidence_score": min(88, round(overall)),
+<<<<<<< HEAD
         "summary": f"Session score: {round(overall)}/100. Runnable correctness across assigned questions was the primary signal: {solved_questions}/{assigned_questions} solved. {'Focus areas: ' + ', '.join(known_weak[:2]) + '.' if known_weak else ''}",
         "biggest_strength":   known_strong[0].replace("_", " ").title() if known_strong else ("Code correctness" if solved_questions == assigned_questions and assigned_questions > 0 else "Session engagement"),
         "biggest_weakness":   known_weak[0].replace("_", " ").title() if known_weak else (f"No code run for {missing_code_runs} assigned question(s)" if missing_code_runs else "Edge case coverage and optimization narration"),
         "most_important_next_step": "Run code for every assigned question before ending the interview." if missing_code_runs else "Before every submission, enumerate edge cases and state the time/space complexity out loud.",
+=======
+        "summary": f"Session score: {round(overall)}/100. {'No code submission was recorded, limiting evaluation accuracy.' if not total else f'Code correctness ({passed}/{total} tests) and problem-solving approach were the primary evaluation signals.'} {'Focus areas: ' + ', '.join(known_weak[:2]) + '.' if known_weak else ''}",
+        "biggest_strength":   known_strong[0].replace("_", " ").title() if known_strong else ("Code correctness" if total and passed == total else "Session engagement"),
+        "biggest_weakness":   known_weak[0].replace("_", " ").title() if known_weak else ("No code submission — correctness cannot be evaluated" if not total else "Edge case coverage and optimization narration"),
+        "most_important_next_step": "Submit a code solution in every session — even incomplete code generates evaluation signals that are otherwise missing." if not total else "Before every submission, enumerate edge cases and state the time/space complexity out loud.",
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     }
 
     return {
@@ -2336,7 +2528,11 @@ def _build_heuristic_dsa_evaluation(session: dict[str, Any], base: dict[str, Any
         "benchmarking": benchmarking,
         "strength_recognition": strength_recognition,
         "final_verdict": final_verdict,
+<<<<<<< HEAD
         "question_performance": _build_question_performance(memory_raw, session),
+=======
+        "question_performance": _build_question_performance(memory_raw),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "_source": "heuristic",
     }
 
@@ -2463,6 +2659,10 @@ def _build_cs_deep_context(session: dict[str, Any], base: dict[str, Any]) -> dic
         "topics_covered": (cs.get("topics_covered") or [])[:8],
         "strong_topics": (cs.get("strong_topics") or [])[:5],
         "weak_topics": (cs.get("weak_topics") or [])[:5],
+<<<<<<< HEAD
+=======
+        "scratchpad_observations": (cs.get("scratchpad_history") or [])[-4:],
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "questions_summary": question_summary,
         "heuristic_signals": {
             "strengths": (section.get("strengths") or [])[:4],

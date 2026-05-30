@@ -58,6 +58,10 @@ class CSFundamentalsLLMEvaluation(BaseModel):
     evidence: list[str] = Field(default_factory=list)
     strengths: list[str] = Field(default_factory=list)
     missing_concepts: list[str] = Field(default_factory=list)
+<<<<<<< HEAD
+=======
+    scratchpad_used: bool = False
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     next_topic: str = ""
     next_subtopic: str = ""
     question_type: str = "followup"
@@ -78,7 +82,11 @@ class CSFundamentalsLLMEvaluation(BaseModel):
     def coerce_lists(cls, value: Any) -> list[str]:
         return _to_list(value)
 
+<<<<<<< HEAD
     @field_validator("should_repair_before_moving_on", mode="before")
+=======
+    @field_validator("scratchpad_used", "should_repair_before_moving_on", mode="before")
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     @classmethod
     def coerce_bools(cls, value: Any) -> bool:
         return _to_bool(value)
@@ -110,6 +118,10 @@ class CSFundamentalsLLMEvaluation(BaseModel):
             "evidence": self.evidence,
             "strengths": self.strengths,
             "missing_concepts": self.missing_concepts,
+<<<<<<< HEAD
+=======
+            "scratchpad_used": self.scratchpad_used,
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             "candidate_intent": self.candidate_intent,
             "next_topic": self.next_topic,
             "next_subtopic": self.next_subtopic,
@@ -122,7 +134,11 @@ class CSFundamentalsLLMEvaluation(BaseModel):
 
 
 CS_EVALUATION_SYSTEM_PROMPT = """You are a strict but fair CS Fundamentals interviewer.
+<<<<<<< HEAD
 Evaluate only the candidate's answer against the asked topic/question.
+=======
+Evaluate only the candidate's answer and scratchpad against the asked topic/question.
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 Use company context only to choose realistic follow-up depth, not to invent evidence.
 If the candidate asks for a hint, answer with one useful hint instead of evaluating them harshly.
 If the candidate corrects the interviewer, asks to switch focus, or asks a meta-question, respond to that intent first.
@@ -140,6 +156,10 @@ def build_cs_evaluation_payload(
     topic: dict[str, Any],
     answered_question: dict[str, Any],
     user_text: str,
+<<<<<<< HEAD
+=======
+    scratchpad: dict[str, Any],
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     questions_on_topic: int = 0,
 ) -> dict[str, Any]:
     topic_name = topic.get("topic", "")
@@ -174,6 +194,13 @@ def build_cs_evaluation_payload(
         ],
         "question_candidate_answered": answered_question,
         "candidate_answer": user_text,
+<<<<<<< HEAD
+=======
+        "scratchpad": {
+            "mode": scratchpad.get("mode", ""),
+            "content": scratchpad.get("content", ""),
+        },
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "prior_memory": {
             "weak_topics": memory.get("weak_topics", []),
             "strong_topics": memory.get("strong_topics", []),
@@ -199,6 +226,10 @@ def evaluate_cs_answer_with_llm(
     topic: dict[str, Any],
     answered_question: dict[str, Any],
     user_text: str,
+<<<<<<< HEAD
+=======
+    scratchpad: dict[str, Any],
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     questions_on_topic: int = 0,
 ) -> dict[str, Any] | None:
     if not llm_service.is_configured():
@@ -210,6 +241,10 @@ def evaluate_cs_answer_with_llm(
         topic=topic,
         answered_question=answered_question,
         user_text=user_text,
+<<<<<<< HEAD
+=======
+        scratchpad=scratchpad,
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         questions_on_topic=questions_on_topic,
     )
     result = llm_service.generate_structured(
@@ -245,6 +280,10 @@ def evaluate_cs_answer_with_llm(
         "evidence": [],
         "strengths": [],
         "missing_concepts": [],
+<<<<<<< HEAD
+=======
+        "scratchpad_used": bool((scratchpad or {}).get("content", "").strip()),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "next_topic": topic.get("topic", ""),
         "next_subtopic": topic.get("subtopic", ""),
         "question_type": "followup",

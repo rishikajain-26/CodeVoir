@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import asyncio
 import io
 import base64
@@ -3282,3 +3283,18 @@ def _resume_review(text: str, data: dict[str, Any]) -> dict[str, Any]:
 
 async def _feedback_report(session: dict[str, Any]) -> dict[str, Any]:
     return await build_feedback_report_async(session)
+=======
+"""CodeVoir backend entrypoint.
+
+The application implementation lives in ``app.server`` so the root entrypoint
+stays small and predictable for Uvicorn, tests, and deployment scripts.
+
+Run locally with:
+    uvicorn main:app --reload --port 8000
+"""
+
+from app.server import app
+
+# Re-export legacy symbols for tests/imports that still do ``import main``.
+from app.server import *  # noqa: F401,F403,E402
+>>>>>>> b2a9557 (WIP: saving local work before sync)

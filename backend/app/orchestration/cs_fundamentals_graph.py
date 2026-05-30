@@ -12,6 +12,10 @@ from app.services.interview_data_service import get_cs_fundamentals_config
 class CSFundamentalsState(TypedDict, total=False):
     session: dict[str, Any]
     user_text: str
+<<<<<<< HEAD
+=======
+    scratchpad: dict[str, Any]
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     cs_config: dict[str, Any]
     topic_plan: list[dict[str, Any]]
     current_topic: dict[str, Any]
@@ -28,9 +32,16 @@ class CSFundamentalsState(TypedDict, total=False):
 def run_cs_fundamentals_turn(
     session: dict[str, Any],
     user_text: str,
+<<<<<<< HEAD
 ) -> dict[str, Any]:
     result = CS_FUNDAMENTALS_GRAPH.invoke(
         {"session": session, "user_text": user_text}
+=======
+    scratchpad: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    result = CS_FUNDAMENTALS_GRAPH.invoke(
+        {"session": session, "user_text": user_text, "scratchpad": scratchpad or {}}
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     )
     session["phase"] = result.get("phase", session.get("phase", "cs_fundamentals"))
     session["cs_fundamentals"] = result.get("cs_fundamentals", session.get("cs_fundamentals", {}))
@@ -77,6 +88,10 @@ def _evaluate_node(state: CSFundamentalsState) -> CSFundamentalsState:
         topic=topic,
         answered_question=memory.get("pending_question") or {},
         user_text=state.get("user_text", ""),
+<<<<<<< HEAD
+=======
+        scratchpad=state.get("scratchpad", {}),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         questions_on_topic=questions_on_topic,
     ) or _llm_unavailable_evaluation(topic)
     return {**state, "evaluation": evaluation}
@@ -113,6 +128,10 @@ def _memory_node(state: CSFundamentalsState) -> CSFundamentalsState:
     previous = session.get("cs_fundamentals", {})
     evaluation = state.get("evaluation", {})
     strategy = state.get("strategy", {})
+<<<<<<< HEAD
+=======
+    scratchpad = state.get("scratchpad", {})
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     topic = state.get("current_topic", {})
     next_topic = state.get("next_topic") or topic
     topic_name = topic.get("topic", "CS Fundamentals")
@@ -131,6 +150,11 @@ def _memory_node(state: CSFundamentalsState) -> CSFundamentalsState:
             "question_type": strategy.get("question_type", "followup"),
             "answer_text": _clip(state.get("user_text", ""), 1200),
             "answer_excerpt": _clip(state.get("user_text", ""), 280),
+<<<<<<< HEAD
+=======
+            "scratchpad_mode": scratchpad.get("mode", ""),
+            "scratchpad_excerpt": _clip(scratchpad.get("content", ""), 320),
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             "scores": evaluation.get("scores", {}),
             "evaluation_source": evaluation.get("evaluation_source", "llm_unavailable"),
             "flags": evaluation.get("flags", []),
@@ -150,6 +174,16 @@ def _memory_node(state: CSFundamentalsState) -> CSFundamentalsState:
     questions_per_topic = dict(previous.get("questions_per_topic", {}))
     questions_per_topic[topic_name] = questions_per_topic.get(topic_name, 0) + 1
 
+<<<<<<< HEAD
+=======
+    scratchpad_history = previous.get("scratchpad_history", [])
+    if scratchpad.get("content", "").strip():
+        scratchpad_history = [
+            *scratchpad_history,
+            {"topic": topic_name, "mode": scratchpad.get("mode", "text"), "content": _clip(scratchpad.get("content", ""), 600)},
+        ][-12:]
+
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     memory = {
         **previous,
         "current_topic": next_topic_name,
@@ -169,6 +203,10 @@ def _memory_node(state: CSFundamentalsState) -> CSFundamentalsState:
         "weak_topics": _merge_topic(previous.get("weak_topics", []), topic_name, _avg_score(evaluation.get("scores", {})) < 5.5),
         "strong_topics": _merge_topic(previous.get("strong_topics", []), topic_name, _avg_score(evaluation.get("scores", {})) >= 7.5),
         "questions_per_topic": questions_per_topic,
+<<<<<<< HEAD
+=======
+        "scratchpad_history": scratchpad_history,
+>>>>>>> b2a9557 (WIP: saving local work before sync)
         "latest_scores": evaluation.get("scores", {}),
         "latest_flags": evaluation.get("flags", []),
         "current_goal": strategy.get("goal", ""),

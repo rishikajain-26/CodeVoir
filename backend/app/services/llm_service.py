@@ -58,6 +58,7 @@ class LLMService:
     def generate_structured(
         self,
         system_prompt: str,
+<<<<<<< HEAD
         user_payload: dict[str, Any] | str,
         response_schema: Any,
         *,
@@ -87,6 +88,32 @@ class LLMService:
             # The provider responded, so the model is reachable. Callers can use
             # their local fallback without making the global AI status look down.
             health.record_ok()
+=======
+        user_payload: str,
+        schema: Type[T],
+        *,
+        max_tokens: int = 650,
+        temperature: float = 0.2,
+    ) -> T | None:
+        """Call the LLM and parse the response into a validated Pydantic model.
+
+        Returns None if the LLM is not configured, generation fails, or the
+        response cannot be validated against the schema.
+        """
+        from app.utils.json_utils import clean_json_response, extract_json_object
+
+        if not self.is_configured():
+            return None
+        text, _ = self._generate_litellm(system_prompt, user_payload, temperature, max_tokens)
+        if not text:
+            return None
+        try:
+            cleaned = clean_json_response(text)
+            extracted = extract_json_object(cleaned)
+            parsed = json.loads(extracted)
+            return schema.model_validate(parsed)
+        except (ValueError, ValidationError, Exception):
+>>>>>>> b2a9557 (WIP: saving local work before sync)
             return None
 
     def _generate_litellm(

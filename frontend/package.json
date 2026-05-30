@@ -18,7 +18,11 @@
     "framer-motion": "^12.39.0",
     "livekit-client": "^2.19.0",
     "lucide-react": "^1.16.0",
+<<<<<<< HEAD
     "monaco-editor": "^0.55.1",
+=======
+    "monaco-editor": "^0.53.0",
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.76.0",

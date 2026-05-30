@@ -24,6 +24,7 @@ def resolve_litellm_settings() -> dict[str, str]:
     if explicit == "groq" and settings.GROQ_API_KEY:
         return _groq_settings()
 
+<<<<<<< HEAD
     # Default priority: OpenAI > Claude > Groq > Gemini
     if settings.OPENAI_API_KEY:
         return _openai_settings()
@@ -31,6 +32,15 @@ def resolve_litellm_settings() -> dict[str, str]:
     if settings.ANTHROPIC_API_KEY:
         return _anthropic_settings()
 
+=======
+    # Default priority: Claude > OpenAI > Groq > Gemini
+    if settings.ANTHROPIC_API_KEY:
+        return _anthropic_settings()
+
+    if settings.OPENAI_API_KEY:
+        return _openai_settings()
+
+>>>>>>> b2a9557 (WIP: saving local work before sync)
     if settings.GROQ_API_KEY:
         return _groq_settings()
 
@@ -45,6 +55,7 @@ def resolve_litellm_settings() -> dict[str, str]:
     }
 
 
+<<<<<<< HEAD
 def _openai_settings() -> dict[str, str]:
     model = (settings.OPENAI_MODEL or settings.LITELLM_MODEL or settings.MODEL_NAME or "gpt-4o-mini").strip()
     if model.startswith("openai/"):
@@ -56,6 +67,8 @@ def _openai_settings() -> dict[str, str]:
     }
 
 
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 def _groq_settings() -> dict[str, str]:
     model = (settings.GROQ_MODEL or "llama-3.3-70b-versatile").strip()
     if not model.startswith("groq/"):
@@ -67,6 +80,18 @@ def _groq_settings() -> dict[str, str]:
     }
 
 
+<<<<<<< HEAD
+=======
+def _openai_settings() -> dict[str, str]:
+    model = (settings.OPENAI_MODEL or "gpt-4o-mini").strip()
+    return {
+        "provider": "openai",
+        "model": model,
+        "api_key": settings.OPENAI_API_KEY,
+    }
+
+
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 def _anthropic_settings() -> dict[str, str]:
     model = (settings.ANTHROPIC_MODEL or "claude-sonnet-4-5").strip()
     if not model.startswith("anthropic/"):

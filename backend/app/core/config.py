@@ -9,7 +9,10 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"
+<<<<<<< HEAD
     LITELLM_MODEL: str = ""
+=======
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
     # Claude Sonnet (primary LLM when ANTHROPIC_API_KEY is set)
     ANTHROPIC_API_KEY: str = ""
@@ -23,7 +26,11 @@ class Settings(BaseSettings):
 
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
+<<<<<<< HEAD
     LLM_PROVIDER: str = ""  # blank = auto-priority (OpenAI > Claude > Groq > Gemini)
+=======
+    LLM_PROVIDER: str = ""  # blank = auto-priority (Claude > OpenAI > Groq > Gemini)
+>>>>>>> b2a9557 (WIP: saving local work before sync)
 
     DATABASE_URL: str = (
         "postgresql://postgres:postgres@localhost:5432/ai_interview"
