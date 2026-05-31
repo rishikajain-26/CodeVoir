@@ -3,6 +3,7 @@ import Editor from "@monaco-editor/react"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { motion } from "framer-motion"
 import OpportunitiesPage from "./pages/OpportunitiesPage"
+import LearningAgentPageView from "./pages/LearningAgentPage"
 import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Brain, Briefcase, Calendar, Camera, ChevronRight, Code2, FileText, LogIn, LogOut, Mic, MoreHorizontal, Play, Search, Send, Shield, ShieldCheck, Sparkles, Square, Target, TrendingUp, Trophy, Upload, Users, Lock, X, Zap } from "lucide-react"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
@@ -946,7 +947,7 @@ export default function App() {
   }
 
   if (screen === "welcome") {
-    return <WelcomePage error={error} onAuthenticate={authenticate} />
+    return <WelcomePage error={error} onAuthenticate={authenticate} onLearning={() => setScreen("learning")} />
   }
 
   if (screen === "dashboard") {
@@ -961,6 +962,7 @@ export default function App() {
       onLogout={logout}
       onOpportunities={() => setScreen("opportunities")}
       onDocsAssistant={() => alert("Documentation Assistant is coming soon!")}
+      onLearning={() => setScreen("learning")}
       onReportsPage={() => setScreen("reports")}
       isBusy={isBusy}
     />
@@ -981,6 +983,10 @@ export default function App() {
 
   if (screen === "opportunities") {
     return <OpportunitiesPage onBack={() => setScreen("dashboard")} />
+  }
+
+  if (screen === "learning") {
+    return <LearningAgentPageView userProfile={userProfile} onBack={() => setScreen("dashboard")} />
   }
 
   if (screen === "setup") {
@@ -1182,7 +1188,7 @@ export default function App() {
   )
 }
 
-function WelcomePage({ error, onAuthenticate }) {
+function WelcomePage({ error, onAuthenticate, onLearning }) {
   return (
     <main className="dashboard-shell min-h-screen text-white codevoir-welcome-page">
       <BackgroundCanvas />
@@ -1208,6 +1214,7 @@ function WelcomePage({ error, onAuthenticate }) {
             <WelcomeStat icon={<Code2 size={20} />} label="AI interview rounds" value="DSA, CS, projects" iconBg="icon-bg-blue" />
             <WelcomeStat icon={<Zap size={20} />} label="Opportunities" value="Upskill and apply" iconBg="icon-bg-green" />
             <WelcomeStat icon={<FileText size={20} />} label="Simplified learning" value="Upload and study" iconBg="icon-bg-purple" />
+            <WelcomeStat icon={<Brain size={20} />} label="AI Learning Agent" value="Source-grounded prep" iconBg="icon-bg-blue" onClick={onLearning} />
           </div>
 
           <div className="welcome-trust-badge">
@@ -1257,9 +1264,10 @@ function WelcomePage({ error, onAuthenticate }) {
   )
 }
 
-function WelcomeStat({ icon, label, value, iconBg }) {
+function WelcomeStat({ icon, label, value, iconBg, onClick }) {
+  const Component = onClick ? "button" : "div"
   return (
-    <div className="welcome-stat-card">
+    <Component type={onClick ? "button" : undefined} onClick={onClick} className="welcome-stat-card text-left">
       <div className="welcome-stat-top">
         <div className={`welcome-stat-icon-box ${iconBg || ""}`}>{icon}</div>
         <div className="welcome-stat-arrow-btn">
@@ -1270,7 +1278,7 @@ function WelcomeStat({ icon, label, value, iconBg }) {
         <div className="welcome-stat-label">{label}</div>
         <div className="welcome-stat-value">{value}</div>
       </div>
-    </div>
+    </Component>
   )
 }
 
@@ -1852,7 +1860,7 @@ function AnalyticsEmpty({ text }) {
   </div>
 }
 
-function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, onOpportunities, onDocsAssistant, onReportsPage, isBusy }) {
+function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh, onOpenReport, onLogout, onOpportunities, onDocsAssistant, onLearning, onReportsPage, isBusy }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const stats = dashboard.stats || defaultDashboard.stats
   const interviews = dashboard.interviews || []
@@ -1883,6 +1891,7 @@ function Dashboard({ userProfile, dashboard, loading, error, onStart, onRefresh,
           onStart={() => onStart()}
           onOpportunities={onOpportunities}
           onDocsAssistant={onDocsAssistant}
+          onLearning={onLearning}
           onRefresh={onRefresh}
           loading={loading}
         />
@@ -1951,7 +1960,7 @@ function DashboardButton({ icon, label, variant, ...props }) {
   return <button {...props} className={`inline-flex h-10 items-center gap-2 rounded px-3 text-sm font-semibold transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]}`}>{icon}<span>{label}</span></button>
 }
 
-function DashboardHero({ displayName, stats, completed, onStart, onOpportunities, onDocsAssistant }) {
+function DashboardHero({ displayName, stats, completed, onStart, onOpportunities, onDocsAssistant, onLearning }) {
   return (
     <motion.section className="dashboard-hero" initial="hidden" animate="show" variants={dashboardStagger}>
       <motion.div variants={dashboardCard} className="dashboard-hero-copy">
@@ -1989,6 +1998,15 @@ function DashboardHero({ displayName, stats, completed, onStart, onOpportunities
               style={{ objectFit: 'contain', padding: '16px 16px 0 16px' }}
             />
             <button onClick={onDocsAssistant} className="dashboard-secondary-action"><FileText size={17} /> Documentation Assistant</button>
+          </div>
+          <div className="dashboard-action-card">
+            <img 
+              src="/minimal_docs.png" 
+              alt="AI Learning Agent" 
+              className="dashboard-action-img" 
+              style={{ objectFit: 'contain', padding: '16px 16px 0 16px' }}
+            />
+            <button onClick={onLearning} className="dashboard-secondary-action"><Brain size={17} /> AI Learning Agent</button>
           </div>
         </div>
 
