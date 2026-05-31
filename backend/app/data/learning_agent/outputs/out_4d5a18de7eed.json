@@ -1,0 +1,28 @@
+{
+  "output_id": "out_4d5a18de7eed",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "interview_questions",
+  "doc_ids": [
+    "doc_61b5d27d8354"
+  ],
+  "content": "## Interview Questions\n\n### Focus topics\n- interview questions\n\n### Source excerpt\nta R.S., \u201cA Handbook on Fire Technology\u201d, 2nd Edition, Universities Press, 1993\nReference Books\n1. Judy Knighton R N (Editor), Kenneth Wright (Author), \u201cBurn Care: Recovery, First\nAid, Preventing\u201d, Mediscript Communications, Inc., 2017\n2. T he Factories Act, 1948 available on the website:\nhttps://labour.gov.in/sites/default/files/factories_act_1948.pdf\n3. T he Explosive Act 1984 available on the website:\nwww.indiacode.nic.in/bitstream/123456789/15371/1/the_explosives_act%2C_1884.pdf\nPage 32 of 34\n\nLLM generation is currently unavailable, so this fallback output uses retrieved context only.",
+  "sources": [
+    {
+      "doc_id": "doc_61b5d27d8354",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 32,
+      "pages": [
+        32,
+        12
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0755,
+      "preview": "ta R.S., \u201cA Handbook on Fire Technology\u201d, 2nd Edition, Universities Press, 1993 Reference Books 1. Judy Knighton R N (Editor), Kenneth Wright (Author), \u201cBurn Care: Recovery, First Aid, Preventing\u201d, Mediscript Communicati",
+      "match_count": 10
+    }
+  ],
+  "created_at": "2026-05-29T15:04:01.855691+00:00"
+}

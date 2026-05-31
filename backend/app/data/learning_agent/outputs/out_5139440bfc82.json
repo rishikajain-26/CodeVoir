@@ -1,0 +1,28 @@
+{
+  "output_id": "out_5139440bfc82",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_734a15915f6d"
+  ],
+  "content": "## Summary Notes\n\n- Emerging Trends: The Role of Information Technology Technology is moving warehouses from simple storage facilities to highly efficient, \"smart\" fulfillment hubs.\n- \u25cf Warehouse Management Systems (WMS): Acts as the \"brain\" of the warehouse.\n- Modern cloud-based WMS provide real-time data, enabling managers to track inventory, prioritize orders, and sync operations across multiple locations instantly.\n- \u25cf Artificial Intelligence (AI) & Machine Learning: Analyzes massive datasets to predict demand patterns, optimize storage \"slotting\" (where items are placed), and plan the most efficient picking routes to save time.\n- \u25cf The Internet of Things (IoT): Connects physical devices (like smart shelves and RFID tags) to the internet.",
+  "sources": [
+    {
+      "doc_id": "doc_734a15915f6d",
+      "title": "UNIT 4.pdf",
+      "source_type": "pdf",
+      "source": "UNIT 4.pdf",
+      "page": 1,
+      "pages": [
+        1,
+        2
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0,
+      "preview": "1. Emerging Trends: The Role of Information Technology Technology is moving warehouses from simple storage facilities to highly efficient, \"smart\" fulfillment hubs. \u25cf Warehouse Management Systems (WMS): Acts as the \"brai",
+      "match_count": 4
+    }
+  ],
+  "created_at": "2026-05-30T17:50:32.107856+00:00"
+}

@@ -1,0 +1,44 @@
+{
+  "output_id": "out_4a75771528de",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_4860282e2be1",
+    "doc_f47f686d1f98"
+  ],
+  "content": "## Summary Notes\n\n- No clean source context was available from this URL.",
+  "sources": [
+    {
+      "doc_id": "doc_4860282e2be1",
+      "title": "11.0-vibration L11 (forced vibration - 1).pdf",
+      "source_type": "pdf",
+      "source": "11.0-vibration L11 (forced vibration - 1).pdf",
+      "page": 8,
+      "pages": [
+        8,
+        9
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0,
+      "preview": "We had:",
+      "match_count": 8
+    },
+    {
+      "doc_id": "doc_f47f686d1f98",
+      "title": "UNIT 4.pdf",
+      "source_type": "pdf",
+      "source": "UNIT 4.pdf",
+      "page": 1,
+      "pages": [
+        1
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0,
+      "preview": "1. Emerging Trends: The Role of Information Technology Technology is moving warehouses from simple storage facilities to highly efficient, \"smart\" fulfillment hubs. \u25cf Warehouse Management Systems (WMS): Acts as the \"brai",
+      "match_count": 2
+    }
+  ],
+  "created_at": "2026-05-30T17:56:44.827944+00:00"
+}

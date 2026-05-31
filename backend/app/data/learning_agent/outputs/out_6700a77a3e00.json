@@ -1,0 +1,28 @@
+{
+  "output_id": "out_6700a77a3e00",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_03646c8e5f2b"
+  ],
+  "content": "## Notes\n\n### Focus topics\n- notes\n\n### Source excerpt\nINDIRA GANDHI DELHI TECHNICAL UNIVERSITY FOR WOMEN\n(Established by Govt. of Delhi vide Act 9 of 2012)\nKashmere Gate, Delhi - 110006 (An ISO 9001:2015 Certified University)\nConsolidated Statement of Result\nProgramme : B.TECH MAE* Examination : December 2025\nSemester : 3 Date of Declaration : 03-02-2026\nSr.No. Enrollment No Name SGPA BAI 201 BAS 203 BMA 201 BMA 202 BMA 203 BMA 204 BMA 205 BMA 250 AEC 201\n1 00101042024 AADYA JHA 9.00 A B A A+ A A A+ A+ A\n2 00201042024 AADYA SRI JHA 8.50 A+ C A+ A C+ A A+ A+ A\n3 00301042024 AAKRITI SHAKYA 7.77 B+ C A A C A A A+ A\n4 00501042024 AARTI 5.27 C F B A+ F B C+ A+ B+\n5 00601042024 AARUSHI JAIN 9.27 A+ B A+ A+ B+ A A+ A+ A+\n6 00701042024 AARUSHI SINGH 8.23 B+ C+ B+ A+ B+ A B+ A+ A\n7 00801042024 AASHI LOHIA 7.64 B+ C A A+ C A B+ A+ B\n8 00901042024 AASHII SHARMA 8.14 A C A A+ C+ A A A+ B+\n9 01101042024 ALVIKA SINGH 4.45 D F C+ B F A C+ A+ C+\n10 0140104\n\nLLM generation is currently unavailable, so this fallback output uses retrieved context only.",
+  "sources": [
+    {
+      "doc_id": "doc_03646c8e5f2b",
+      "title": "B.Tech_MAE_3rd sem_Dec 2025.pdf",
+      "source_type": "pdf",
+      "source": "B.Tech_MAE_3rd sem_Dec 2025.pdf",
+      "page": 1,
+      "pages": [
+        1,
+        2
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0,
+      "preview": "INDIRA GANDHI DELHI TECHNICAL UNIVERSITY FOR WOMEN (Established by Govt. of Delhi vide Act 9 of 2012) Kashmere Gate, Delhi - 110006 (An ISO 9001:2015 Certified University) Consolidated Statement of Result Programme : B.T",
+      "match_count": 8
+    }
+  ],
+  "created_at": "2026-05-29T17:08:19.223078+00:00"
+}

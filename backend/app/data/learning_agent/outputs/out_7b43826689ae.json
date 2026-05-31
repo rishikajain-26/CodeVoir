@@ -1,0 +1,28 @@
+{
+  "output_id": "out_7b43826689ae",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_4860282e2be1"
+  ],
+  "content": "## Summary Notes\n\n- No clean source context was available from this URL.",
+  "sources": [
+    {
+      "doc_id": "doc_4860282e2be1",
+      "title": "11.0-vibration L11 (forced vibration - 1).pdf",
+      "source_type": "pdf",
+      "source": "11.0-vibration L11 (forced vibration - 1).pdf",
+      "page": 8,
+      "pages": [
+        8,
+        9
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0,
+      "preview": "We had:",
+      "match_count": 8
+    }
+  ],
+  "created_at": "2026-05-30T17:56:30.181426+00:00"
+}

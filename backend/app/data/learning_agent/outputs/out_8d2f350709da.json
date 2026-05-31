@@ -1,0 +1,64 @@
+{
+  "output_id": "out_8d2f350709da",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_f43eb085ed88"
+  ],
+  "content": "## Summary Notes\n\n- # CodeVoir AI Learning Agent This module powers the source-grounded learning workflow inside CodeVoir.\n- It supports: - PDF upload and page-level indexing.\n- Local deterministic embeddings for zero-cost retrieval.\n- RAG chat with source citations and confidence labels.\n- Notes, summaries, cheatsheets, flashcards, interview questions, revision plans, project pitches, and mindmaps.",
+  "sources": [
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "backend/app/learning_agent/README.md",
+      "url": null,
+      "score": 0.3562,
+      "preview": "# CodeVoir AI Learning Agent  This module powers the source-grounded learning workflow inside CodeVoir.  It supports:  - PDF upload and page-level indexing. - Documentation/article URL ingestion. - GitHub repository scan",
+      "match_count": 1
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "backend/app/dsa/state.py",
+      "url": null,
+      "score": 0.2954,
+      "preview": "t = 0.0  visible_test_pass_pct: float = 0.0  class DebugProfile(BaseModel):  time_to_first_success_s: float = 0.0  debug_iterations: int = 0  bug_localisation_quality: float = 0.0  debug_strategy: Literal[\"print_debug\", ",
+      "match_count": 3
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "README.md",
+      "url": null,
+      "score": 0.2841,
+      "preview": ", defaults to the configured backend default | | `ANTHROPIC_API_KEY` | One provider required | Anthropic Claude API key | | `GROQ_API_KEY` | One provider required | Groq API key | | `GEMINI_API_KEY` | One provider requir",
+      "match_count": 3
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "backend/app/dsa/llm_text.py",
+      "url": null,
+      "score": 0.1884,
+      "preview": "from __future__ import annotations  import litellm from litellm import acompletion  from app.services.llm.litellm_config import resolve_litellm_settings from app.services.llm import health from app.utils.logger import lo",
+      "match_count": 1
+    }
+  ],
+  "created_at": "2026-05-30T17:49:00.971170+00:00"
+}

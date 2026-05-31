@@ -1,0 +1,25 @@
+{
+  "output_id": "out_053d5efbe36f",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_adfb09018184"
+  ],
+  "content": "## Summary Notes\n\n- tation sector accounts for approximately 30% of total U.S.\n- Using more energy efficient vehicles like hybrid and electric vehicles supports the U.S.\n- The multiple fuel sources used to generate electricity results in a more secure energy source for the electrified portion of the transportation sector.\n- All of this strengthens national energy security by increasing flexibility during natural disasters and fuel supply disruptions.\n- HEVs typically use less fuel than similar conventional vehicles because they employ electric-drive technologies to boost vehicle efficiency through regenerative braking\u2014recapturing energy otherwise lost during braking.",
+  "sources": [
+    {
+      "doc_id": "doc_adfb09018184",
+      "title": "Alternative Fuels Data Center: Electric Vehicle Benefits and Considerations",
+      "source_type": "url",
+      "source": "Alternative Fuels Data Center: Electric Vehicle Benefits and Considerations",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://afdc.energy.gov/fuels/electricity-benefits",
+      "score": 0.1166,
+      "preview": "tation sector accounts for approximately 30% of total U.S.  energy needs and 70% of U.S.  Using more energy efficient vehicles like hybrid and electric vehicles supports the U.S.  economy and helps diversify the U.S.  Th",
+      "match_count": 7
+    }
+  ],
+  "created_at": "2026-05-30T16:05:42.731759+00:00"
+}

@@ -1,0 +1,25 @@
+{
+  "output_id": "out_ad2651d01f42",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_08ad93821d13"
+  ],
+  "content": "## Summary Notes\n\n- Structuring content with HTML This module covers the basics of the HTML language, before looking at key areas such as document structure, links, lists, images, forms, and more.\n- HTML forms Forms are a very important part of the Web \u2014 these provide much of the functionality you need for interacting with websites, e.g., registering and logging in, sending feedback, buying products, and more.\n- This module gets you started with creating the client-side/front-end parts of forms.\n- Guides The HTML guides help you build with HTML on the web.\n- They cover topics such as forms, CORS, content preloading, and responsive images.",
+  "sources": [
+    {
+      "doc_id": "doc_08ad93821d13",
+      "title": "HTML: HyperText Markup Language | MDN",
+      "source_type": "url",
+      "source": "HTML: HyperText Markup Language | MDN",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://share.google/Uw1pLHDSkdllVxapy",
+      "score": 0.2797,
+      "preview": "Structuring content with HTML This module covers the basics of the HTML language, before looking at key areas such as document structure, links, lists, images, forms, and more.  HTML forms Forms are a very important part",
+      "match_count": 8
+    }
+  ],
+  "created_at": "2026-05-30T17:49:54.606426+00:00"
+}

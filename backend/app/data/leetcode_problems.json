@@ -1,0 +1,68 @@
+[
+  {
+    "id": "two-sum",
+    "title": "Two Sum",
+    "difficulty": "Easy",
+    "source": "NeetCode 150 / LeetCode-style dataset",
+    "topics": ["Array", "Hash Table"],
+    "prompt": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume exactly one valid answer exists, and you may not use the same element twice. Return the indices in increasing order as a JSON array.",
+    "constraints": ["2 <= nums.length <= 10^4", "-10^9 <= nums[i] <= 10^9", "-10^9 <= target <= 10^9", "Exactly one valid answer exists."],
+    "examples": [
+      {"input": "nums = [2,7,11,15], target = 9", "output": "[0, 1]", "explanation": "nums[0] + nums[1] = 2 + 7 = 9."},
+      {"input": "nums = [3,2,4], target = 6", "output": "[1, 2]", "explanation": "nums[1] + nums[2] = 2 + 4 = 6."}
+    ],
+    "starter_code": {
+      "python": "import json\nnums = json.loads(input())\ntarget = int(input())\n\n# Print the answer as a JSON array, for example: [0, 1]\n",
+      "javascript": "const fs = require('fs');\nconst lines = fs.readFileSync(0, 'utf8').trim().split(/\\n/);\nconst nums = JSON.parse(lines[0]);\nconst target = Number(lines[1]);\n\n// Print the answer as a JSON array, for example: [0, 1]\n"
+    },
+    "testcases": [
+      {"input": "[2,7,11,15]\n9\n", "expected_output": "[0, 1]", "visible": true},
+      {"input": "[3,2,4]\n6\n", "expected_output": "[1, 2]", "visible": true},
+      {"input": "[3,3]\n6\n", "expected_output": "[0, 1]", "visible": false}
+    ]
+  },
+  {
+    "id": "valid-parentheses",
+    "title": "Valid Parentheses",
+    "difficulty": "Medium",
+    "source": "NeetCode 150 / LeetCode-style dataset",
+    "topics": ["String", "Stack"],
+    "prompt": "Given a string s containing only the characters '(', ')', '{', '}', '[' and ']', determine whether the input string is valid. A string is valid if every open bracket is closed by the same type of bracket and in the correct order. Print True or False.",
+    "constraints": ["1 <= s.length <= 10^4", "s consists only of parentheses characters: ()[]{}."],
+    "examples": [
+      {"input": "s = \"()[]{}\"", "output": "True", "explanation": "Each opening bracket is closed in the correct order."},
+      {"input": "s = \"([)]\"", "output": "False", "explanation": "The bracket types cross, so the nesting order is invalid."}
+    ],
+    "starter_code": {
+      "python": "s = input().strip()\n\n# Print True or False\n",
+      "javascript": "const fs = require('fs');\nconst s = fs.readFileSync(0, 'utf8').trim();\n\n// Print true or false as True/False\n"
+    },
+    "testcases": [
+      {"input": "()[]{}\n", "expected_output": "True", "visible": true},
+      {"input": "([)]\n", "expected_output": "False", "visible": true},
+      {"input": "{[]}\n", "expected_output": "True", "visible": false}
+    ]
+  },
+  {
+    "id": "longest-substring",
+    "title": "Longest Substring Without Repeating Characters",
+    "difficulty": "Hard",
+    "source": "NeetCode 150 / LeetCode-style dataset",
+    "topics": ["Hash Table", "String", "Sliding Window"],
+    "prompt": "Given a string s, return the length of the longest substring without repeating characters. Print one integer.",
+    "constraints": ["0 <= s.length <= 5 * 10^4", "s may contain English letters, digits, symbols, and spaces."],
+    "examples": [
+      {"input": "s = \"abcabcbb\"", "output": "3", "explanation": "The answer is \"abc\", with length 3."},
+      {"input": "s = \"bbbbb\"", "output": "1", "explanation": "The answer is \"b\", with length 1."}
+    ],
+    "starter_code": {
+      "python": "s = input().rstrip('\\n')\n\n# Print the integer answer\n",
+      "javascript": "const fs = require('fs');\nconst s = fs.readFileSync(0, 'utf8').replace(/\\n$/, '');\n\n// Print the integer answer\n"
+    },
+    "testcases": [
+      {"input": "abcabcbb\n", "expected_output": "3", "visible": true},
+      {"input": "bbbbb\n", "expected_output": "1", "visible": true},
+      {"input": "pwwkew\n", "expected_output": "3", "visible": false}
+    ]
+  }
+]

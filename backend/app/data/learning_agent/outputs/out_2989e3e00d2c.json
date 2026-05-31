@@ -1,0 +1,25 @@
+{
+  "output_id": "out_2989e3e00d2c",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_adfb09018184"
+  ],
+  "content": "Q: What is the key idea about alternative fuels data center?\nA: Alternative Fuels Data Center: Electric Vehicle Benefits and Considerations Electric Vehicle Benefits and Considerations All forms of electric vehicles (EVs) can help improve fuel economy, lower fuel costs, and reduce ai.\n\nQ: What is the key idea about using electricity as a power source for transportation?\nA: Using electricity as a power source for transportation improves public health and the environment, and provides safety benefits, and contributes to a secure transportation system.\n\nQ: What is the key idea about batteries the advanced batteries in electric vehicles are?\nA: Batteries The advanced batteries in electric vehicles are designed for extended life but will wear out eventually.\n\nQ: What is the key idea about several manufacturers of electric vehicles are offering 8-year/100?\nA: Several manufacturers of electric vehicles are offering 8-year/100,000-mile battery warranties.\n\nQ: What is the key idea about predictive modeling by the national laboratory of the?\nA: Predictive modeling by the National Laboratory of the Rockies indicates that today\u2019s batteries may last 12 to 15 years in moderate climates (8 to 12 years in extreme climates).\n\nQ: What is the key idea about battery cell chemistry and design and the vehicle-battery-environment?\nA: , battery cell chemistry and design, and the vehicle-battery-environment thermal system.\n\nQ: What is the key idea about check with your dealer for model-specific information about?\nA: Check with your dealer for model-specific information about battery life and warranties.\n\nQ: What is the key idea about although manufacturers have not published pricing for replacement?\nA: Although manufacturers have not published pricing for replacement batteries, some are offering extended warranty programs with monthly fees.",
+  "sources": [
+    {
+      "doc_id": "doc_adfb09018184",
+      "title": "Alternative Fuels Data Center: Electric Vehicle Benefits and Considerations",
+      "source_type": "url",
+      "source": "Alternative Fuels Data Center: Electric Vehicle Benefits and Considerations",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://afdc.energy.gov/fuels/electricity-benefits",
+      "score": 0,
+      "preview": "Alternative Fuels Data Center: Electric Vehicle Benefits and Considerations Electric Vehicle Benefits and Considerations All forms of electric vehicles (EVs) can help improve fuel economy, lower fuel costs, and reduce ai",
+      "match_count": 7
+    }
+  ],
+  "created_at": "2026-05-30T16:17:22.173457+00:00"
+}

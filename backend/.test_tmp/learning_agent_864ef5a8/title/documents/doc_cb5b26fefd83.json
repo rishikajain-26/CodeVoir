@@ -1,0 +1,13 @@
+{
+  "doc_id": "doc_cb5b26fefd83",
+  "title": "https://example.com/fastapi",
+  "source_type": "url",
+  "user_id": "alice",
+  "created_at": "2026-05-30T08:41:30.695726+00:00",
+  "updated_at": "2026-05-30T08:41:30.695726+00:00",
+  "chunk_count": 1,
+  "total_chars": 59,
+  "metadata": {
+    "url": "https://example.com/fastapi"
+  }
+}

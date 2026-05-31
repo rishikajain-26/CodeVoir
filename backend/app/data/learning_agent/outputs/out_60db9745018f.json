@@ -1,0 +1,25 @@
+{
+  "output_id": "out_60db9745018f",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_f366fb7716cc"
+  ],
+  "content": "## Notes\n\n### Focus topics\n- notes\n\n### Source-grounded notes\n- rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub rweekly / rweekly.org Public Notifications You must be signed in to change notification settings Fork 406 Star 816 Expand file tree / random.html Copy pa\n- open ( \"GET\" , \"https://page.rweekly.org/?page=\" + \"rweekly.org/random.html\" ) ; xhr .\n- send ( ) ; </ script > You can\u2019t perform that action at this time.\n\n_LLM generation is currently unavailable, so these notes use cleaned retrieved context only._",
+  "sources": [
+    {
+      "doc_id": "doc_f366fb7716cc",
+      "title": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "source_type": "url",
+      "source": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://github.com/rweekly/rweekly.org/blob/gh-pages/random.html",
+      "score": 0.0,
+      "preview": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub rweekly / rweekly.org Public Notifications You must be signed in to change notification settings Fork 406 Star 816 Expand file tree / random.html Copy pa",
+      "match_count": 1
+    }
+  ],
+  "created_at": "2026-05-29T19:52:15.279561+00:00"
+}

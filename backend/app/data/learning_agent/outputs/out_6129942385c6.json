@@ -1,0 +1,38 @@
+{
+  "output_id": "out_6129942385c6",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_39e985e560f8"
+  ],
+  "content": "Q: What is the key idea about team members- ananya thakur 01501042024 indira gandh delhi?\nA: Team members- ANANYA THAKUR (01501042024) Indira Gandh Delhi AARUSHI JAIN (00601042024) Technical University For Women (MAE-1 ) (IGDTUW) SYNOPSIS Topic - Intrusion Detection System Using Machine Learning Algorithms.\n\nQ: What is the key idea about theory intrusion detection system is a software application?\nA: Theory - Intrusion Detection System is a software application that detects network intrusion using various machine learning algorithms.\n\nQ: What is the key idea about ids monitors a network or system for malicious?\nA: IDS monitors a network or system for malicious activity and protects a computer network from unauthorized access by users, including perhaps insiders.\n\nQ: What is the key idea about the intrusion detector learning task is to build?\nA: The intrusion detector learning task is to build a predictive model (i.e., a classifier) capable of distinguishing between 'bad connections' (intrusion/attacks) and 'good (normal) connections'.\n\nQ: What is the key idea about attacks fall into four main categories?\nA: Attacks fall into four main categories: #DOS: denial-of-service, e.g.\n\nQ: What is the key idea about highlight 6?\nA: #U2R: unauthorized access to local superuser (root) privileges, e.g., various ``buffer overflow'' attacks.\n\nQ: What is the key idea about highlight 7?\nA: #probing: surveillance and other probing, e.g., port scanning.\n\nQ: What is the key idea about objective the task is to build a network?\nA: Objective - The task is to build a network intrusion detector, a predictive model capable of distinguishing between bad connections, called intrusions or attacks, and good normal connections.",
+  "sources": [
+    {
+      "doc_id": "doc_39e985e560f8",
+      "title": "aarushijn/Network-Intrusion-Detection-Model-",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/Network-Intrusion-Detection-Model-",
+      "page": null,
+      "pages": [],
+      "file_path": "synopsis.docx",
+      "url": null,
+      "score": 0,
+      "preview": "Team members- ANANYA THAKUR (01501042024) Indira Gandh Delhi AARUSHI JAIN (00601042024) Technical University For Women  (MAE-1 ) (IGDTUW)  SYNOPSIS  Topic - Intrusion Detection System Using Machine Learning\u00a0Algorithms.  ",
+      "match_count": 4
+    },
+    {
+      "doc_id": "doc_39e985e560f8",
+      "title": "aarushijn/Network-Intrusion-Detection-Model-",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/Network-Intrusion-Detection-Model-",
+      "page": null,
+      "pages": [],
+      "file_path": "Network_Intrusion_Detection_Model_Project(006_&015).ipynb",
+      "url": null,
+      "score": 0,
+      "preview": "Notebook cell 1 (code): #NETWORK INTRUSION DETECTION MODEL  Notebook cell 2 (code): #TEAM MEMBERS # 1. Aarushi Jain - 00601042024 (MAE) # 2. Ananya Thakur- 01501042024 (MAE)  Notebook cell 3 (code): import os import pand",
+      "match_count": 12
+    }
+  ],
+  "created_at": "2026-05-30T17:42:43.962423+00:00"
+}
