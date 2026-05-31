@@ -1,0 +1,25 @@
+{
+  "output_id": "out_121d67a873e5",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_823396ff6fff"
+  ],
+  "content": "## Summary Notes\n\n- [ 213 ] Hyundai Hyundai Ioniq 5 2021-03 373,826 2024-12 93,396 (2024) In production [ 213 ] Chery Chery eQ1 2017-03 368,361 2024-12 30,310 (2024) In production [ 214 ] [ 215 ] [ 216 ] [ 217 ] Tesla, Inc.\n- Tesla Model S 2012-06 ~363,900 2022-12 ~35,000 (2022) Ceased production [ 218 ] Notes: (1) Vehicles are considered highway-capable if able to achieve at least a top speed of 100 km/h (62 mph).\n- Electric cars by country [ edit ] Main article: electric car use by country In the year of 2021, the total number of electric cars on the world's roads went to about 16.5 million.\n- The sales of electric cars in the first quarter of 2022 went up to 2 million.\n- [ 219 ] China has the largest all-electric car fleet in use, with 2.58 million at the end of 2019, more than half (53.9%) of the world's electric car stock.\n\n_LLM generation is currently unavailable, so this summary uses cleaned retrieved context only._",
+  "sources": [
+    {
+      "doc_id": "doc_823396ff6fff",
+      "title": "Electric car - Wikipedia",
+      "source_type": "url",
+      "source": "Electric car - Wikipedia",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://en.wikipedia.org/wiki/Electric_car",
+      "score": 0.3587,
+      "preview": "[ 213 ] Hyundai Hyundai Ioniq 5 2021-03 373,826 2024-12 93,396 (2024) In production [ 213 ] Chery Chery eQ1 2017-03 368,361 2024-12 30,310 (2024) In production [ 214 ] [ 215 ] [ 216 ] [ 217 ] Tesla, Inc.  Tesla Model S 2",
+      "match_count": 10
+    }
+  ],
+  "created_at": "2026-05-30T10:58:09.803166+00:00"
+}

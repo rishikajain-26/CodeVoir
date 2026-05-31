@@ -1,0 +1,28 @@
+{
+  "output_id": "out_d58e37722eb8",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "mindmap",
+  "doc_ids": [
+    "doc_61b5d27d8354"
+  ],
+  "content": "## Mindmap\n\n### Focus topics\n- mindmap\n\n### Source excerpt\nply chain decisions.\nCO3: Optimize transportation and warehousing operations in the supply chain.\nCO4: Explore and analyze emerging technologies and their impact on supply chains.\nPedagogy: Classroom teaching is supported by White board, black board, chalks, markers,\nprojector and screen. The hand-written notes, Power Point slides and assignments will be provided\nto the students and also mailed to them. The students can also raise their issues related to the course\nin the class and mail.\nContents\nUNIT-I 8 Hours\nIntroduction: Definition, Scope, and Importance of Logistics and Supply Chain Management,\nComponents of Logistics: Transportation, Warehousing, Inventory Management, Packaging,\nand Information Systems\nSupply Chain Strategy and Types: Push vs. Pull Systems, Efficient vs. Responsive Supply\nChains\nKey Drivers of Supply Chain Performance (Cost, Quality, Delivery, Flexibility) Role of\n\n\nLLM generation is currently unavailable, so this fallback output uses retrieved context only.",
+  "sources": [
+    {
+      "doc_id": "doc_61b5d27d8354",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 25,
+      "pages": [
+        25,
+        23
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0571,
+      "preview": "ply chain decisions. CO3: Optimize transportation and warehousing operations in the supply chain. CO4: Explore and analyze emerging technologies and their impact on supply chains. Pedagogy: Classroom teaching is supporte",
+      "match_count": 10
+    }
+  ],
+  "created_at": "2026-05-29T14:58:20.976260+00:00"
+}

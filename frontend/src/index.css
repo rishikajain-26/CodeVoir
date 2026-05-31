@@ -1,0 +1,3264 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #020617;
+  color: white;
+  font-family: Inter, sans-serif;
+}
+
+.font-display {
+  font-family: "Space Grotesk", Inter, sans-serif;
+}
+
+.dashboard-shell {
+  position: relative;
+  background:
+    radial-gradient(circle at 78% 20%, rgba(124, 58, 237, 0.18), transparent 32rem),
+    radial-gradient(circle at 18% 42%, rgba(20, 184, 166, 0.11), transparent 26rem),
+    linear-gradient(135deg, #020617 0%, #07111f 48%, #030712 100%);
+  overflow-x: hidden;
+}
+
+.dashboard-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), transparent);
+}
+
+.dashboard-glass {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.58);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.report-search-card,
+.report-results-panel {
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.12), transparent 22rem),
+    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.10), transparent 20rem),
+    rgba(15, 23, 42, 0.60);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(14px);
+}
+
+.report-result-card {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(15, 23, 42, 0.55) 42%, rgba(37, 99, 235, 0.14)),
+    rgba(2, 6, 23, 0.46);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.22);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.report-result-card:hover {
+  border-color: rgba(56, 189, 248, 0.42);
+  box-shadow: 0 20px 64px rgba(56, 189, 248, 0.12);
+  transform: translateY(-1px);
+}
+
+.dsa-report-shell {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(34, 211, 238, 0.16), transparent 24rem),
+    radial-gradient(circle at 86% 8%, rgba(16, 185, 129, 0.13), transparent 22rem),
+    radial-gradient(circle at 50% 58%, rgba(59, 130, 246, 0.10), transparent 30rem),
+    linear-gradient(135deg, #020617 0%, #07111f 54%, #030712 100%);
+}
+
+.report-hero,
+.report-panel,
+.report-pop-card {
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.report-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(8, 47, 73, 0.76), rgba(15, 23, 42, 0.72) 48%, rgba(6, 78, 59, 0.48)),
+    rgba(2, 6, 23, 0.62);
+}
+
+.report-hero::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto auto -18%;
+  width: 34rem;
+  height: 34rem;
+  background: conic-gradient(from 120deg, rgba(34, 211, 238, 0.0), rgba(34, 211, 238, 0.18), rgba(16, 185, 129, 0.10), rgba(34, 211, 238, 0.0));
+  filter: blur(18px);
+  animation: report-sweep 9s linear infinite;
+  pointer-events: none;
+}
+
+.report-panel {
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.78)),
+    rgba(15, 23, 42, 0.72);
+}
+
+.report-pop-card {
+  position: relative;
+  overflow: hidden;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.report-pop-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: translateX(-120%);
+  transition: transform 520ms ease;
+  pointer-events: none;
+}
+
+.report-pop-card:hover {
+  border-color: rgba(34, 211, 238, 0.42);
+  box-shadow: 0 26px 78px rgba(34, 211, 238, 0.12);
+}
+
+.report-pop-card:hover::before {
+  transform: translateX(120%);
+}
+
+.verdict-glow {
+  animation: report-card-in 520ms ease both, dashboard-breathe 5s ease-in-out infinite;
+}
+
+@keyframes report-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes report-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.interview-setup-card {
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(56, 189, 248, 0.14), transparent 24rem),
+    radial-gradient(circle at 92% 12%, rgba(124, 58, 237, 0.14), transparent 22rem),
+    rgba(15, 23, 42, 0.62);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+  padding: 28px;
+  backdrop-filter: blur(14px);
+}
+
+.interview-setup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  padding-bottom: 22px;
+}
+
+.dashboard-workspace {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.profile-side-panel {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.62);
+  padding: 20px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.profile-drawer-trigger {
+  position: fixed;
+  left: 18px;
+  top: 86px;
+  z-index: 12;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  color: #cbd5e1;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(12px);
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.profile-drawer-trigger:hover {
+  border-color: rgba(20, 184, 166, 0.55);
+  background: rgba(20, 184, 166, 0.12);
+  transform: translateY(-1px);
+}
+
+.profile-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  border: 0;
+  background: rgba(2, 6, 23, 0.52);
+  backdrop-filter: blur(2px);
+}
+
+.profile-drawer-panel {
+  position: fixed;
+  left: 18px;
+  top: 86px;
+  z-index: 70;
+  width: min(460px, calc(100vw - 36px));
+  max-height: calc(100vh - 108px);
+  overflow-y: auto;
+  animation: profile-drawer-in 180ms ease-out;
+}
+
+.profile-drawer-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.34);
+  color: #cbd5e1;
+}
+
+.profile-drawer-close:hover {
+  border-color: rgba(20, 184, 166, 0.45);
+  color: #ccfbf1;
+}
+
+@keyframes profile-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.profile-avatar {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 184, 166, 0.45);
+  background: radial-gradient(circle at 35% 28%, rgba(20, 184, 166, 0.35), rgba(15, 23, 42, 0.92));
+  color: #ccfbf1;
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.profile-tabs {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-tab {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.34);
+  padding: 0 12px;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.profile-tab-active {
+  border-color: rgba(20, 184, 166, 0.42);
+  background: rgba(20, 184, 166, 0.12);
+  color: #ccfbf1;
+}
+
+.profile-summary {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding-top: 16px;
+}
+
+.profile-summary div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.profile-summary strong {
+  color: #f8fafc;
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: 16px;
+}
+
+.profile-report-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding-top: 16px;
+}
+
+.profile-report-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.34);
+  padding: 12px;
+}
+
+.profile-report-action {
+  border-radius: 7px;
+  border: 1px solid rgba(20, 184, 166, 0.42);
+  background: rgba(20, 184, 166, 0.12);
+  padding: 7px 10px;
+  color: #ccfbf1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-report-action:hover {
+  background: rgba(20, 184, 166, 0.2);
+}
+
+.dashboard-hero {
+  min-height: calc(100vh - 80px);
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.78fr);
+  align-items: center;
+  gap: 32px;
+  padding: 52px 0 34px;
+}
+
+.dashboard-hero-copy {
+  display: grid;
+  gap: 24px;
+  max-width: 760px;
+  padding: 28px 0;
+}
+
+.dashboard-kicker {
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 58, 237, 0.42);
+  background: rgba(30, 27, 75, 0.52);
+  padding: 8px 14px;
+  color: #c4b5fd;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-action-stack {
+  display: grid;
+  width: min(100%, 280px);
+  gap: 12px;
+}
+
+.dashboard-primary-action,
+.dashboard-secondary-action {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 0 18px;
+  font-weight: 800;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.dashboard-primary-action {
+  border: 1px solid #14b8a6;
+  background: #14b8a6;
+  color: #031014;
+  box-shadow: 0 0 34px rgba(20, 184, 166, 0.24);
+}
+
+.dashboard-secondary-action {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.56);
+  color: #e2e8f0;
+  backdrop-filter: blur(10px);
+}
+
+.dashboard-primary-action:hover,
+.dashboard-secondary-action:hover {
+  transform: translateY(-1px) scale(1.018);
+}
+
+.dashboard-secondary-action:hover {
+  border-color: rgba(124, 58, 237, 0.65);
+  box-shadow: 0 0 28px rgba(124, 58, 237, 0.16);
+}
+
+.dashboard-hero-strip {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.48);
+  padding: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.dashboard-hero-strip span {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 7px 10px;
+}
+
+.dashboard-globe-panel {
+  position: relative;
+  min-height: 560px;
+}
+
+.dashboard-globe-panel::before {
+  content: "";
+  position: absolute;
+  inset: 14% 0 12% 10%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.16), rgba(20, 184, 166, 0.07) 42%, transparent 68%);
+  filter: blur(8px);
+}
+
+.dashboard-orbit-label,
+.dashboard-orbit-card {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.48);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+}
+
+.dashboard-orbit-label {
+  right: 16%;
+  top: 18%;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #c4b5fd;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.dashboard-orbit-card {
+  right: 10%;
+  bottom: 16%;
+  display: grid;
+  gap: 3px;
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.logo-system {
+  position: absolute;
+  inset: 3% 0 3% 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.logo-orbit-ring {
+  position: absolute;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  box-shadow: 0 0 34px rgba(96, 165, 250, 0.08);
+  transform: rotateX(58deg) rotateZ(-18deg);
+}
+
+.logo-orbit-ring-1 {
+  width: 290px;
+  height: 290px;
+}
+
+.logo-orbit-ring-2 {
+  width: 430px;
+  height: 430px;
+  border-color: rgba(20, 184, 166, 0.16);
+}
+
+.logo-orbit-ring-3 {
+  width: 570px;
+  height: 570px;
+  border-color: rgba(124, 58, 237, 0.16);
+}
+
+.cv-sun {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  width: 230px;
+  height: 230px;
+  place-items: center;
+  border-radius: 999px;
+  background: radial-gradient(circle at 48% 46%, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.92));
+  box-shadow: 0 0 70px rgba(37, 99, 235, 0.28), inset 0 0 34px rgba(96, 165, 250, 0.12);
+  animation: cv-float 5s ease-in-out infinite;
+}
+
+.cv-letters {
+  z-index: 3;
+  color: #ffffff;
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: 74px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
+}
+
+.cv-swoosh {
+  position: absolute;
+  border-radius: 999px;
+  border-style: solid;
+  animation: cv-spin 14s linear infinite;
+}
+
+.cv-swoosh-blue {
+  inset: 22px;
+  border-width: 15px 15px 0 0;
+  border-color: #3b82f6 #3b82f6 transparent transparent;
+  transform: rotate(-18deg);
+  filter: drop-shadow(0 0 14px rgba(59, 130, 246, 0.42));
+}
+
+.cv-swoosh-white {
+  inset: 34px;
+  border-width: 0 0 13px 13px;
+  border-color: transparent transparent #f8fafc #f8fafc;
+  transform: rotate(18deg);
+  animation-direction: reverse;
+  animation-duration: 18s;
+}
+
+.cv-dot {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: #f8fafc;
+}
+
+.cv-dot-1 {
+  left: 43px;
+  bottom: 56px;
+}
+
+.cv-dot-2 {
+  left: 58px;
+  bottom: 38px;
+}
+
+.company-orbit {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: start center;
+  border-radius: 999px;
+  animation: orbit-company 20s linear infinite;
+}
+
+.orbit-a {
+  width: 300px;
+  height: 300px;
+}
+
+.orbit-b {
+  width: 430px;
+  height: 430px;
+  animation-duration: 28s;
+  animation-direction: reverse;
+}
+
+.orbit-c {
+  width: 570px;
+  height: 570px;
+  animation-duration: 36s;
+}
+
+.company-planet {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(2, 6, 23, 0.78);
+  padding: 0;
+  color: #e2e8f0;
+  font-size: 0;
+  font-weight: 700;
+  box-shadow: 0 0 24px rgba(59, 130, 246, 0.18);
+  animation: counter-orbit 20s linear infinite;
+}
+
+.company-logo-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.company-logo-name {
+  display: none;
+}
+
+.company-planet-google .company-logo-mark {
+  background: conic-gradient(from 35deg, #4285f4, #34a853, #fbbc05, #ea4335, #4285f4);
+  color: #fff;
+}
+
+.company-planet-amazon .company-logo-mark {
+  background: #111827;
+  color: #ff9900;
+  border: 1px solid rgba(255, 153, 0, 0.45);
+}
+
+.company-planet-adobe .company-logo-mark {
+  background: #ff0000;
+  color: #fff;
+}
+
+.company-planet-meta .company-logo-mark {
+  background: rgba(8, 102, 255, 0.18);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  font-size: 20px;
+}
+
+.company-planet-microsoft .company-logo-mark {
+  background: linear-gradient(135deg, #f25022 0 49%, #7fba00 50% 100%);
+  color: #fff;
+}
+
+.company-planet-netflix .company-logo-mark {
+  background: #050505;
+  color: #e50914;
+  border: 1px solid rgba(229, 9, 20, 0.55);
+}
+
+.orbit-b .company-planet {
+  animation-duration: 28s;
+  animation-direction: reverse;
+}
+
+.orbit-c .company-planet {
+  animation-duration: 36s;
+}
+
+.logo-score-chip {
+  position: absolute;
+  right: 9%;
+  bottom: 12%;
+  z-index: 6;
+  display: grid;
+  gap: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.76);
+  padding: 13px 16px;
+  color: #94a3b8;
+  font-size: 12px;
+  backdrop-filter: blur(12px);
+}
+
+.welcome-auth-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.welcome-signin-panel {
+  width: min(420px, 100%);
+  justify-self: center;
+}
+
+.welcome-logo-stage {
+  position: relative;
+  min-height: 430px;
+}
+
+.welcome-logo-stage .logo-system {
+  inset: 0;
+}
+
+.logo-score-chip strong {
+  color: #60a5fa;
+  font-size: 24px;
+  line-height: 1;
+}
+
+@keyframes cv-float {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.025);
+  }
+}
+
+@keyframes cv-spin {
+  to {
+    transform: rotate(342deg);
+  }
+}
+
+@keyframes orbit-company {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes counter-orbit {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.dashboard-orbit-card strong {
+  color: #fbbf24;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.round-shortcut {
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.46);
+  padding: 12px 14px;
+  text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.round-shortcut:hover {
+  transform: scale(1.018);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.round-shortcut-amber {
+  border-color: rgba(245, 158, 11, 0.48);
+}
+
+.round-shortcut-amber:hover {
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.18);
+}
+
+.round-shortcut-teal:hover {
+  border-color: rgba(20, 184, 166, 0.55);
+  box-shadow: 0 0 24px rgba(20, 184, 166, 0.16);
+}
+
+.round-shortcut-purple:hover {
+  border-color: rgba(124, 58, 237, 0.58);
+  box-shadow: 0 0 24px rgba(124, 58, 237, 0.18);
+}
+
+.empty-pulse {
+  animation: dashboard-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes dashboard-breathe {
+  0%, 100% {
+    border-color: rgba(148, 163, 184, 0.18);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  }
+  50% {
+    border-color: rgba(20, 184, 166, 0.45);
+    box-shadow: 0 18px 70px rgba(20, 184, 166, 0.12);
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-shell header .h-16 {
+    height: auto;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    align-items: flex-start;
+  }
+
+  .dashboard-shell header .flex-wrap {
+    width: 100%;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-hero {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    padding-top: 34px;
+  }
+
+  .dashboard-globe-panel {
+    min-height: 360px;
+  }
+
+  .dashboard-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-drawer-panel {
+    position: fixed;
+    left: 12px;
+    top: 78px;
+    width: min(460px, calc(100vw - 24px));
+  }
+
+  .profile-drawer-trigger {
+    left: 12px;
+    top: 78px;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #020617;
+  color: #f8fafc;
+  padding: 10px 12px;
+  outline: none;
+}
+
+input:focus,
+select:focus {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+}
+
+textarea {
+  color: #f8fafc;
+}
+
+/* LinkedIn Color Palette Override for Welcome and Dashboard Pages */
+
+body:has(.codevoir-welcome-page),
+body:has(.codevoir-dashboard-page) {
+  background: linear-gradient(135deg, #fff4d4 0%, #bad3eb 100%) !important;
+  background-attachment: fixed !important;
+}
+
+@keyframes float-blob-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(45px, -65px) scale(1.1);
+  }
+  66% {
+    transform: translate(-25px, 35px) scale(0.9);
+  }
+}
+
+@keyframes float-blob-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-55px, 55px) scale(1.15);
+  }
+}
+
+/* --- Welcome Page Styling --- */
+.codevoir-welcome-page {
+  background: linear-gradient(135deg, #fff4d4 0%, #bad3eb 100%) !important;
+  background-attachment: fixed !important;
+  color: #191919 !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* --- Welcome Page Navbar Styles --- */
+.codevoir-welcome-page .welcome-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 74px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5rem !important;
+  background: #003366 !important; /* Solid royal dark blue */
+  border-bottom: none !important;
+  z-index: 100 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.codevoir-welcome-page .welcome-navbar-logo {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.05em !important;
+  color: #ffffff !important; /* White logo */
+  user-select: none !important;
+  cursor: default !important;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+.codevoir-welcome-page .welcome-navbar-logo:hover {
+  transform: scale(1.05) !important;
+}
+
+.codevoir-welcome-page .welcome-navbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.codevoir-welcome-page .welcome-nav-link {
+  background: transparent !important;
+  border: none !important;
+  color: #ffffff !important; /* White text */
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 8px 16px !important;
+  border-radius: 100px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-welcome-page .welcome-nav-link:hover {
+  color: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.codevoir-welcome-page .welcome-nav-btn {
+  background: #ffffff !important; /* White button */
+  color: #003366 !important; /* Dark blue text */
+  border: 1px solid #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  padding: 8px 22px !important;
+  border-radius: 100px !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.codevoir-welcome-page .welcome-nav-btn:hover {
+  background: #f0f4f8 !important;
+  border-color: #f0f4f8 !important;
+  color: #002d62 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+.codevoir-welcome-page .welcome-nav-btn:active {
+  transform: translateY(0) !important;
+}
+
+.codevoir-welcome-page::before {
+  content: "";
+  position: absolute;
+  width: 450px;
+  height: 450px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(10, 102, 194, 0.12) 0%, transparent 70%);
+  top: -100px;
+  right: -50px;
+  z-index: 1;
+  pointer-events: none;
+  animation: float-blob-1 15s ease-in-out infinite;
+}
+
+.codevoir-welcome-page::after {
+  content: "";
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(10, 102, 194, 0.08) 0%, transparent 75%);
+  bottom: -150px;
+  left: -100px;
+  z-index: 1;
+  pointer-events: none;
+  animation: float-blob-2 20s ease-in-out infinite;
+}
+
+.codevoir-welcome-page .welcome-greeting {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 1.15rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+  color: #0a66c2 !important; /* Vibrant LinkedIn Blue */
+  margin-bottom: -28px !important;
+}
+
+.codevoir-welcome-page h1 {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  background: linear-gradient(135deg, #002d62 0%, #0a66c2 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1.05 !important;
+  margin-bottom: 8px !important;
+}
+
+.codevoir-welcome-page h1 span {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  background: linear-gradient(135deg, #0a66c2 0%, #00b4d8 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+}
+
+.codevoir-welcome-page .welcome-title-brand {
+  position: relative !important;
+  display: inline-block !important;
+  margin-right: 12px !important;
+}
+
+.codevoir-welcome-page p {
+  color: #334155 !important;
+  font-size: 1.1rem !important;
+  line-height: 1.75 !important;
+}
+
+/* Stat Cards Custom Styles */
+.codevoir-welcome-page .welcome-stat-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+  border-radius: 20px !important;
+  padding: 24px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.015) !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+  cursor: pointer !important;
+}
+
+.codevoir-welcome-page .welcome-stat-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(10, 102, 194, 0.15) !important;
+}
+
+.codevoir-welcome-page .welcome-stat-top {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.codevoir-welcome-page .welcome-stat-icon-box {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+}
+
+.codevoir-welcome-page .icon-bg-blue {
+  background: #eef2ff !important;
+  color: #3b82f6 !important;
+}
+
+.codevoir-welcome-page .icon-bg-green {
+  background: #ecfdf5 !important;
+  color: #10b981 !important;
+}
+
+.codevoir-welcome-page .icon-bg-purple {
+  background: #f5f3ff !important;
+  color: #8b5cf6 !important;
+}
+
+.codevoir-welcome-page .welcome-stat-arrow-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-welcome-page .welcome-stat-card:hover .welcome-stat-arrow-btn {
+  background: #0a66c2 !important;
+  border-color: #0a66c2 !important;
+  color: #ffffff !important;
+  transform: scale(1.08) !important;
+}
+
+.codevoir-welcome-page .welcome-stat-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.codevoir-welcome-page .welcome-stat-label {
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+}
+
+.codevoir-welcome-page .welcome-stat-value {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+/* Trust Badge Card */
+/* Trust Badge Card */
+.codevoir-welcome-page .welcome-trust-badge {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 12px 24px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  margin-top: 28px !important;
+  max-width: 42rem !important;
+}
+
+.codevoir-welcome-page .welcome-trust-badge:hover {
+  transform: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+}
+
+.codevoir-welcome-page .trust-col {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.codevoir-welcome-page .trust-icon {
+  color: #0a66c2 !important;
+  flex-shrink: 0 !important;
+}
+
+.codevoir-welcome-page .trust-text {
+  display: flex !important;
+  flex-direction: column !important;
+  line-height: 1.3 !important;
+}
+
+.codevoir-welcome-page .trust-label {
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.65rem !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+}
+
+.codevoir-welcome-page .trust-value {
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  color: #1e293b !important;
+}
+
+.codevoir-welcome-page .trust-divider {
+  width: 1px !important;
+  height: 24px !important;
+  background: #e2e8f0 !important;
+}
+
+/* Sign-in Panel Styles */
+.codevoir-welcome-page .welcome-signin-panel {
+  background: #003366 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  padding: 40px 32px !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+  text-align: center !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.codevoir-welcome-page .welcome-signin-panel:hover {
+  transform: none !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+.codevoir-welcome-page .welcome-panel-title {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 1.6rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  margin-bottom: 8px !important;
+}
+
+.codevoir-welcome-page .welcome-panel-subtitle {
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.9rem !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  margin-bottom: 28px !important;
+  line-height: 1.4 !important;
+}
+
+.codevoir-welcome-page .welcome-signin-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background: #ffffff !important;
+  color: #003366 !important;
+  border: none !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: 600 !important;
+  border-radius: 9999px !important;
+  padding: 14px 28px !important;
+  width: 100% !important;
+  font-size: 14.5px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.25s ease !important;
+  cursor: pointer !important;
+}
+
+.codevoir-welcome-page .welcome-signin-btn:hover {
+  background: #f8fafc !important;
+  transform: scale(1.015) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+.codevoir-welcome-page .welcome-signin-btn:active {
+  transform: scale(0.985) !important;
+}
+
+.codevoir-welcome-page .welcome-secure-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin-top: 24px !important;
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.codevoir-welcome-page .welcome-secure-badge svg {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.codevoir-welcome-page .welcome-panel-footer {
+  margin-top: 18px !important;
+  font-size: 0.8rem !important;
+  color: rgba(255, 255, 255, 0.6) !important; /* Soft white footer */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.codevoir-welcome-page .logo-orbit-ring {
+  border-color: rgba(10, 102, 194, 0.12) !important;
+  box-shadow: none !important;
+}
+
+.codevoir-welcome-page .cv-sun {
+  background: radial-gradient(circle at 48% 46%, #ffffff, #f3f2ef) !important;
+  box-shadow: 
+    0 15px 45px rgba(10, 102, 194, 0.15), 
+    inset 0 0 20px rgba(10, 102, 194, 0.05) !important;
+  border: 1px solid rgba(10, 102, 194, 0.1) !important;
+}
+
+.codevoir-welcome-page .cv-letters {
+  color: #1d2226 !important;
+  text-shadow: none !important;
+}
+
+.codevoir-welcome-page .cv-swoosh-blue {
+  border-color: #0a66c2 #0a66c2 transparent transparent !important;
+  filter: drop-shadow(0 0 8px rgba(10, 102, 194, 0.2)) !important;
+}
+
+.codevoir-welcome-page .cv-swoosh-white {
+  border-color: transparent transparent #cbd5e1 #cbd5e1 !important;
+}
+
+.codevoir-welcome-page .cv-dot {
+  background: #0a66c2 !important;
+}
+
+.codevoir-welcome-page .company-planet {
+  border-color: #e0e0e0 !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+
+/* --- Dashboard Page Styling --- */
+.codevoir-dashboard-page {
+  background: linear-gradient(135deg, #fff4d4 0%, #bad3eb 100%) !important;
+  background-attachment: fixed !important;
+  color: #191919 !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.codevoir-dashboard-page section.max-w-7xl {
+  max-width: 1440px !important;
+  padding-top: 4.5rem !important; /* Lessen top margin */
+}
+
+.codevoir-dashboard-page .dashboard-hero {
+  padding-top: 12px !important; /* Lessen hero top margin */
+}
+
+.codevoir-welcome-page section.max-w-7xl {
+  max-width: 1440px !important;
+  padding-top: 4.5rem !important;
+}
+
+@media (min-width: 1025px) {
+  .codevoir-welcome-page section.max-w-7xl {
+    max-width: 1560px !important;
+    margin-left: 3rem !important;
+    margin-right: auto !important;
+    padding-left: 0 !important;
+    padding-top: 4.5rem !important;
+    transform: translateY(-24px) !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .codevoir-dashboard-page .dashboard-hero {
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr) !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .codevoir-dashboard-page .dashboard-globe-panel {
+    order: 1 !important;
+  }
+  .codevoir-dashboard-page .dashboard-hero-copy {
+    order: 2 !important;
+  }
+}
+
+.codevoir-dashboard-page::before {
+  content: "";
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(10, 102, 194, 0.1) 0%, transparent 70%);
+  top: 10%;
+  right: -100px;
+  z-index: 1;
+  pointer-events: none;
+  animation: float-blob-1 18s ease-in-out infinite;
+}
+
+.codevoir-dashboard-page::after {
+  content: "";
+  position: absolute;
+  width: 700px;
+  height: 700px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(10, 102, 194, 0.06) 0%, transparent 75%);
+  bottom: 5%;
+  left: -150px;
+  z-index: 1;
+  pointer-events: none;
+  animation: float-blob-2 22s ease-in-out infinite;
+}
+
+.codevoir-dashboard-page h1,
+.codevoir-dashboard-page h2,
+.codevoir-dashboard-page h3,
+.codevoir-dashboard-page .text-white,
+.codevoir-dashboard-page .text-slate-100 {
+  color: #191919 !important;
+}
+
+.codevoir-dashboard-page p,
+.codevoir-dashboard-page .text-slate-300,
+.codevoir-dashboard-page .text-slate-400 {
+  color: #5e5e5e !important;
+}
+
+.codevoir-dashboard-page header {
+  background: #003366 !important;
+  border-bottom: none !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.codevoir-dashboard-page .welcome-navbar-logo,
+.codevoir-dashboard-page .welcome-navbar-logo.text-white {
+  color: #ffffff !important;
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.05em !important;
+  user-select: none !important;
+  cursor: default !important;
+}
+
+.codevoir-dashboard-page header .max-w-7xl {
+  max-width: none !important;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+.codevoir-dashboard-page header button {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  border-radius: 20px !important;
+  padding: 8px 16px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page header button:hover {
+  background: #ffffff !important;
+  color: #0a66c2 !important;
+  border-color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-trigger {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: 50 !important;
+  width: 36px !important;
+  height: 36px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: #ffffff !important;
+  color: #0a66c2 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-trigger svg {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-trigger:hover {
+  background: #f3f2ef !important;
+  color: #004182 !important;
+  transform: scale(1.05) !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-panel {
+  position: fixed !important;
+  left: auto !important;
+  right: 24px !important;
+  top: 76px !important;
+  width: 260px !important;
+  max-height: none !important;
+  padding: 12px 16px !important;
+  border-radius: 8px !important;
+  background: #1e293b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 99999 !important;
+  animation: profile-dropdown-in 200ms ease-out !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-panel .profile-avatar {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 13px !important;
+  border: none !important;
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-close {
+  position: absolute !important;
+  right: 12px !important;
+  top: 12px !important;
+  width: 22px !important;
+  height: 22px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #64748b !important;
+  display: grid !important;
+  place-items: center !important;
+  cursor: pointer !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-close:hover {
+  color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.1) !important;
+  border-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+@keyframes profile-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.codevoir-dashboard-page .profile-drawer-backdrop {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  z-index: 99998 !important;
+}
+
+.codevoir-dashboard-page .dashboard-hero-copy {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid rgba(10, 102, 194, 0.15) !important;
+  border-radius: 16px !important;
+  padding: 40px !important;
+  max-width: 1040px !important;
+  width: 100% !important;
+  box-shadow: 
+    0 25px 50px -12px rgba(10, 102, 194, 0.12),
+    0 8px 24px -4px rgba(10, 102, 194, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(16px) !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation: hero-card-pulse 6s ease-in-out infinite alternate !important;
+}
+
+.codevoir-dashboard-page .dashboard-hero-copy:hover {
+  transform: translateY(-4px) !important;
+  border-color: rgba(10, 102, 194, 0.35) !important;
+  animation: none !important;
+  box-shadow: 
+    0 40px 80px -15px rgba(10, 102, 194, 0.20),
+    0 16px 40px -10px rgba(10, 102, 194, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+@keyframes hero-card-pulse {
+  0% {
+    border-color: rgba(10, 102, 194, 0.15);
+    box-shadow: 
+      0 25px 50px -12px rgba(10, 102, 194, 0.12),
+      0 8px 24px -4px rgba(10, 102, 194, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  }
+  100% {
+    border-color: rgba(10, 102, 194, 0.35);
+    box-shadow: 
+      0 32px 64px -12px rgba(10, 102, 194, 0.18),
+      0 12px 32px -4px rgba(10, 102, 194, 0.10),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  }
+}
+
+.codevoir-dashboard-page .dashboard-hero-copy h2 {
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+  font-size: 2.8rem !important; /* Scale text horizontally inside the card */
+  letter-spacing: -0.03em !important;
+  margin-bottom: 8px !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.06)) !important;
+}
+@media (min-width: 768px) {
+  .codevoir-dashboard-page .dashboard-hero-copy h2 {
+    font-size: 3.6rem !important;
+    line-height: 1.05 !important;
+  }
+}
+
+/* Styled accent word for dashboard hero headline */
+.codevoir-dashboard-page .dashboard-hero-copy h2 .text-accent-gradient {
+  background: linear-gradient(135deg, #0a66c2 0%, #4f46e5 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+  font-weight: 800 !important;
+  filter: drop-shadow(0 2px 8px rgba(10, 102, 194, 0.35)) !important; /* Glow shadow to give dimension */
+}
+
+.codevoir-dashboard-page .dashboard-action-stack {
+  width: 100% !important;
+  display: flex !important;
+  gap: 16px !important;
+  margin-top: 12px !important;
+}
+
+.codevoir-dashboard-page .dashboard-primary-action {
+  flex: 1 !important;
+  background: #0a66c2 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 28px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  padding: 14px 24px !important;
+  box-shadow: 0 4px 14px rgba(10, 102, 194, 0.25) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.codevoir-dashboard-page .dashboard-primary-action:hover {
+  background: #004182 !important;
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 6px 20px rgba(10, 102, 194, 0.35) !important;
+}
+
+.codevoir-dashboard-page .dashboard-secondary-action {
+  flex: 1 !important;
+  background: #ffffff !important;
+  color: #0a66c2 !important;
+  border: 2px solid #0a66c2 !important;
+  border-radius: 28px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  padding: 12px 24px !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.codevoir-dashboard-page .dashboard-secondary-action:hover {
+  background: rgba(10, 102, 194, 0.05) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+  border-color: #004182 !important;
+  color: #004182 !important;
+}
+
+.codevoir-dashboard-page .dashboard-hero-strip {
+  border: 1px solid #e0e0e0 !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: #5e5e5e !important;
+}
+
+.codevoir-dashboard-page .dashboard-hero-strip span {
+  background: #f3f2ef !important;
+  color: #191919 !important;
+  font-weight: 600 !important;
+}
+
+.codevoir-dashboard-page .logo-orbit-ring {
+  border-color: rgba(10, 102, 194, 0.12) !important;
+  box-shadow: none !important;
+}
+
+.codevoir-dashboard-page .cv-sun {
+  background: radial-gradient(circle at 48% 46%, #ffffff, #f3f2ef) !important;
+  box-shadow: 
+    0 15px 45px rgba(10, 102, 194, 0.15), 
+    inset 0 0 20px rgba(10, 102, 194, 0.05) !important;
+  border: 1px solid rgba(10, 102, 194, 0.1) !important;
+}
+
+.codevoir-dashboard-page .cv-letters {
+  color: #1d2226 !important;
+  text-shadow: none !important;
+}
+
+.codevoir-dashboard-page .cv-swoosh-blue {
+  border-color: #0a66c2 #0a66c2 transparent transparent !important;
+  filter: drop-shadow(0 0 8px rgba(10, 102, 194, 0.2)) !important;
+}
+
+.codevoir-dashboard-page .cv-swoosh-white {
+  border-color: transparent transparent #cbd5e1 #cbd5e1 !important;
+}
+
+.codevoir-dashboard-page .cv-dot {
+  background: #0a66c2 !important;
+}
+
+.codevoir-dashboard-page .company-planet {
+  border-color: #e0e0e0 !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+.codevoir-dashboard-page .logo-score-chip {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+  color: #5e5e5e !important;
+}
+
+.codevoir-dashboard-page .logo-score-chip strong {
+  color: #0a66c2 !important;
+}
+
+/* Stats Container Box Override */
+.codevoir-dashboard-page .dashboard-glass {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 30px rgba(10, 102, 194, 0.02) !important;
+  backdrop-filter: blur(16px) !important;
+  border-radius: 12px !important;
+}
+
+/* Stats Metric Cards Styling */
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45 {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.02) !important;
+  border-radius: 12px !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  padding: 26px 20px !important; /* Enlarge cards vertically */
+}
+
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45:hover {
+  transform: translateY(-4px) !important;
+  border-color: #0a66c2 !important;
+  box-shadow: 0 16px 36px rgba(10, 102, 194, 0.08) !important;
+}
+
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45 .text-slate-400 {
+  color: #5e5e5e !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  letter-spacing: 0.05em !important;
+}
+
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45 .font-display.text-3xl {
+  color: #191919 !important;
+  font-weight: 700 !important;
+}
+
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45 .text-white,
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45 .text-teal-300,
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45 .text-amber-300 {
+  color: #0a66c2 !important;
+}
+
+/* Stats card vertical accent borders */
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45:nth-of-type(1) {
+  border-left: 4px solid #0a66c2 !important;
+}
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45:nth-of-type(2) {
+  border-left: 4px solid #10b981 !important;
+}
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45:nth-of-type(3) {
+  border-left: 4px solid #6366f1 !important;
+}
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45:nth-of-type(4) {
+  border-left: 4px solid #f59e0b !important;
+}
+.codevoir-dashboard-page .rounded.border.border-white\/10.bg-slate-950\/45:nth-of-type(5) {
+  border-left: 4px solid #ec4899 !important;
+}
+
+/* Profile Panel Drawer Styling */
+.codevoir-dashboard-page .profile-side-panel {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  color: #191919 !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1) !important;
+}
+
+.codevoir-dashboard-page .profile-avatar {
+  border-color: #0a66c2 !important;
+  background: radial-gradient(circle at 35% 28%, rgba(10, 102, 194, 0.2), #ffffff) !important;
+  color: #0a66c2 !important;
+}
+
+.codevoir-dashboard-page .profile-tab {
+  background: #f3f2ef !important;
+  border-color: #e0e0e0 !important;
+  color: #5e5e5e !important;
+}
+
+.codevoir-dashboard-page .profile-tab-active {
+  background: rgba(10, 102, 194, 0.08) !important;
+  border-color: #0a66c2 !important;
+  color: #0a66c2 !important;
+}
+
+.codevoir-dashboard-page .profile-summary strong {
+  color: #191919 !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-close {
+  background: #f3f2ef !important;
+  border-color: #e0e0e0 !important;
+  color: #5e5e5e !important;
+}
+
+.codevoir-dashboard-page .profile-drawer-close:hover {
+  border-color: #0a66c2 !important;
+  color: #0a66c2 !important;
+}
+
+/* Translucent background for stats cards is handled in the main welcome page styles block */
+
+/* Orbiting Brand Colors Overrides for Light Theme */
+.codevoir-welcome-page .company-planet-amazon .company-logo-mark,
+.codevoir-dashboard-page .company-planet-amazon .company-logo-mark {
+  background: #ff9900 !important;
+  color: #111827 !important;
+  border: none !important;
+}
+
+.codevoir-welcome-page .company-planet-meta .company-logo-mark,
+.codevoir-dashboard-page .company-planet-meta .company-logo-mark {
+  background: #0866ff !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.codevoir-welcome-page .company-planet-netflix .company-logo-mark,
+.codevoir-dashboard-page .company-planet-netflix .company-logo-mark {
+  background: #e50914 !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+
+/* Action Cards layout for Dashboard Hero page */
+.codevoir-dashboard-page .dashboard-action-stack {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  gap: 24px !important;
+  margin-top: 16px !important;
+}
+
+@media (max-width: 1024px) {
+  .codevoir-dashboard-page .dashboard-action-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .codevoir-dashboard-page .dashboard-action-stack {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+.codevoir-dashboard-page .dashboard-action-card {
+  display: flex !important;
+  flex-direction: column !important;
+  border-radius: 16px !important;
+  padding: 0 !important; /* Zero padding to let the image go edge-to-edge */
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  overflow: hidden !important;
+}
+
+.codevoir-dashboard-page .dashboard-action-card:nth-of-type(1) {
+  background: #e8f4fd !important;
+  border: 1px solid #d2e7f7 !important;
+}
+
+.codevoir-dashboard-page .dashboard-action-card:nth-of-type(2) {
+  background: #fdf6e2 !important;
+  border: 1px solid #f6e6be !important;
+}
+
+.codevoir-dashboard-page .dashboard-action-card:nth-of-type(3) {
+  background: #f3e8ff !important;
+  border: 1px solid #e9d5ff !important;
+}
+
+.codevoir-dashboard-page .dashboard-action-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 15px 35px rgba(10, 102, 194, 0.08) !important;
+}
+
+.codevoir-dashboard-page .dashboard-action-img {
+  width: 100% !important;
+  height: 220px !important;
+  object-fit: contain !important;
+  border-radius: 16px 16px 0 0 !important;
+  margin-bottom: 0 !important;
+  padding: 16px 16px 0 16px !important;
+}
+
+.codevoir-dashboard-page .dashboard-primary-action,
+.codevoir-dashboard-page .dashboard-secondary-action {
+  width: calc(100% - 28px) !important; /* Proper width taking margin into account */
+  margin: 14px !important; /* Inset the buttons from the edges of the card */
+  flex: none !important;
+}
+
+/* Profile Avatar Header Button */
+.codevoir-dashboard-page .profile-avatar-btn {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50% !important;
+  background: #0a66c2 !important; /* Premium LinkedIn Blue */
+  color: #ffffff !important; /* Crisp White Text */
+  border: 2px solid rgba(255, 255, 255, 0.85) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 800 !important;
+  font-size: 16px !important;
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  cursor: pointer !important;
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1) !important;
+}
+
+.codevoir-dashboard-page .profile-avatar-btn:hover {
+  transform: scale(1.08) !important;
+  background: #004182 !important; /* Deep Blue hover */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+.codevoir-dashboard-page .profile-avatar-btn:active {
+  transform: scale(0.95) !important;
+}
+
+/* Reports Section Styles */
+.dashboard-reports-section {
+  width: 100% !important;
+}
+
+.dashboard-reports-section h2 {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  color: #0f172a !important;
+}
+
+/* Report Card Design */
+.report-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 20px !important;
+  overflow: hidden !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.015) !important;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.report-card:hover {
+  transform: translateY(-6px) !important;
+  box-shadow: 0 24px 48px rgba(10, 102, 194, 0.08) !important;
+  border-color: rgba(10, 102, 194, 0.2) !important;
+}
+
+.report-card-img-wrapper {
+  position: relative !important;
+  width: 100% !important;
+  height: 180px !important;
+  background: #f8fafc !important;
+  overflow: hidden !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.report-card-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  padding: 12px !important;
+  transition: transform 0.5s ease !important;
+}
+
+.report-card:hover .report-card-img {
+  transform: scale(1.04) !important;
+}
+
+.report-card-badge {
+  position: absolute !important;
+  top: 14px !important;
+  left: 14px !important;
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  padding: 6px 12px !important;
+  border-radius: 30px !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+.report-card-body {
+  padding: 24px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex-grow: 1 !important;
+}
+
+.report-card-title {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  margin-top: 4px !important;
+  margin-bottom: 2px !important;
+}
+
+.report-card-role {
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+  margin-bottom: 16px !important;
+}
+
+.report-card-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-top: auto !important;
+  padding-top: 16px !important;
+  border-top: 1px solid #f1f5f9 !important;
+}
+
+.report-card-score {
+  display: flex !important;
+  flex-direction: column !important;
+  line-height: 1.2 !important;
+}
+
+.score-label {
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  color: #94a3b8 !important;
+  letter-spacing: 0.03em !important;
+}
+
+.score-value {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+  color: #0a66c2 !important;
+}
+
+.report-card-action-btn {
+  background: #0a66c2 !important;
+  color: #ffffff !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  padding: 8px 18px !important;
+  border-radius: 30px !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 10px rgba(10, 102, 194, 0.15) !important;
+}
+
+.report-card-action-btn:hover {
+  background: #004182 !important;
+  box-shadow: 0 6px 14px rgba(10, 102, 194, 0.25) !important;
+}
+
+/* Empty State Styling */
+.report-empty-state {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 24px !important;
+  padding: 40px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.01) !important;
+}
+
+.report-empty-grid {
+  display: grid !important;
+  gap: 32px !important;
+  align-items: center !important;
+}
+
+@media (min-width: 768px) {
+  .report-empty-grid {
+    grid-template-columns: 1.1fr 0.9fr !important;
+  }
+}
+
+.report-empty-copy {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+
+.report-empty-title {
+  font-family: "Space Grotesk", Inter, sans-serif !important;
+  font-size: 1.6rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  margin-bottom: 12px !important;
+  letter-spacing: -0.02em !important;
+}
+
+.report-empty-subtitle {
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.95rem !important;
+  line-height: 1.65 !important;
+  color: #475569 !important;
+  margin-bottom: 24px !important;
+}
+
+.report-empty-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background: #0a66c2 !important;
+  color: #ffffff !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  padding: 12px 24px !important;
+  border-radius: 30px !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 6px 18px rgba(10, 102, 194, 0.18) !important;
+}
+
+.report-empty-btn:hover {
+  background: #004182 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(10, 102, 194, 0.3) !important;
+}
+
+.report-empty-btn:active {
+  transform: translateY(0) !important;
+}
+
+.report-empty-visual {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-height: 240px !important;
+  overflow: hidden !important;
+}
+
+.report-empty-img {
+  width: 100% !important;
+  max-width: 320px !important;
+  object-fit: contain !important;
+}
+
+/* --- Opportunities Page Light Theme Overrides --- */
+
+.codevoir-dashboard-page .opp-form-card {
+  padding: 40px !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 30px rgba(10, 102, 194, 0.02) !important;
+  border-radius: 16px !important;
+  margin-bottom: 32px !important;
+  max-width: 1200px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.codevoir-dashboard-page .opp-form-card label {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+}
+
+.codevoir-dashboard-page .opp-dropzone {
+  min-height: 350px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  padding: 40px !important;
+  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #64748b !important;
+  transition: all 0.25s ease !important;
+}
+
+.codevoir-dashboard-page .opp-filters-stack {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 32px !important;
+}
+.codevoir-dashboard-page .opp-dropzone:hover {
+  border-color: #0a66c2 !important;
+  background: rgba(10, 102, 194, 0.02) !important;
+}
+
+.codevoir-dashboard-page .opp-dropzone.active {
+  border-color: #0a66c2 !important;
+  background: rgba(10, 102, 194, 0.05) !important;
+}
+
+.codevoir-dashboard-page .opp-input {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
+  font-size: 14px !important;
+  border-radius: 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page .opp-input:focus {
+  border-color: #0a66c2 !important;
+  box-shadow: 0 0 0 3px rgba(10, 102, 194, 0.15) !important;
+}
+
+.codevoir-dashboard-page .opp-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.codevoir-dashboard-page .opp-tag-btn {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  padding: 8px 16px !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page .opp-tag-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.codevoir-dashboard-page .opp-tag-btn.active {
+  background: rgba(10, 102, 194, 0.08) !important;
+  border-color: #0a66c2 !important;
+  color: #0a66c2 !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+}
+
+.codevoir-dashboard-page .opp-submit-btn {
+  background: #0a66c2 !important;
+  color: #ffffff !important;
+  border-radius: 12px !important;
+  padding: 14px 36px !important;
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  box-shadow: 0 10px 25px rgba(10, 102, 194, 0.15) !important;
+  transition: all 0.25s ease !important;
+}
+
+.codevoir-dashboard-page .opp-submit-btn:hover:not(:disabled) {
+  background: #004182 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 12px 30px rgba(10, 102, 194, 0.25) !important;
+}
+
+.codevoir-dashboard-page .opp-submit-btn:disabled {
+  background: #cbd5e1 !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Card Results Stylings */
+.codevoir-dashboard-page .opportunity-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02) !important;
+  border-radius: 14px !important;
+  padding: 0 !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.codevoir-dashboard-page .opportunity-card:hover {
+  transform: translateY(-4px) !important;
+  border-color: rgba(10, 102, 194, 0.3) !important;
+  box-shadow: 0 12px 30px rgba(10, 102, 194, 0.08) !important;
+}
+
+.codevoir-dashboard-page .opportunity-card h3 {
+  color: #0f172a !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+
+.codevoir-dashboard-page .opportunity-card p {
+  color: #64748b !important;
+}
+
+.codevoir-dashboard-page .opportunity-card .text-gray-400 {
+  color: #64748b !important;
+}
+
+.codevoir-dashboard-page .opportunity-card .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+.codevoir-dashboard-page .opportunity-card .text-sky-300 {
+  color: #0a66c2 !important;
+}
+
+.codevoir-dashboard-page .opportunity-card .text-cyan-300 {
+  color: #0d9488 !important;
+}
+
+.codevoir-dashboard-page .opportunity-card .bg-white\/5 {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.codevoir-dashboard-page .opportunity-card a {
+  background: #0a66c2 !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page .opportunity-card a:hover {
+  background: #004182 !important;
+}
+
+/* Analyzed profile section overrides */
+.codevoir-dashboard-page .opp-profile-summary {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 20px !important;
+  padding: 32px !important;
+  box-shadow: 0 10px 40px rgba(10, 102, 194, 0.05) !important;
+}
+
+/* Nav arrows style */
+.codevoir-dashboard-page .opp-nav-arrow {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+.codevoir-dashboard-page .opp-nav-arrow:hover:not(:disabled) {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+.codevoir-dashboard-page .opp-nav-arrow:disabled {
+  opacity: 0.3 !important;
+}
+
+/* Category filter buttons */
+.codevoir-dashboard-page .opp-filter-btn {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page .opp-filter-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.codevoir-dashboard-page .opp-filter-btn.active {
+  background: #0a66c2 !important;
+  border-color: #0a66c2 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* --- Report and Feedback Display Page Overrides (Light Theme) --- */
+
+/* Main Containers */
+.codevoir-dashboard-page .dsa-report-shell,
+.codevoir-dashboard-page.dashboard-shell {
+  color: #1e293b !important;
+}
+
+/* Page Headings and Paragraphs */
+.codevoir-dashboard-page h1,
+.codevoir-dashboard-page h2,
+.codevoir-dashboard-page h3,
+.codevoir-dashboard-page h4 {
+  color: #0f172a !important;
+}
+.codevoir-dashboard-page p {
+  color: #334155 !important;
+}
+
+/* Glassmorphism Sections & Cards */
+.codevoir-dashboard-page .dashboard-glass {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 30px rgba(10, 102, 194, 0.04) !important;
+  backdrop-filter: blur(16px) !important;
+  border-radius: 12px !important;
+}
+
+/* Card Backgrounds & Borders */
+.codevoir-dashboard-page .bg-slate-950,
+.codevoir-dashboard-page .bg-slate-900,
+.codevoir-dashboard-page .bg-slate-950\/70,
+.codevoir-dashboard-page .bg-slate-900\/70,
+.codevoir-dashboard-page .bg-slate-900\/60,
+.codevoir-dashboard-page .bg-slate-900\/40,
+.codevoir-dashboard-page .bg-slate-950\/80,
+.codevoir-dashboard-page .report-panel,
+.codevoir-dashboard-page .report-pop-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(10, 102, 194, 0.02) !important;
+  border-radius: 16px !important;
+}
+
+.codevoir-dashboard-page .border-slate-800,
+.codevoir-dashboard-page .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Nested elements (inside parent cards) - off-white/light-grey background for contrast */
+.codevoir-dashboard-page .bg-slate-950 .bg-slate-900,
+.codevoir-dashboard-page .bg-slate-950 p.bg-slate-900,
+.codevoir-dashboard-page .bg-slate-950 pre.bg-slate-900,
+.codevoir-dashboard-page .report-panel p.bg-slate-900,
+.codevoir-dashboard-page .report-panel pre.bg-slate-900,
+.codevoir-dashboard-page .rounded-lg.border.border-slate-800.bg-slate-950\/70 p.bg-slate-900\/70,
+.codevoir-dashboard-page .bg-slate-950\/70 div.bg-slate-900\/70,
+.codevoir-dashboard-page .bg-slate-900 .bg-slate-950,
+.codevoir-dashboard-page .bg-slate-900 div.bg-slate-950 {
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+/* Button & Action Overrides */
+.codevoir-dashboard-page button.bg-cyan-400,
+.codevoir-dashboard-page a.bg-cyan-400 {
+  background-color: #0a66c2 !important;
+  color: #ffffff !important;
+  border: 1px solid #004182 !important;
+  box-shadow: 0 4px 12px rgba(10, 102, 194, 0.15) !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page button.bg-cyan-400:hover,
+.codevoir-dashboard-page a.bg-cyan-400:hover {
+  background-color: #004182 !important;
+  box-shadow: 0 6px 16px rgba(10, 102, 194, 0.25) !important;
+}
+
+/* Back button override */
+.codevoir-dashboard-page button.inline-flex.items-center.gap-2.rounded.border {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+  transition: all 0.2s ease !important;
+}
+.codevoir-dashboard-page button.inline-flex.items-center.gap-2.rounded.border:hover {
+  background: #f8fafc !important;
+  border-color: #0a66c2 !important;
+  color: #0a66c2 !important;
+}
+
+/* Text Utility Overrides */
+.codevoir-dashboard-page .text-slate-100 { color: #0f172a !important; }
+.codevoir-dashboard-page .text-slate-200 { color: #1e293b !important; }
+.codevoir-dashboard-page .text-slate-300 { color: #334155 !important; }
+.codevoir-dashboard-page .text-slate-400 { color: #475569 !important; }
+.codevoir-dashboard-page .text-slate-500 { color: #64748b !important; }
+.codevoir-dashboard-page .text-white { color: #0f172a !important; }
+
+/* Color indicators - darker for legibility on light background */
+.codevoir-dashboard-page .text-cyan-300,
+.codevoir-dashboard-page .text-cyan-400 {
+  color: #0284c7 !important;
+}
+.codevoir-dashboard-page .text-emerald-300,
+.codevoir-dashboard-page .text-emerald-400 {
+  color: #16a34a !important;
+}
+.codevoir-dashboard-page .text-amber-300,
+.codevoir-dashboard-page .text-amber-400 {
+  color: #d97706 !important;
+}
+.codevoir-dashboard-page .text-rose-300,
+.codevoir-dashboard-page .text-rose-400,
+.codevoir-dashboard-page .text-red-300,
+.codevoir-dashboard-page .text-red-400 {
+  color: #dc2626 !important;
+}
+
+/* Progress bar track */
+.codevoir-dashboard-page .bg-slate-800 {
+  background-color: #e2e8f0 !important;
+}
+.codevoir-dashboard-page .bg-cyan-400 {
+  background-color: #0284c7 !important;
+}
+.codevoir-dashboard-page .bg-emerald-400 {
+  background-color: #10b981 !important;
+}
+.codevoir-dashboard-page .bg-amber-400 {
+  background-color: #f59e0b !important;
+}
+
+/* DSA Report Stats Grid */
+.codevoir-dashboard-page .report-pop-card.to-slate-950\/80 {
+  background: #ffffff !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+.codevoir-dashboard-page .from-cyan-500\/20 {
+  background-image: linear-gradient(to bottom right, #f0f9ff, #ffffff) !important;
+  border-color: #bae6fd !important;
+  color: #0369a1 !important;
+}
+.codevoir-dashboard-page .from-emerald-500\/20 {
+  background-image: linear-gradient(to bottom right, #f0fdf4, #ffffff) !important;
+  border-color: #bbf7d0 !important;
+  color: #166534 !important;
+}
+.codevoir-dashboard-page .from-amber-500\/20 {
+  background-image: linear-gradient(to bottom right, #fffbeb, #ffffff) !important;
+  border-color: #fef3c7 !important;
+  color: #854d0e !important;
+}
+.codevoir-dashboard-page .from-rose-500\/20 {
+  background-image: linear-gradient(to bottom right, #fef2f2, #ffffff) !important;
+  border-color: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+/* Skill Gap Box Overrides */
+.codevoir-dashboard-page .bg-amber-500\/5,
+.codevoir-dashboard-page .bg-amber-950\/20 {
+  background: #fffbeb !important;
+  border-color: #fde047 !important;
+}
+.codevoir-dashboard-page .text-amber-200 {
+  color: #b45309 !important;
+}
+
+/* Verdict Cards */
+.codevoir-dashboard-page .verdict-glow {
+  border-radius: 16px !important;
+}
+.codevoir-dashboard-page .bg-emerald-950 {
+  background: #f0fdf4 !important;
+  border-color: #4ade80 !important;
+  color: #166534 !important;
+}
+.codevoir-dashboard-page .bg-cyan-950 {
+  background: #ecfeff !important;
+  border-color: #22d3ee !important;
+  color: #0369a1 !important;
+}
+.codevoir-dashboard-page .bg-blue-950 {
+  background: #eff6ff !important;
+  border-color: #60a5fa !important;
+  color: #1e40af !important;
+}
+.codevoir-dashboard-page .bg-amber-950 {
+  background: #fffbeb !important;
+  border-color: #fbbf24 !important;
+  color: #854d0e !important;
+}
+.codevoir-dashboard-page .bg-red-950 {
+  background: #fef2f2 !important;
+  border-color: #f87171 !important;
+  color: #991b1b !important;
+}
+
+/* Report Hero Layout */
+.codevoir-dashboard-page .report-hero {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 30px rgba(10, 102, 194, 0.05) !important;
+  border-radius: 20px !important;
+}
+.codevoir-dashboard-page .report-hero .bg-slate-900 {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* CS Depth Levels */
+.codevoir-dashboard-page .bg-emerald-950\/50 {
+  background: #f0fdf4 !important;
+  color: #166534 !important;
+  border-color: #bbf7d0 !important;
+}
+.codevoir-dashboard-page .bg-cyan-950\/50 {
+  background: #ecfeff !important;
+  color: #0369a1 !important;
+  border-color: #cffafe !important;
+}
+.codevoir-dashboard-page .bg-blue-950\/50 {
+  background: #eff6ff !important;
+  color: #1e40af !important;
+  border-color: #dbeafe !important;
+}
+.codevoir-dashboard-page .bg-amber-950\/50 {
+  background: #fffbeb !important;
+  color: #854d0e !important;
+  border-color: #fef3c7 !important;
+}
+
+/* CS Severity Levels */
+.codevoir-dashboard-page .bg-red-950\/60 {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+}
+.codevoir-dashboard-page .bg-red-900\/80 {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+.codevoir-dashboard-page .bg-amber-950\/60 {
+  background: #fffbeb !important;
+  border-color: #fde047 !important;
+}
+.codevoir-dashboard-page .bg-amber-900\/80 {
+  background: #fef3c7 !important;
+  color: #854d0e !important;
+}
+
+/* CS Fundamentals Highlights and Miscellaneous Cards */
+.codevoir-dashboard-page .bg-emerald-950\/40 {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+.codevoir-dashboard-page .bg-amber-950\/40 {
+  background: #fffbeb !important;
+  border-color: #fef3c7 !important;
+}
+.codevoir-dashboard-page .bg-slate-900.px-2.py-1\.5,
+.codevoir-dashboard-page .bg-slate-900.px-3.py-2 {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+.codevoir-dashboard-page .text-blue-200,
+.codevoir-dashboard-page .text-blue-300 {
+  color: #1e40af !important;
+}
+.codevoir-dashboard-page .text-blue-400 {
+  color: #2563eb !important;
+}
+.codevoir-dashboard-page .text-red-300,
+.codevoir-dashboard-page .text-red-400 {
+  color: #dc2626 !important;
+}
+
+/* Weaknesses and Strengths Card Specifics */
+.codevoir-dashboard-page .border-amber-800\/30.bg-amber-950\/20,
+.codevoir-dashboard-page .rounded.border.border-amber-800\/30.bg-amber-950\/20 {
+  background: #fffbeb !important;
+  border-color: #fde047 !important;
+  color: #854d0e !important;
+}
+.codevoir-dashboard-page .border-emerald-800\/30.bg-emerald-950\/10,
+.codevoir-dashboard-page .rounded.border.border-emerald-800\/30.bg-emerald-950\/10 {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #166534 !important;
+}
+.codevoir-dashboard-page .bg-blue-950\/40 {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+.codevoir-dashboard-page .bg-blue-900\/50 {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+/* RadarChart SVG properties overrides */
+.codevoir-dashboard-page svg polygon[stroke="#22d3ee"] {
+  stroke: #0a66c2 !important;
+  fill: rgba(10, 102, 194, 0.1) !important;
+}
+.codevoir-dashboard-page svg polygon[stroke="#1e293b"] {
+  stroke: #e2e8f0 !important;
+}
+.codevoir-dashboard-page svg line[stroke="#334155"] {
+  stroke: #cbd5e1 !important;
+}
+.codevoir-dashboard-page svg text[fill="#94a3b8"] {
+  fill: #475569 !important;
+  font-weight: 500 !important;
+}
+.codevoir-dashboard-page svg circle[fill="#22d3ee"] {
+  fill: #0a66c2 !important;
+}
+
+.codevoir-dashboard-page .proctor-event-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* --- Interview Lab Setup Page Overrides --- */
+.codevoir-dashboard-page .interview-setup-card {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 20px 50px rgba(10, 102, 194, 0.05) !important;
+  border-radius: 24px !important;
+  padding: 32px !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+.codevoir-dashboard-page .interview-setup-header {
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.codevoir-dashboard-page .interview-setup-header h2 {
+  color: #0f172a !important;
+}
+
+.codevoir-dashboard-page .interview-setup-header p {
+  color: #475569 !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card label span {
+  color: #475569 !important;
+  font-weight: 500 !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card input,
+.codevoir-dashboard-page .interview-setup-card select,
+.codevoir-dashboard-page .interview-setup-card textarea {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  border-radius: 8px !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card input:focus,
+.codevoir-dashboard-page .interview-setup-card select:focus,
+.codevoir-dashboard-page .interview-setup-card textarea:focus {
+  border-color: #0a66c2 !important;
+  box-shadow: 0 0 0 3px rgba(10, 102, 194, 0.12) !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card input::placeholder,
+.codevoir-dashboard-page .interview-setup-card textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card .bg-slate-950 {
+  background: #ffffff !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card .text-slate-100 {
+  color: #0f172a !important;
+}
+
+/* For project upload box */
+.codevoir-dashboard-page .interview-setup-card label.border-dashed {
+  background: rgba(10, 102, 194, 0.02) !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card label.border-dashed:hover {
+  background: rgba(10, 102, 194, 0.05) !important;
+  border-color: #0a66c2 !important;
+}
+
+/* Back button icon centering override */
+.codevoir-dashboard-page header button.setup-back-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page header button.setup-back-btn:hover {
+  background: #ffffff !important;
+  color: #003366 !important;
+  border-color: #ffffff !important;
+}
+
+/* Start interview button styling overrides */
+.codevoir-dashboard-page .interview-setup-card button {
+  background-color: #0a66c2 !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card button:hover:not(:disabled) {
+  background-color: #004182 !important;
+  transform: scale(1.02) !important;
+}
+
+.codevoir-dashboard-page .interview-setup-card button:disabled {
+  background-color: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  border: 1px solid #cbd5e1 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+/* --- Live Round Workspace Overrides --- */
+.codevoir-dashboard-page .text-slate-50,
+.codevoir-dashboard-page .text-cyan-50,
+.codevoir-dashboard-page .text-cyan-100 {
+  color: #0f172a !important;
+}
+
+.codevoir-dashboard-page .bg-slate-950\/95 {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 30px rgba(10, 102, 194, 0.08) !important;
+}
+
+.codevoir-dashboard-page .bg-slate-950\/95 .text-slate-300 {
+  color: #475569 !important;
+}
+
+.codevoir-dashboard-page .bg-slate-950\/95 video.bg-slate-900 {
+  background: #1e293b !important;
+  border: none !important;
+}
+
+.codevoir-dashboard-page .bg-\[\#050b14\]\/95,
+.codevoir-dashboard-page .bg-\[\#050b14\],
+.codevoir-dashboard-page .bg-slate-950\/80,
+.codevoir-dashboard-page .bg-slate-950\/70,
+.codevoir-dashboard-page .bg-gradient-to-br.from-slate-900\/95.via-cyan-950\/45.to-slate-950 {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 30px rgba(10, 102, 194, 0.05) !important;
+  color: #0f172a !important;
+}
+
+/* Hide top border line gradient on light CS round question container */
+.codevoir-dashboard-page .bg-gradient-to-br.from-slate-900\/95.via-cyan-950\/45.to-slate-950 .via-cyan-200\/80 {
+  background: transparent !important;
+}
+
+.codevoir-dashboard-page .bg-cyan-950\/40 {
+  background: rgba(10, 102, 194, 0.05) !important;
+  border-color: #cbd5e1 !important;
+  color: #003366 !important;
+}
+
+.codevoir-dashboard-page button.bg-cyan-400 {
+  background-color: #0a66c2 !important;
+  color: #ffffff !important;
+  border: 1px solid #004182 !important;
+  transition: all 0.2s ease !important;
+}
+
+.codevoir-dashboard-page button.bg-cyan-400:hover:not(:disabled) {
+  background-color: #004182 !important;
+}
+
+.codevoir-dashboard-page button.bg-cyan-400:disabled {
+  background-color: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  border: 1px solid #cbd5e1 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.codevoir-dashboard-page .border-cyan-300\/60,
+.codevoir-dashboard-page .border-amber-300\/50,
+.codevoir-dashboard-page .border-sky-300\/40,
+.codevoir-dashboard-page .border-cyan-300\/50,
+.codevoir-dashboard-page .border-cyan-300\/15 {
+  border-color: rgba(10, 102, 194, 0.2) !important;
+}
+
+.codevoir-dashboard-page .text-amber-100,
+.codevoir-dashboard-page .text-red-100 {
+  color: #b06000 !important;
+}
+.codevoir-dashboard-page .bg-amber-950 {
+  background: #fffbeb !important;
+  border-color: #fef3c7 !important;
+  color: #b45309 !important;
+}
+.codevoir-dashboard-page .bg-red-950 {
+  background: #fef2f2 !important;
+  border-color: #fee2e2 !important;
+  color: #b91c1c !important;
+}
+
+/* --- Reports Search Page Styling Overrides --- */
+
+/* Force blue header background for Reports Search Page */
+.codevoir-dashboard-page header.bg-slate-950\/70,
+.codevoir-dashboard-page header {
+  background: #003366 !important;
+  border-bottom: none !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.codevoir-dashboard-page header h1,
+.codevoir-dashboard-page header h1.text-white,
+.codevoir-dashboard-page header .text-white {
+  color: #ffffff !important;
+}
+
+/* Header Back Button */
+.codevoir-dashboard-page header button,
+.codevoir-dashboard-page header button.inline-flex.items-center.gap-2.rounded.border {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease !important;
+}
+.codevoir-dashboard-page header button:hover,
+.codevoir-dashboard-page header button.inline-flex.items-center.gap-2.rounded.border:hover {
+  background: #ffffff !important;
+  color: #0a66c2 !important;
+  border-color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Card Overrides */
+.codevoir-dashboard-page .report-search-card,
+.codevoir-dashboard-page .report-results-panel {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid #cbd5e1 !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 30px rgba(10, 102, 194, 0.03) !important;
+  backdrop-filter: blur(16px) !important;
+  border-radius: 12px !important;
+}
+
+.codevoir-dashboard-page .report-results-panel .border-sky-400\/10 {
+  border-color: #cbd5e1 !important;
+}
+
+.codevoir-dashboard-page .report-result-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 15px rgba(10, 102, 194, 0.01) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  border-radius: 12px !important;
+}
+
+.codevoir-dashboard-page .report-result-card:hover {
+  transform: translateY(-2px) !important;
+  border-color: #0a66c2 !important;
+  box-shadow: 0 10px 25px rgba(10, 102, 194, 0.08) !important;
+}
+
+/* Input Fields inside Search Panel */
+.codevoir-dashboard-page .report-search-card input {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+.codevoir-dashboard-page .report-search-card input::placeholder {
+  color: #94a3b8 !important;
+}
+.codevoir-dashboard-page .report-search-card input:focus {
+  border-color: #0a66c2 !important;
+  box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.15) !important;
+}
+.codevoir-dashboard-page .report-search-card .text-sky-200 {
+  color: #64748b !important;
+}
+
+/* Company Tag Pills */
+.codevoir-dashboard-page .report-search-card button.text-sky-100 {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.01) !important;
+}
+.codevoir-dashboard-page .report-search-card button.text-sky-100:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Header Attempts Badge */
+.codevoir-dashboard-page .report-results-panel .text-sky-100 {
+  color: #0f172a !important;
+}
+.codevoir-dashboard-page .report-results-panel .bg-sky-400\/10 {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Card Badges and Score Contrast */
+.codevoir-dashboard-page .report-result-card .text-sky-100\/65 {
+  color: #475569 !important;
+}
+.codevoir-dashboard-page .report-result-card .bg-sky-400\/10 {
+  background-color: #f0f9ff !important;
+  border-color: #bae6fd !important;
+  color: #0369a1 !important;
+}
+.codevoir-dashboard-page .report-result-card .text-blue-100 {
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+}
+.codevoir-dashboard-page .report-result-card .bg-blue-300\/10 {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+/* ScoreBadge contrast adjustments */
+.codevoir-dashboard-page .report-result-card .bg-sky-400\/10.text-sky-200 {
+  background-color: rgba(10, 102, 194, 0.06) !important;
+  border-color: rgba(10, 102, 194, 0.3) !important;
+  color: #0a66c2 !important;
+}
+.codevoir-dashboard-page .report-result-card .bg-sky-400\/10.text-sky-200 .text-2xl {
+  color: #0a66c2 !important;
+}
+
+/* View Report Button */
+.codevoir-dashboard-page button.bg-sky-400 {
+  background-color: #0a66c2 !important;
+  color: #ffffff !important;
+  border: 1px solid #004182 !important;
+  box-shadow: 0 4px 12px rgba(10, 102, 194, 0.15) !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+.codevoir-dashboard-page button.bg-sky-400:hover {
+  background-color: #004182 !important;
+  box-shadow: 0 6px 16px rgba(10, 102, 194, 0.25) !important;
+}
+
+/* Reduce top spacing for Reports Search page section to shift heading upwards */
+.reports-search-shell section.max-w-7xl {
+  padding-top: 1.5rem !important;
+}
+
+/* Styling overrides for tags in QuestionPerformanceCard & other feedback badges */
+.codevoir-dashboard-page .bg-emerald-900\/40 {
+  background-color: #f0fdf4 !important;
+  color: #166534 !important;
+  border: 1px solid #bbf7d0 !important;
+}
+.codevoir-dashboard-page .bg-cyan-900\/40 {
+  background-color: #ecfeff !important;
+  color: #0369a1 !important;
+  border: 1px solid #cffafe !important;
+}
+.codevoir-dashboard-page .bg-blue-900\/40 {
+  background-color: #eff6ff !important;
+  color: #1e40af !important;
+  border: 1px solid #dbeafe !important;
+}
+.codevoir-dashboard-page .bg-amber-900\/40 {
+  background-color: #fffbeb !important;
+  color: #854d0e !important;
+  border: 1px solid #fef3c7 !important;
+}
+.codevoir-dashboard-page .bg-red-900\/40 {
+  background-color: #fef2f2 !important;
+  color: #991b1b !important;
+  border: 1px solid #fee2e2 !important;
+}
+.codevoir-dashboard-page .text-emerald-400.bg-emerald-900\/40 {
+  color: #166534 !important;
+}
+.codevoir-dashboard-page .text-blue-400.bg-blue-900\/40 {
+  color: #1e40af !important;
+}
+.codevoir-dashboard-page .text-amber-400.bg-amber-900\/40 {
+  color: #854d0e !important;
+}
+.codevoir-dashboard-page .text-red-400.bg-red-900\/40 {
+  color: #991b1b !important;
+}
+
+/* --- Report Details Page Font & Layout Spacing Fixes --- */
+
+/* Scale up fonts for report details page specifically */
+.report-display-page .text-xs {
+  font-size: 13.5px !important;
+  line-height: 1.5 !important;
+}
+.report-display-page .text-sm {
+  font-size: 15.5px !important;
+  line-height: 1.6 !important;
+}
+.report-display-page .text-base {
+  font-size: 17.5px !important;
+  line-height: 1.6 !important;
+}
+.report-display-page .text-lg {
+  font-size: 20px !important;
+  line-height: 1.5 !important;
+}
+.report-display-page .text-xl {
+  font-size: 24px !important;
+  line-height: 1.4 !important;
+}
+.report-display-page .text-2xl {
+  font-size: 28px !important;
+  line-height: 1.35 !important;
+}
+.report-display-page .text-3xl {
+  font-size: 34px !important;
+  line-height: 1.3 !important;
+}
+.report-display-page .text-4xl {
+  font-size: 42px !important;
+  line-height: 1.25 !important;
+}
+.report-display-page .text-5xl {
+  font-size: 54px !important;
+  line-height: 1.2 !important;
+}
+
+/* Make right-column sidebar sticky on report details pages to balance spacing */
+@media (min-width: 1025px) {
+  .report-display-page .grid.lg\:grid-cols-\[1fr_380px\] > div:nth-child(2),
+  .report-display-page .grid.lg\:grid-cols-\[1fr_320px\] > div:nth-child(2),
+  .report-display-page .grid.lg\:grid-cols-\[1\.15fr_\.85fr\] > div:nth-child(2) {
+    position: sticky !important;
+    top: 96px !important;
+    align-self: start !important;
+    height: max-content !important;
+  }
+}
+
+/* Ensure equal height stretching of metric & question cards inside grids */
+.report-display-page .grid > .report-pop-card,
+.report-display-page .grid > .report-result-card,
+.report-display-page .grid > div > .report-pop-card,
+.report-display-page .grid > div > div > .report-pop-card {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Ensure the dashboard header and its elements are fully white/visible on the dark background */
+.codevoir-dashboard-page header.fixed {
+  background-color: #003366 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2) !important;
+}
+
+.codevoir-dashboard-page header.fixed .welcome-navbar-logo,
+.codevoir-dashboard-page header.fixed .text-white {
+  color: #ffffff !important;
+}
+
+.codevoir-dashboard-page header.fixed button.inline-flex.items-center {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #f1f5f9 !important;
+}
+
+.codevoir-dashboard-page header.fixed button.inline-flex.items-center:hover {
+  background-color: #ffffff !important;
+  color: #0a66c2 !important;
+  border-color: #ffffff !important;
+}
+
+.codevoir-dashboard-page header.fixed button.inline-flex.items-center span,
+.codevoir-dashboard-page header.fixed button.inline-flex.items-center svg {
+  color: inherit !important;
+}

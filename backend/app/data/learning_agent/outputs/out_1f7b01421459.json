@@ -1,0 +1,25 @@
+{
+  "output_id": "out_1f7b01421459",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_823396ff6fff"
+  ],
+  "content": "Q: According to the selected source, what is the key idea about electric car wikipedia jump to content from wikipedia?\nA: Electric car - Wikipedia Jump to content From Wikipedia, the free encyclopedia Car propelled by an electric motor using energy stored in batteries This article is about electric automobiles.\n\nQ: According to the selected source, what is the key idea about for all types of electric transportation see electric?\nA: For all types of electric transportation, see Electric vehicle .\n\nQ: According to the selected source, what is the key idea about modern all-electric cars tesla model 3 nissan leaf?\nA: Modern all-electric cars Tesla Model 3 Nissan Leaf Hyundai Ioniq 5 BMW i3 BYD Atto 3 Part of a series on Sustainable energy Energy conservation Arcology Building insulation Cogeneration Compact fluorescent lamp Eco hotel.\n\nQ: According to the selected source, what is the key idea about rage tropical green building waste-to-energy zero heating building?\nA: rage Tropical green building Waste-to-energy Zero heating building Zero-energy building Renewable energy Biofuel Sustainable Biogas Biomass Carbon-neutral fuel Geothermal energy Geothermal power Geothermal heating Hydrop.\n\nQ: According to the selected source, what is the key idea about rapid transit category renewable energy portal v t?\nA: rapid transit Category Renewable energy portal v t e An electric car or electric vehicle ( EV ) is an automobile that uses electrical energy as the primary source of propulsion .\n\nQ: According to the selected source, what is the key idea about the term normally refers to a plug-in electric?\nA: The term normally refers to a plug-in electric vehicle , typically a battery electric vehicle (BEV), which only uses energy stored in on-board battery packs , but broadly may also include plug-in hybrid electric vehicle .\n\nQ: According to the selected source, what is the key idea about compared to conventional internal combustion engine ice vehicles?\nA: Compared to conventional internal combustion engine (ICE) vehicles, electric cars are quieter, more responsive, have superior energy conversion efficiency and no exhaust emissions , as well as a typically lower overall c.\n\nQ: According to the selected source, what is the key idea about due to the superior efficiency of electric motors?\nA: Due to the superior efficiency of electric motors, electric cars also generate less waste heat , thus reducing the need for engine cooling systems that are often large, complicated and maintenance-prone in ICE vehicles.",
+  "sources": [
+    {
+      "doc_id": "doc_823396ff6fff",
+      "title": "Electric car - Wikipedia",
+      "source_type": "url",
+      "source": "Electric car - Wikipedia",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://en.wikipedia.org/wiki/Electric_car",
+      "score": 0,
+      "preview": "Electric car - Wikipedia Jump to content From Wikipedia, the free encyclopedia Car propelled by an electric motor using energy stored in batteries This article is about electric automobiles.  For all types of electric tr",
+      "match_count": 106
+    }
+  ],
+  "created_at": "2026-05-30T11:03:18.030752+00:00"
+}

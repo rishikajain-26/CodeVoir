@@ -1,0 +1,28 @@
+{
+  "output_id": "out_a9224ad8caee",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_9c0bc2776011"
+  ],
+  "content": "## Flashcards\n\n### Focus topics\n- flashcards\n\n### Source-grounded notes\n- Classification of Fire: Classes A, B, C and D of fire, Means of extinguishing various classes of fire.\n- UNIT-II 8 Hours Fire Safety Laws: Provisions in Factories Act, Explosives act, Petroleum act with regard to precautions in case of fire.\n- Fire Prevention and Detection: Fire safety precautions, Escape means, Electrical installations, Ventilation systems, Fire detection systems, Types of Detectors, Selection of Fire Detectors and Page 31 of 34\n\n_LLM generation is currently unavailable, so these notes use cleaned retrieved context only._",
+  "sources": [
+    {
+      "doc_id": "doc_9c0bc2776011",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 31,
+      "pages": [
+        31,
+        33
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.2211,
+      "preview": "re Triangle, Spontaneous Combustion. Limits of flammability. Classification of Fire: Classes A, B, C and D of fire, Means of extinguishing various classes of fire. UNIT-II 8 Hours Fire Safety Laws: Provisions in Factorie",
+      "match_count": 10
+    }
+  ],
+  "created_at": "2026-05-30T09:51:57.166292+00:00"
+}

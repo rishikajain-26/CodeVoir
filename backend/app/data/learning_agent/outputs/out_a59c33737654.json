@@ -1,0 +1,29 @@
+{
+  "output_id": "out_a59c33737654",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_03646c8e5f2b",
+    "doc_61b5d27d8354"
+  ],
+  "content": "## Notes\n\n### Focus topics\n- notes\n\n### Source excerpt\nINTRODUCTION TO AUTONOMOUS MOBILE ROBOTS\nCourse Code: BMA 213 Credits: 3\nContact Hours: L-2 T-0 P-2 Semesters: 4\nCourse Category: DEC\nIntroduction:\nIntroduction to Autonomous Mobile Robot provides a complete and concise study of mobile\nrobots, kinematic and dynamic modeling and sensors for wheeled non-holonomic and\nomnidirectional mobile robots and manipulators. To familiarize the students with mobile robots,\nbasic methods for achieving mobility and autonomy.\nPrerequisite:\nBasic Mechanical Engineering and Engineering Mechanics\nCourse Outcomes:\nAfter successful completion of the course, the student will be able to:\nCO1: Understand the difference between mobile robots and manipulators.\nCO2: Analyze the kinematic equations for various wheel drives and degree of maneuverability of\nvarious drives and kinematic control concepts.\nCO3: Evaluate the dynamic of various mobile robots\nCO4: Create th\n\nLLM generation is currently unavailable, so this fallback output uses retrieved context only.",
+  "sources": [
+    {
+      "doc_id": "doc_61b5d27d8354",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 29,
+      "pages": [
+        29,
+        3
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.3387,
+      "preview": "INTRODUCTION TO AUTONOMOUS MOBILE ROBOTS Course Code: BMA 213 Credits: 3 Contact Hours: L-2 T-0 P-2 Semesters: 4 Course Category: DEC Introduction: Introduction to Autonomous Mobile Robot provides a complete and concise ",
+      "match_count": 10
+    }
+  ],
+  "created_at": "2026-05-29T15:41:54.291651+00:00"
+}

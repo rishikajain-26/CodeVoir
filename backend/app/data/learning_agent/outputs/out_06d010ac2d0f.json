@@ -1,0 +1,25 @@
+{
+  "output_id": "out_06d010ac2d0f",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flowchart",
+  "doc_ids": [
+    "doc_625c2fe7a297"
+  ],
+  "content": "## Flowchart\n\n- HTML: HyperText Markup Language | MDN Skip to main content Skip to search HTML: HyperText Markup Language HTML (HyperText Markup Language) is the most basic building block of the Web.\n- It defines the meaning and structure of web content.\n- Other technologies besides HTML are generally used to describe a web page's appearance/presentation ( CSS ) or functionality/behavior ( JavaScript ).\n- \"Hypertext\" refers to links that connect web pages to one another, either within a single website or between websites.\n- Links are a fundamental aspect of the Web.",
+  "sources": [
+    {
+      "doc_id": "doc_625c2fe7a297",
+      "title": "HTML: HyperText Markup Language | MDN",
+      "source_type": "url",
+      "source": "HTML: HyperText Markup Language | MDN",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://share.google/Uw1pLHDSkdllVxapy",
+      "score": 0.0,
+      "preview": "HTML: HyperText Markup Language | MDN Skip to main content Skip to search HTML: HyperText Markup Language HTML (HyperText Markup Language) is the most basic building block of the Web.  It defines the meaning and structur",
+      "match_count": 8
+    }
+  ],
+  "created_at": "2026-05-30T16:36:04.396180+00:00"
+}

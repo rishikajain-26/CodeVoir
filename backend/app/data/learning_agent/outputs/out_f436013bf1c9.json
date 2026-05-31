@@ -1,0 +1,64 @@
+{
+  "output_id": "out_f436013bf1c9",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_f43eb085ed88"
+  ],
+  "content": "Q: What is the key idea about codevoir ai career preparation platform codevoir helps students?\nA: # CodeVoir \u2014 AI Career Preparation Platform CodeVoir helps students practise technical interviews, understand their weak areas, and prepare for real opportunities.\n\nQ: What is the key idea about it combines company-specific interview rounds live code execution?\nA: It combines company-specific interview rounds, live code execution, feedback reports, resume-aware preparation, and an opportunity recommender in one product.\n\nQ: What is the key idea about the project is intentionally organised around three product?\nA: The project is intentionally organised around three product pillars: 1.\n\nQ: What is the key idea about ai interview panel dsa cs fundamentals and project/behavioral?\nA: **AI Interview Panel** \u2014 DSA, CS fundamentals, and project/behavioral interview rounds.\n\nQ: What is the key idea about feedback skill diagnosis scoring transcript history coding analytics?\nA: **Feedback & Skill Diagnosis** \u2014 scoring, transcript history, coding analytics, weak-area detection, and final reports.\n\nQ: What is the key idea about behavioral round using resume and job-description context?\nA: + behavioral round using resume and job-description context.\n\nQ: What is the key idea about company-specific round availability and problem datasets?\nA: Company-specific round availability and problem datasets.\n\nQ: What is the key idea about voice input support through the browser web speech?\nA: Voice input support through the browser Web Speech API.",
+  "sources": [
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "README.md",
+      "url": null,
+      "score": 0,
+      "preview": "# CodeVoir \u2014 AI Career Preparation Platform  CodeVoir helps students practise technical interviews, understand their weak areas, and prepare for real opportunities. It combines company-specific interview rounds, live cod",
+      "match_count": 8
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "backend/main.py",
+      "url": null,
+      "score": 0,
+      "preview": "\"\"\"CodeVoir backend entrypoint.  The application implementation lives in ``app.server`` so the root entrypoint stays small and predictable for Uvicorn, tests, and deployment scripts.  Run locally with:  uvicorn main:app ",
+      "match_count": 1
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "frontend/README.md",
+      "url": null,
+      "score": 0,
+      "preview": "# CodeVoir Frontend  React + Vite frontend for the CodeVoir interview and opportunity-preparation experience.  ## Run locally  ```bash npm install npm run dev ```  The frontend expects the backend at `http://127.0.0.1:80",
+      "match_count": 1
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "frontend/src/App.jsx",
+      "url": null,
+      "score": 0,
+      "preview": "import CodeVoirApp from \"./pages/CodeVoirApp\"  export default function App() {  return <CodeVoirApp /> }",
+      "match_count": 1
+    }
+  ],
+  "created_at": "2026-05-30T17:48:47.467368+00:00"
+}

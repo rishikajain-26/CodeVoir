@@ -1,0 +1,387 @@
+{
+  "default": {
+    "display_name": "General Product Engineering",
+    "interview_style": "balanced",
+    "project_depth": "medium",
+    "behavioral_depth": "medium",
+    "technical_depth": "medium",
+    "pressure_level": "medium",
+    "question_themes": [
+      "resume project ownership",
+      "system tradeoffs",
+      "impact metrics",
+      "ambiguity handling",
+      "collaboration"
+    ],
+    "follow_up_style": "Ask for concrete examples, decisions, alternatives, and measurable results.",
+    "rubric_weights": {
+      "specificity": 0.25,
+      "ownership": 0.2,
+      "technical_depth": 0.25,
+      "impact": 0.15,
+      "reflection": 0.15
+    },
+    "positive_signals": [
+      "clear ownership",
+      "specific technical tradeoffs",
+      "measurable outcomes",
+      "honest reflection"
+    ],
+    "red_flags": [
+      "vague project claims",
+      "no explanation of tradeoffs",
+      "no user or business impact",
+      "blaming teammates"
+    ]
+  },
+  "amazon": {
+    "display_name": "Amazon",
+    "interview_style": "leadership-principles and ownership-heavy",
+    "project_depth": "high",
+    "behavioral_depth": "high",
+    "technical_depth": "medium",
+    "pressure_level": "high",
+    "question_themes": [
+      "ownership",
+      "customer obsession",
+      "dive deep",
+      "bias for action",
+      "handling failure"
+    ],
+    "follow_up_style": "Push for STAR structure, numbers, customer impact, and what the candidate personally owned.",
+    "rubric_weights": {
+      "specificity": 0.2,
+      "ownership": 0.3,
+      "technical_depth": 0.15,
+      "impact": 0.2,
+      "reflection": 0.15
+    },
+    "positive_signals": [
+      "uses STAR naturally",
+      "quantifies customer or operational impact",
+      "owns failures without excuses",
+      "shows bias for action"
+    ],
+    "red_flags": [
+      "says we for every action",
+      "cannot quantify impact",
+      "avoids failure discussion",
+      "weak customer reasoning"
+    ]
+  },
+  "google": {
+    "display_name": "Google",
+    "interview_style": "structured, analytical, and scalability-focused",
+    "project_depth": "high",
+    "behavioral_depth": "medium",
+    "technical_depth": "high",
+    "pressure_level": "medium",
+    "question_themes": [
+      "technical depth",
+      "scalability",
+      "data-driven decisions",
+      "collaboration",
+      "learning mindset"
+    ],
+    "follow_up_style": "Probe design choices, complexity, validation, and how the candidate learned from constraints.",
+    "rubric_weights": {
+      "specificity": 0.2,
+      "ownership": 0.15,
+      "technical_depth": 0.35,
+      "impact": 0.15,
+      "reflection": 0.15
+    },
+    "positive_signals": [
+      "explains abstractions clearly",
+      "mentions validation and metrics",
+      "handles tradeoffs calmly",
+      "learns from feedback"
+    ],
+    "red_flags": [
+      "hand-wavy architecture",
+      "no testing or validation story",
+      "overclaims scale",
+      "cannot discuss alternatives"
+    ]
+  },
+  "meta": {
+    "display_name": "Meta",
+    "interview_style": "product impact, speed, and execution-focused",
+    "project_depth": "high",
+    "behavioral_depth": "medium",
+    "technical_depth": "high",
+    "pressure_level": "high",
+    "question_themes": [
+      "impact",
+      "execution speed",
+      "product metrics",
+      "tradeoffs",
+      "cross-functional work"
+    ],
+    "follow_up_style": "Ask how the project moved a metric, what was shipped first, and what tradeoff was accepted.",
+    "rubric_weights": {
+      "specificity": 0.2,
+      "ownership": 0.2,
+      "technical_depth": 0.25,
+      "impact": 0.25,
+      "reflection": 0.1
+    },
+    "positive_signals": [
+      "connects engineering choices to product metrics",
+      "prioritizes well",
+      "ships iteratively",
+      "explains tradeoffs"
+    ],
+    "red_flags": [
+      "no product reasoning",
+      "slow or unclear execution story",
+      "no metric ownership",
+      "poor prioritization"
+    ]
+  },
+  "microsoft": {
+    "display_name": "Microsoft",
+    "interview_style": "collaborative, design-aware, and customer-focused",
+    "project_depth": "medium",
+    "behavioral_depth": "high",
+    "technical_depth": "medium",
+    "pressure_level": "medium",
+    "question_themes": [
+      "collaboration",
+      "growth mindset",
+      "design quality",
+      "customer empathy",
+      "inclusive teamwork"
+    ],
+    "follow_up_style": "Probe teamwork, design decisions, maintainability, and how the candidate responded to feedback.",
+    "rubric_weights": {
+      "specificity": 0.2,
+      "ownership": 0.2,
+      "technical_depth": 0.2,
+      "impact": 0.15,
+      "reflection": 0.25
+    },
+    "positive_signals": [
+      "collaborates thoughtfully",
+      "mentions maintainability",
+      "learns from feedback",
+      "understands customer needs"
+    ],
+    "red_flags": [
+      "dismisses feedback",
+      "cannot explain team role",
+      "ignores maintainability",
+      "weak reflection"
+    ]
+  },
+  "apple": {
+    "display_name": "Apple",
+    "interview_style": "craft, detail, and user-experience focused",
+    "project_depth": "high",
+    "behavioral_depth": "medium",
+    "technical_depth": "high",
+    "pressure_level": "medium",
+    "question_themes": [
+      "quality bar",
+      "product detail",
+      "privacy",
+      "performance",
+      "cross-functional execution"
+    ],
+    "follow_up_style": "Ask about polish, edge cases, performance constraints, and user-visible quality decisions.",
+    "rubric_weights": {
+      "specificity": 0.2,
+      "ownership": 0.15,
+      "technical_depth": 0.3,
+      "impact": 0.15,
+      "reflection": 0.2
+    },
+    "positive_signals": [
+      "cares about user-visible quality",
+      "explains performance or privacy choices",
+      "notices edge cases",
+      "shows taste in product details"
+    ],
+    "red_flags": [
+      "no quality bar",
+      "ignores privacy or performance",
+      "cannot discuss edge cases",
+      "feature-only thinking"
+    ]
+  },
+  "netflix": {
+    "display_name": "Netflix",
+    "interview_style": "high-context, autonomy, and reliability-focused",
+    "project_depth": "high",
+    "behavioral_depth": "medium",
+    "technical_depth": "high",
+    "pressure_level": "high",
+    "question_themes": [
+      "autonomy",
+      "reliability",
+      "judgment",
+      "tradeoffs",
+      "operational maturity"
+    ],
+    "follow_up_style": "Probe independent judgment, failure modes, observability, and high-impact technical tradeoffs.",
+    "rubric_weights": {
+      "specificity": 0.2,
+      "ownership": 0.25,
+      "technical_depth": 0.25,
+      "impact": 0.15,
+      "reflection": 0.15
+    },
+    "positive_signals": [
+      "shows independent judgment",
+      "knows reliability failure modes",
+      "discusses observability",
+      "handles ambiguity"
+    ],
+    "red_flags": [
+      "needs excessive direction",
+      "no reliability thinking",
+      "cannot defend tradeoffs",
+      "weak incident learning"
+    ]
+  },
+  "walmart": {
+    "display_name": "Walmart",
+    "interview_style": "practical engineering, scale, and customer operations focused",
+    "project_depth": "medium",
+    "behavioral_depth": "medium",
+    "technical_depth": "medium",
+    "pressure_level": "medium",
+    "question_themes": [
+      "practical impact",
+      "scale",
+      "reliability",
+      "team execution",
+      "customer and business value"
+    ],
+    "follow_up_style": "Ask for practical design tradeoffs, reliability, data scale, and how the work improved users or operations.",
+    "rubric_weights": {
+      "specificity": 0.22,
+      "ownership": 0.2,
+      "technical_depth": 0.23,
+      "impact": 0.2,
+      "reflection": 0.15
+    },
+    "positive_signals": [
+      "connects project to business or user value",
+      "handles scale realistically",
+      "values reliability",
+      "explains teamwork clearly"
+    ],
+    "red_flags": [
+      "no business context",
+      "unrealistic scale claims",
+      "weak reliability thinking",
+      "unclear ownership"
+    ]
+  },
+  "adobe": {
+    "display_name": "Adobe",
+    "interview_style": "product creativity, user value, and engineering quality focused",
+    "project_depth": "medium",
+    "behavioral_depth": "medium",
+    "technical_depth": "medium",
+    "pressure_level": "medium",
+    "question_themes": [
+      "creative product thinking",
+      "user workflows",
+      "quality",
+      "collaboration",
+      "experimentation"
+    ],
+    "follow_up_style": "Probe user workflow, design choices, experimentation, and how quality was measured.",
+    "rubric_weights": {
+      "specificity": 0.22,
+      "ownership": 0.18,
+      "technical_depth": 0.22,
+      "impact": 0.18,
+      "reflection": 0.2
+    },
+    "positive_signals": [
+      "understands user workflows",
+      "balances creativity with engineering quality",
+      "uses feedback loops",
+      "communicates clearly"
+    ],
+    "red_flags": [
+      "no user workflow thinking",
+      "cannot describe quality checks",
+      "vague collaboration story",
+      "no experimentation"
+    ]
+  },
+  "uber": {
+    "display_name": "Uber",
+    "interview_style": "systems, marketplace, and operational pressure focused",
+    "project_depth": "high",
+    "behavioral_depth": "medium",
+    "technical_depth": "high",
+    "pressure_level": "high",
+    "question_themes": [
+      "distributed systems",
+      "operational tradeoffs",
+      "speed",
+      "reliability",
+      "data-informed decisions"
+    ],
+    "follow_up_style": "Push on scale, failure cases, observability, latency, and how decisions changed under pressure.",
+    "rubric_weights": {
+      "specificity": 0.18,
+      "ownership": 0.2,
+      "technical_depth": 0.32,
+      "impact": 0.18,
+      "reflection": 0.12
+    },
+    "positive_signals": [
+      "reasons about scale and latency",
+      "understands operational failure",
+      "moves fast with guardrails",
+      "uses data to decide"
+    ],
+    "red_flags": [
+      "no scale awareness",
+      "ignores observability",
+      "cannot handle pressure scenario",
+      "weak tradeoff reasoning"
+    ]
+  },
+  "salesforce": {
+    "display_name": "Salesforce",
+    "interview_style": "customer trust, enterprise quality, and teamwork focused",
+    "project_depth": "medium",
+    "behavioral_depth": "high",
+    "technical_depth": "medium",
+    "pressure_level": "medium",
+    "question_themes": [
+      "customer trust",
+      "enterprise reliability",
+      "security",
+      "team collaboration",
+      "service ownership"
+    ],
+    "follow_up_style": "Ask about customer impact, trust, security, maintainability, and cross-team delivery.",
+    "rubric_weights": {
+      "specificity": 0.2,
+      "ownership": 0.2,
+      "technical_depth": 0.2,
+      "impact": 0.2,
+      "reflection": 0.2
+    },
+    "positive_signals": [
+      "shows customer trust mindset",
+      "mentions security or reliability",
+      "works well across teams",
+      "communicates enterprise impact"
+    ],
+    "red_flags": [
+      "ignores customer trust",
+      "no security or reliability lens",
+      "unclear stakeholder handling",
+      "weak ownership"
+    ]
+  }
+}

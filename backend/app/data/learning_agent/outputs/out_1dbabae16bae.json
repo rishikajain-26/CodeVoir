@@ -1,0 +1,28 @@
+{
+  "output_id": "out_1dbabae16bae",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flowchart",
+  "doc_ids": [
+    "doc_9c0bc2776011"
+  ],
+  "content": "## Flowchart\n\n- UNIT-IV 7 Hours Sensors for Mobile Robots: Sensor classification, characterizing sensor performance, wheel/motor sensors, heading sensors, ground-based beacons, active ranging, motion/speed sensors, vision based sensors;\n- Nourbakhsh, Introduction to Autonomous Mobile Robots, MIT Press, Second Edition, 18 February 2011.\n- Tzafestas, Introduction to Mobile Robot Control, Elsevier, 2014.\n- Gregor Klancar, Andrej Zdesar, Saso Blazic, Igor Skrjanc, Wheeled Mobile Robotics.\n- Gregory Dudek, Michael Jenkin, Computational Principles of Mobile Robotics, Cambridge University Press, 2010.\n\n_LLM generation is currently unavailable, so this summary uses cleaned retrieved context only._",
+  "sources": [
+    {
+      "doc_id": "doc_9c0bc2776011",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 30,
+      "pages": [
+        30,
+        20
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0746,
+      "preview": "UNIT-IV 7 Hours Sensors for Mobile Robots: Sensor classification, characterizing sensor performance, wheel/motor sensors, heading sensors, ground-based beacons, active ranging, motion/speed sensors, vision based sensors;",
+      "match_count": 10
+    }
+  ],
+  "created_at": "2026-05-30T11:11:27.905653+00:00"
+}
