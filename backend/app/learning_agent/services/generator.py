@@ -42,7 +42,9 @@ def generate_material(
     weak_topics = weak_topics or []
     query = " ".join(weak_topics) or extra_context or generation_type.replace("_", " ")
     results = search_chunks(query, doc_ids=doc_ids, user_id=user_id, top_k=10)
-    if generation_type == "flashcards":
+    if generation_type in {"summary", "notes", "project_pitch", "architecture_map", "judge_demo_kit", "flowchart", "mindmap"}:
+        results = _overview_first_chunks(doc_ids, user_id) or results
+    elif generation_type == "flashcards":
         results = get_chunks_for_docs(doc_ids, user_id) or results
     sources = source_summaries(results)
     context = _context_from_results(results)
@@ -205,6 +207,25 @@ def _context_from_results(results: list[dict[str, Any]]) -> str:
         label = meta.get("file_path") or meta.get("url") or meta.get("source") or meta.get("title") or "source"
         chunks.append(f"[Source {index}: {label}]\n{item.get('text', '')}")
     return "\n\n---\n\n".join(chunks)
+
+
+def _overview_first_chunks(doc_ids: list[str], user_id: str) -> list[dict[str, Any]]:
+    chunks = get_chunks_for_docs(doc_ids, user_id)
+    if not chunks:
+        return []
+
+    def rank(item: dict[str, Any]) -> tuple[int, int]:
+        meta = item.get("metadata") or {}
+        file_path = str(meta.get("file_path") or meta.get("source") or "").lower()
+        if meta.get("source_role") == "repo_overview" or "repository_overview" in file_path:
+            return (0, int(meta.get("chunk_index") or 0))
+        if "readme" in file_path:
+            return (1, int(meta.get("chunk_index") or 0))
+        if file_path.endswith(("package.json", "pyproject.toml", "requirements.txt")):
+            return (2, int(meta.get("chunk_index") or 0))
+        return (3, int(meta.get("chunk_index") or 0))
+
+    return sorted(chunks, key=rank)[:12]
 
 
 def _fallback_generation(generation_type: str, weak_topics: list[str], results: list[dict[str, Any]], extra_context: str) -> str:

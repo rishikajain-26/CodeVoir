@@ -54,13 +54,27 @@ def normalize_github_repo_url(repo_url: str) -> str:
 def load_github_repo(repo_url: str, *, max_files: int = 28) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     owner, repo = parse_repo_url(repo_url)
     canonical_url = f"https://github.com/{owner}/{repo}"
+    repo_metadata = _get_repo_metadata(owner, repo)
+    overview = _repo_overview_item(repo_metadata, canonical_url, owner, repo)
     archive_items, archive_branch = _load_from_archive(owner, repo, max_files=max_files)
     if archive_items:
         items = [
             {"text": text, "file_path": path, "source": canonical_url, "repo": f"{owner}/{repo}"}
             for path, text in archive_items
         ]
-        return items, {"repo": f"{owner}/{repo}", "repo_url": canonical_url, "files_indexed": len(items), "branch": archive_branch, "loader": "archive"}
+        if overview:
+            items.insert(0, overview)
+        return items, {
+            "repo": f"{owner}/{repo}",
+            "repo_url": canonical_url,
+            "description": repo_metadata.get("description") or "",
+            "homepage": repo_metadata.get("homepage") or "",
+            "topics": repo_metadata.get("topics") or [],
+            "language": repo_metadata.get("language") or "",
+            "files_indexed": len(items),
+            "branch": archive_branch,
+            "loader": "archive",
+        }
 
     tree = _get_tree(owner, repo)
     candidates = [item for item in tree if item.get("type") == "blob" and _should_read(item.get("path", ""))]
@@ -79,7 +93,66 @@ def load_github_repo(repo_url: str, *, max_files: int = 28) -> tuple[list[dict[s
         items.append({"text": text, "file_path": path, "source": canonical_url, "repo": f"{owner}/{repo}"})
     if not items:
         raise ValueError("No readable source files were found in this repository. The repo may be empty, private, binary-only, or unsupported by the file filters.")
-    return items, {"repo": f"{owner}/{repo}", "repo_url": canonical_url, "files_indexed": len(items), "loader": "api"}
+    if overview:
+        items.insert(0, overview)
+    return items, {
+        "repo": f"{owner}/{repo}",
+        "repo_url": canonical_url,
+        "description": repo_metadata.get("description") or "",
+        "homepage": repo_metadata.get("homepage") or "",
+        "topics": repo_metadata.get("topics") or [],
+        "language": repo_metadata.get("language") or "",
+        "files_indexed": len(items),
+        "loader": "api",
+    }
+
+
+def _get_repo_metadata(owner: str, repo: str) -> dict[str, Any]:
+    try:
+        data = _request_json(f"https://api.github.com/repos/{owner}/{repo}")
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {
+        "full_name": data.get("full_name") or f"{owner}/{repo}",
+        "description": data.get("description") or "",
+        "homepage": data.get("homepage") or "",
+        "topics": data.get("topics") or [],
+        "language": data.get("language") or "",
+        "default_branch": data.get("default_branch") or "",
+        "stars": data.get("stargazers_count") or 0,
+        "forks": data.get("forks_count") or 0,
+    }
+
+
+def _repo_overview_item(metadata: dict[str, Any], canonical_url: str, owner: str, repo: str) -> dict[str, Any] | None:
+    if not metadata:
+        return None
+    lines = [
+        f"# Repository overview: {metadata.get('full_name') or f'{owner}/{repo}'}",
+    ]
+    if metadata.get("description"):
+        lines.append(f"Description: {metadata['description']}")
+    if metadata.get("language"):
+        lines.append(f"Primary language: {metadata['language']}")
+    if metadata.get("topics"):
+        lines.append(f"Topics: {', '.join(str(topic) for topic in metadata['topics'][:12])}")
+    if metadata.get("homepage"):
+        lines.append(f"Homepage: {metadata['homepage']}")
+    if metadata.get("default_branch"):
+        lines.append(f"Default branch: {metadata['default_branch']}")
+    lines.append("Use this repository overview together with the README and key source files when summarizing the project.")
+    text = "\n".join(lines).strip()
+    if len(text) < 80:
+        return None
+    return {
+        "text": text,
+        "file_path": "REPOSITORY_OVERVIEW.md",
+        "source": canonical_url,
+        "repo": f"{owner}/{repo}",
+        "source_role": "repo_overview",
+    }
 
 
 def _load_from_archive(owner: str, repo: str, *, max_files: int) -> tuple[list[tuple[str, str]], str]:
@@ -178,7 +251,8 @@ def _should_read(path: str) -> bool:
 
 def _priority(path: str) -> tuple[int, int, str]:
     name = path.rsplit("/", 1)[-1]
-    if name in PRIORITY_NAMES:
+    lowered_name = name.lower()
+    if lowered_name.startswith("readme") or name in PRIORITY_NAMES:
         return (0, len(path), path)
     if path.lower().endswith((".ipynb", ".docx")):
         return (1, len(path), path)
