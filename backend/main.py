@@ -247,6 +247,12 @@ except Exception as _opp_err:
     _opp_init_db = None
     _OPP_AVAILABLE = False
 
+try:
+    from app.learning_agent.routes import router as _learning_agent_router
+except Exception as _learning_agent_err:
+    print(f"[learning-agent] Import failed: {_learning_agent_err}")
+    _learning_agent_router = None
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
@@ -304,6 +310,9 @@ if websocket_router:
 
 if _OPP_AVAILABLE and _opp_router:
     app.include_router(_opp_router)
+
+if _learning_agent_router:
+    app.include_router(_learning_agent_router)
 
 
 @app.get("/")
