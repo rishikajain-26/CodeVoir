@@ -1,0 +1,28 @@
+{
+  "output_id": "out_a0674ef2a8f1",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_03646c8e5f2b"
+  ],
+  "content": "## Flashcards\n\n### Focus topics\n- flashcards\n\n### Source excerpt\nINDIRA GANDHI DELHI TECHNICAL UNIVERSITY FOR WOMEN\n(Established by Govt. of Delhi vide Act 9 of 2012)\nKashmere Gate, Delhi - 110006 (An ISO 9001:2015 Certified University)\nConsolidated Statement of Result\nProgramme : B.TECH MAE* Examination : December 2025\nSemester : 3 Date of Declaration : 03-02-2026\nSr.No. Enrollment No Name SGPA BAI 201 BAS 203 BMA 201 BMA 202 BMA 203 BMA 204 BMA 205 BMA 250 AEC 201\n49 05501042024 POORVI NATHANI 8.59 B+ B A A B+ A+ A A+ A+\n50 05601042024 PRACHI 7.45 B D A A B A B+ A+ B\n51 05701042024 PRACHITA DEVENDRA 8.32 A B A A C+ A+ B+ A+ A\n52 05801042024 PRAGYA SAINI 7.77 B+ D A A C+ A A A+ A\n53 06001042024 PRIYANJALI 6.00 B F B+ A F A B+ A+ A\n54 06201042024 PURVA SHARMA 8.36 A C A A+ C+ A+ A A+ A+\n55 06301042024 RAKSHITA 6.23 B D B+ A F A+ B A+ C+\n56 06401042024 RAKSHITA 8.32 A C+ A A B A+ B+ A+ A\n57 06501042024 RIDDHI SHARMA 8.86 B+ B+ A A A+ A B+ A+ A+\n58 0660\n\nLLM generation is currently unavailable, so this fallback output uses retrieved context only.",
+  "sources": [
+    {
+      "doc_id": "doc_03646c8e5f2b",
+      "title": "B.Tech_MAE_3rd sem_Dec 2025.pdf",
+      "source_type": "pdf",
+      "source": "B.Tech_MAE_3rd sem_Dec 2025.pdf",
+      "page": 5,
+      "pages": [
+        5,
+        1
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0708,
+      "preview": "INDIRA GANDHI DELHI TECHNICAL UNIVERSITY FOR WOMEN (Established by Govt. of Delhi vide Act 9 of 2012) Kashmere Gate, Delhi - 110006 (An ISO 9001:2015 Certified University) Consolidated Statement of Result Programme : B.T",
+      "match_count": 8
+    }
+  ],
+  "created_at": "2026-05-29T16:55:42.487019+00:00"
+}

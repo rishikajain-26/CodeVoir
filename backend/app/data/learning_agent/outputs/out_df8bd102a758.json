@@ -1,0 +1,28 @@
+{
+  "output_id": "out_df8bd102a758",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_4860282e2be1"
+  ],
+  "content": "Q: How would you explain Static means we are?\nA: Static means \u2013> we are not talking about F Sin (wt), but only F.",
+  "sources": [
+    {
+      "doc_id": "doc_4860282e2be1",
+      "title": "11.0-vibration L11 (forced vibration - 1).pdf",
+      "source_type": "pdf",
+      "source": "11.0-vibration L11 (forced vibration - 1).pdf",
+      "page": 8,
+      "pages": [
+        8,
+        9
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0,
+      "preview": "We had:",
+      "match_count": 8
+    }
+  ],
+  "created_at": "2026-05-30T17:56:36.384054+00:00"
+}

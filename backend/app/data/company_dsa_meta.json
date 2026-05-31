@@ -1,0 +1,3992 @@
+{
+  "source": "liquidslr/interview-company-wise-problems",
+  "source_repo": "https://github.com/liquidslr/interview-company-wise-problems",
+  "companies": [
+    "AMD",
+    "AQR Capital Management",
+    "Accenture",
+    "Accolite",
+    "Acko",
+    "Activision",
+    "Adobe",
+    "Affirm",
+    "Agoda",
+    "Airbnb",
+    "Airbus SE",
+    "Airtel",
+    "Airwallex",
+    "Akamai",
+    "Akuna Capital",
+    "Alibaba",
+    "Altimetrik",
+    "Amadeus",
+    "Amazon",
+    "Amdocs",
+    "American Express",
+    "Analytics quotient",
+    "Anduril",
+    "Aon",
+    "Apollo.io",
+    "AppDynamics",
+    "AppFolio",
+    "Apple",
+    "Applied Intuition",
+    "Arcesium",
+    "Arista Networks",
+    "Asana",
+    "Atlassian",
+    "Attentive",
+    "Audible",
+    "Aurora",
+    "Autodesk",
+    "Avalara",
+    "Avito",
+    "Axon",
+    "BILL Holdings",
+    "BNY Mellon",
+    "BP",
+    "Baidu",
+    "Bank of America",
+    "Barclays",
+    "Bentley Systems",
+    "BharatPe",
+    "BitGo",
+    "BlackRock",
+    "BlackStone",
+    "Blizzard",
+    "Block",
+    "Bloomberg",
+    "Bolt",
+    "Booking.com",
+    "Bosch",
+    "Box",
+    "Braze",
+    "Brex",
+    "Bridgewater Associates",
+    "ByteDance",
+    "CARS24",
+    "CEDCOSS",
+    "CME Group",
+    "CRED",
+    "CTC",
+    "CVENT",
+    "Cadence",
+    "Canonical",
+    "Capgemini",
+    "Capital One",
+    "Careem",
+    "Cashfree",
+    "Celigo",
+    "Chewy",
+    "Chime",
+    "Circle",
+    "Cisco",
+    "Citadel",
+    "Citigroup",
+    "Citrix",
+    "Clari",
+    "Cleartrip",
+    "Cloudera",
+    "Cloudflare",
+    "Coforge",
+    "Cognizant",
+    "Cohesity",
+    "Coinbase",
+    "Comcast",
+    "Commvault",
+    "Compass",
+    "Confluent",
+    "ConsultAdd",
+    "Coupang",
+    "Coursera",
+    "Coveo",
+    "Credit Karma",
+    "Criteo",
+    "CrowdStrike",
+    "Cruise",
+    "CureFit",
+    "DE Shaw",
+    "DP world",
+    "DRW",
+    "DXC Technology",
+    "Darwinbox",
+    "Databricks",
+    "Datadog",
+    "Dataminr",
+    "Delhivery",
+    "Deliveroo",
+    "Dell",
+    "Deloitte",
+    "DeltaX",
+    "Deutsche Bank",
+    "DevRev",
+    "Devsinc",
+    "Devtron",
+    "Directi",
+    "Disney",
+    "Docusign",
+    "DoorDash",
+    "Dream11",
+    "Dropbox",
+    "Druva",
+    "Dunzo",
+    "Duolingo",
+    "EPAM Systems",
+    "EY",
+    "EarnIn",
+    "Edelweiss Group",
+    "Electronic Arts",
+    "Epic Systems",
+    "Expedia",
+    "FPT",
+    "FactSet",
+    "Faire",
+    "Fastenal",
+    "Fidelity",
+    "Fiverr",
+    "Flexera",
+    "Flexport",
+    "Flipkart",
+    "Fortinet",
+    "Freecharge",
+    "FreshWorks",
+    "GE Digital",
+    "GE Healthcare",
+    "GSA Capital",
+    "GSN Games",
+    "Gameskraft",
+    "Garmin",
+    "Geico",
+    "General Motors",
+    "Genpact",
+    "GoDaddy",
+    "Gojek",
+    "Goldman Sachs",
+    "Google",
+    "Grab",
+    "Grammarly",
+    "Graviton",
+    "Groupon",
+    "Groww",
+    "Grubhub",
+    "Guidewire",
+    "Gusto",
+    "HCL",
+    "HP",
+    "HPE",
+    "HSBC",
+    "Harness",
+    "HashedIn",
+    "Hertz",
+    "HiLabs",
+    "Highspot",
+    "Hive",
+    "Hiver",
+    "Honeywell",
+    "Hotstar",
+    "Houzz",
+    "Huawei",
+    "Hubspot",
+    "Hudson River Trading",
+    "Hulu",
+    "IBM",
+    "IIT Bombay",
+    "IMC",
+    "INDmoney",
+    "IVP",
+    "IXL",
+    "InMobi",
+    "Indeed",
+    "Info Edge",
+    "Informatica",
+    "Infosys",
+    "Instacart",
+    "Intel",
+    "Intuit",
+    "J.P. Morgan",
+    "Jane Street",
+    "Jump Trading",
+    "Juniper Networks",
+    "Juspay",
+    "KLA",
+    "Kakao",
+    "Karat",
+    "Komprise",
+    "LINE",
+    "LTI",
+    "Larsen & Toubro",
+    "Lendingkart Technologies",
+    "Lenskart",
+    "Licious",
+    "Liftoff",
+    "LinkedIn",
+    "LiveRamp",
+    "Lowe's",
+    "Lucid",
+    "Luxoft",
+    "Lyft",
+    "MAQ Software",
+    "MSCI",
+    "Machine Zone",
+    "MakeMyTrip",
+    "Mapbox",
+    "Mastercard",
+    "MathWorks",
+    "McKinsey",
+    "Media.net",
+    "Meesho",
+    "Mercari",
+    "Meta",
+    "Microsoft",
+    "Microstrategy",
+    "Millennium",
+    "MindTree",
+    "Mindtickle",
+    "Miro",
+    "Mitsogo",
+    "Mixpanel",
+    "Mobileye",
+    "Moengage",
+    "Moloco",
+    "MongoDB",
+    "Morgan Stanley",
+    "Mountblue",
+    "Moveworks",
+    "Myntra",
+    "NCR",
+    "Nagarro",
+    "National Instruments",
+    "National Payments Corporation of India",
+    "Navan",
+    "Navi",
+    "NetApp",
+    "NetEase",
+    "Netflix",
+    "Netskope",
+    "Netsuite",
+    "Nextdoor",
+    "Niantic",
+    "Nielsen",
+    "Nike",
+    "NinjaCart",
+    "Nokia",
+    "Nordstrom",
+    "Notion",
+    "Nuro",
+    "Nutanix",
+    "Nvidia",
+    "Nykaa",
+    "OKX",
+    "Odoo",
+    "Okta",
+    "Ola Cabs",
+    "OpenAI",
+    "Opendoor",
+    "Optiver",
+    "Optum",
+    "Oracle",
+    "Otter.ai",
+    "Ozon",
+    "Palantir Technologies",
+    "Palo Alto Networks",
+    "Patreon",
+    "PayPal",
+    "PayPay",
+    "PayU",
+    "Paycom",
+    "Paytm",
+    "Peloton",
+    "PhonePe",
+    "Pinterest",
+    "Pocket Gems",
+    "Point72",
+    "Pony.ai",
+    "PornHub",
+    "Poshmark",
+    "Postmates",
+    "PubMatic",
+    "Publicis Sapient",
+    "Pure Storage",
+    "Pwc",
+    "QBurst",
+    "Qualcomm",
+    "Qualtrics",
+    "Quora",
+    "RBC",
+    "Rakuten",
+    "Reddit",
+    "Remitly",
+    "Revolut",
+    "Riot Games",
+    "Ripple",
+    "Rippling",
+    "Rivian",
+    "Robinhood",
+    "Roblox",
+    "Roche",
+    "Rokt",
+    "Roku",
+    "Rubrik",
+    "SAP",
+    "SIG",
+    "SOTI",
+    "Salesforce",
+    "Samsara",
+    "Samsung",
+    "Scale AI",
+    "Sentry",
+    "ServiceNow",
+    "ShareChat",
+    "Shopee",
+    "Shopify",
+    "Siemens",
+    "Sigmoid",
+    "Slice",
+    "Smartsheet",
+    "Snap",
+    "Snapdeal",
+    "Snowflake",
+    "SoFi",
+    "Societe Generale",
+    "Softwire",
+    "Sony",
+    "SoundHound",
+    "Splunk",
+    "Spotify",
+    "Sprinklr",
+    "Squarepoint Capital",
+    "Squarespace",
+    "StackAdapt",
+    "Stackline",
+    "Stripe",
+    "Sumo Logic",
+    "Swiggy",
+    "Synopsys",
+    "Tanium",
+    "Target",
+    "Tech Mahindra",
+    "Tejas Networks",
+    "Tekion",
+    "Tencent",
+    "Teradata",
+    "Tesco",
+    "Tesla",
+    "Texas Instruments",
+    "The Trade Desk",
+    "Thomson Reuters",
+    "ThoughtWorks",
+    "ThousandEyes",
+    "Tiger Analytics",
+    "TikTok",
+    "Tinder",
+    "Tinkoff",
+    "Toast",
+    "Toptal",
+    "Tower Research Capital",
+    "Trexquant",
+    "Trilogy",
+    "Tripadvisor",
+    "TuSimple",
+    "Turing",
+    "Turo",
+    "Turvo",
+    "Twilio",
+    "Twitch",
+    "Two Sigma",
+    "UBS",
+    "UKG",
+    "USAA",
+    "Uber",
+    "UiPath",
+    "Unity",
+    "Upstart",
+    "Urban Company",
+    "VK",
+    "VMware",
+    "Valve",
+    "Vanguard",
+    "Veeva Systems",
+    "Verily",
+    "Veritas",
+    "Verkada",
+    "Vimeo",
+    "Virtu Financial",
+    "Virtusa",
+    "Visa",
+    "Walmart Labs",
+    "Warnermedia",
+    "WatchGuard",
+    "Wayfair",
+    "Waymo",
+    "WeRide",
+    "Wealthfront",
+    "Wells Fargo",
+    "Western Digital",
+    "Whatnot",
+    "WinZO",
+    "Wipro",
+    "Wise",
+    "Wish",
+    "Wissen Technology",
+    "Wix",
+    "Workday",
+    "Works Applications",
+    "WorldQuant",
+    "X",
+    "Yahoo",
+    "Yandex",
+    "Yelp",
+    "Yext",
+    "ZS Associates",
+    "ZScaler",
+    "Zalando",
+    "Zendesk",
+    "Zenefits",
+    "Zepto",
+    "Zeta",
+    "Zillow",
+    "ZipRecruiter",
+    "Zluri",
+    "Zoho",
+    "Zomato",
+    "Zoom",
+    "Zoox",
+    "Zopsmart",
+    "Zynga",
+    "athenahealth",
+    "blinkit",
+    "carwale",
+    "ciena",
+    "eBay",
+    "fourkites",
+    "instabase",
+    "jio",
+    "josh technology",
+    "opentext",
+    "oyo",
+    "peak6",
+    "persistent systems",
+    "razorpay",
+    "redbus",
+    "smartnews",
+    "tcs",
+    "thoughtspot",
+    "zeta suite"
+  ],
+  "company_stats": {
+    "Accenture": {
+      "count": 91,
+      "difficulty_counts": {
+        "Easy": 102,
+        "Medium": 73,
+        "Hard": 4
+      }
+    },
+    "Accolite": {
+      "count": 16,
+      "difficulty_counts": {
+        "Medium": 19,
+        "Easy": 14,
+        "Hard": 2
+      }
+    },
+    "Acko": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 4
+      }
+    },
+    "Activision": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 1
+      }
+    },
+    "Adobe": {
+      "count": 79,
+      "difficulty_counts": {
+        "Medium": 82,
+        "Easy": 51,
+        "Hard": 22
+      }
+    },
+    "Affirm": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 5,
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Agoda": {
+      "count": 31,
+      "difficulty_counts": {
+        "Easy": 26,
+        "Medium": 38,
+        "Hard": 2
+      }
+    },
+    "Airbnb": {
+      "count": 36,
+      "difficulty_counts": {
+        "Hard": 24,
+        "Medium": 31,
+        "Easy": 20
+      }
+    },
+    "Airbus SE": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 5
+      }
+    },
+    "Airtel": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Easy": 2
+      }
+    },
+    "Airwallex": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Akamai": {
+      "count": 6,
+      "difficulty_counts": {
+        "Easy": 7,
+        "Medium": 2
+      }
+    },
+    "Akuna Capital": {
+      "count": 16,
+      "difficulty_counts": {
+        "Medium": 10,
+        "Hard": 18,
+        "Easy": 4
+      }
+    },
+    "Alibaba": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 8,
+        "Hard": 2
+      }
+    },
+    "Altimetrik": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Amadeus": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 4
+      }
+    },
+    "Amazon": {
+      "count": 128,
+      "difficulty_counts": {
+        "Easy": 89,
+        "Medium": 186,
+        "Hard": 54
+      }
+    },
+    "AMD": {
+      "count": 8,
+      "difficulty_counts": {
+        "Medium": 7,
+        "Easy": 7
+      }
+    },
+    "Amdocs": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 3,
+        "Hard": 2
+      }
+    },
+    "American Express": {
+      "count": 15,
+      "difficulty_counts": {
+        "Easy": 15,
+        "Medium": 8,
+        "Hard": 8
+      }
+    },
+    "Analytics quotient": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Anduril": {
+      "count": 19,
+      "difficulty_counts": {
+        "Hard": 12,
+        "Medium": 30,
+        "Easy": 4
+      }
+    },
+    "Aon": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "Apollo.io": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 6
+      }
+    },
+    "AppDynamics": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2
+      }
+    },
+    "AppFolio": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "Apple": {
+      "count": 112,
+      "difficulty_counts": {
+        "Easy": 75,
+        "Medium": 137,
+        "Hard": 32
+      }
+    },
+    "Applied Intuition": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 8,
+        "Medium": 3
+      }
+    },
+    "AQR Capital Management": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 3
+      }
+    },
+    "Arcesium": {
+      "count": 14,
+      "difficulty_counts": {
+        "Hard": 12,
+        "Medium": 16
+      }
+    },
+    "Arista Networks": {
+      "count": 26,
+      "difficulty_counts": {
+        "Medium": 25,
+        "Easy": 19,
+        "Hard": 4
+      }
+    },
+    "Asana": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 3,
+        "Easy": 2
+      }
+    },
+    "athenahealth": {
+      "count": 7,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 6,
+        "Hard": 2
+      }
+    },
+    "Atlassian": {
+      "count": 45,
+      "difficulty_counts": {
+        "Medium": 54,
+        "Easy": 21,
+        "Hard": 27
+      }
+    },
+    "Attentive": {
+      "count": 7,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Hard": 6,
+        "Easy": 4
+      }
+    },
+    "Audible": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Aurora": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2
+      }
+    },
+    "Autodesk": {
+      "count": 18,
+      "difficulty_counts": {
+        "Easy": 10,
+        "Medium": 14,
+        "Hard": 10
+      }
+    },
+    "Avalara": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 4
+      }
+    },
+    "Avito": {
+      "count": 7,
+      "difficulty_counts": {
+        "Medium": 8,
+        "Easy": 6
+      }
+    },
+    "Axon": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 1
+      }
+    },
+    "Baidu": {
+      "count": 8,
+      "difficulty_counts": {
+        "Hard": 6,
+        "Medium": 10
+      }
+    },
+    "Bank of America": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 6
+      }
+    },
+    "Barclays": {
+      "count": 11,
+      "difficulty_counts": {
+        "Easy": 12,
+        "Hard": 6,
+        "Medium": 4
+      }
+    },
+    "Bentley Systems": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "BharatPe": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "BILL Holdings": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "BitGo": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 7,
+        "Hard": 6
+      }
+    },
+    "BlackRock": {
+      "count": 9,
+      "difficulty_counts": {
+        "Easy": 10,
+        "Hard": 2,
+        "Medium": 8
+      }
+    },
+    "BlackStone": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "blinkit": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Blizzard": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2
+      }
+    },
+    "Block": {
+      "count": 7,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Medium": 10
+      }
+    },
+    "Bloomberg": {
+      "count": 125,
+      "difficulty_counts": {
+        "Easy": 104,
+        "Medium": 150,
+        "Hard": 29
+      }
+    },
+    "BNY Mellon": {
+      "count": 14,
+      "difficulty_counts": {
+        "Medium": 12,
+        "Hard": 6,
+        "Easy": 10
+      }
+    },
+    "Bolt": {
+      "count": 7,
+      "difficulty_counts": {
+        "Easy": 11,
+        "Medium": 2,
+        "Hard": 2
+      }
+    },
+    "Booking.com": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 8,
+        "Hard": 2
+      }
+    },
+    "Bosch": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Box": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 5,
+        "Hard": 4,
+        "Medium": 1
+      }
+    },
+    "BP": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Braze": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Brex": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 1
+      }
+    },
+    "Bridgewater Associates": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "ByteDance": {
+      "count": 49,
+      "difficulty_counts": {
+        "Medium": 72,
+        "Hard": 15,
+        "Easy": 14
+      }
+    },
+    "Cadence": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 6
+      }
+    },
+    "Canonical": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Capgemini": {
+      "count": 19,
+      "difficulty_counts": {
+        "Easy": 27,
+        "Hard": 2,
+        "Medium": 10
+      }
+    },
+    "Capital One": {
+      "count": 25,
+      "difficulty_counts": {
+        "Medium": 28,
+        "Hard": 15,
+        "Easy": 16
+      }
+    },
+    "Careem": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "CARS24": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 8
+      }
+    },
+    "carwale": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "Cashfree": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "CEDCOSS": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 2
+      }
+    },
+    "Celigo": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Chewy": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 4
+      }
+    },
+    "Chime": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "ciena": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Circle": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Cisco": {
+      "count": 63,
+      "difficulty_counts": {
+        "Easy": 39,
+        "Medium": 71,
+        "Hard": 21
+      }
+    },
+    "Citadel": {
+      "count": 54,
+      "difficulty_counts": {
+        "Hard": 45,
+        "Medium": 61,
+        "Easy": 8
+      }
+    },
+    "Citigroup": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Hard": 1
+      }
+    },
+    "Citrix": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Clari": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Cleartrip": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 5
+      }
+    },
+    "Cloudera": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 6,
+        "Medium": 4
+      }
+    },
+    "Cloudflare": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 4
+      }
+    },
+    "CME Group": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Coforge": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Cognizant": {
+      "count": 18,
+      "difficulty_counts": {
+        "Easy": 26,
+        "Medium": 12
+      }
+    },
+    "Cohesity": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Coinbase": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "Comcast": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 5,
+        "Medium": 2
+      }
+    },
+    "Commvault": {
+      "count": 9,
+      "difficulty_counts": {
+        "Medium": 14,
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "Compass": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 3,
+        "Easy": 4
+      }
+    },
+    "Confluent": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 10
+      }
+    },
+    "ConsultAdd": {
+      "count": 7,
+      "difficulty_counts": {
+        "Medium": 10,
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "Coupang": {
+      "count": 35,
+      "difficulty_counts": {
+        "Medium": 54,
+        "Hard": 19,
+        "Easy": 2
+      }
+    },
+    "Coursera": {
+      "count": 8,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Hard": 8,
+        "Easy": 2
+      }
+    },
+    "Coveo": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "CRED": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 1
+      }
+    },
+    "Credit Karma": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 1,
+        "Medium": 2
+      }
+    },
+    "Criteo": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 9,
+        "Medium": 1
+      }
+    },
+    "CrowdStrike": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 8,
+        "Hard": 2,
+        "Easy": 3
+      }
+    },
+    "Cruise": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 2
+      }
+    },
+    "CTC": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 1
+      }
+    },
+    "CureFit": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 6
+      }
+    },
+    "CVENT": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 3
+      }
+    },
+    "Darwinbox": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Medium": 6
+      }
+    },
+    "Databricks": {
+      "count": 16,
+      "difficulty_counts": {
+        "Medium": 28,
+        "Hard": 9
+      }
+    },
+    "Datadog": {
+      "count": 14,
+      "difficulty_counts": {
+        "Easy": 15,
+        "Medium": 12,
+        "Hard": 5
+      }
+    },
+    "Dataminr": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "DE Shaw": {
+      "count": 70,
+      "difficulty_counts": {
+        "Hard": 62,
+        "Medium": 65,
+        "Easy": 17
+      }
+    },
+    "Delhivery": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "Deliveroo": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "Dell": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 4
+      }
+    },
+    "Deloitte": {
+      "count": 17,
+      "difficulty_counts": {
+        "Medium": 12,
+        "Easy": 18
+      }
+    },
+    "DeltaX": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 4
+      }
+    },
+    "Deutsche Bank": {
+      "count": 25,
+      "difficulty_counts": {
+        "Medium": 24,
+        "Hard": 14,
+        "Easy": 11
+      }
+    },
+    "DevRev": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "Devsinc": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Devtron": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "Directi": {
+      "count": 8,
+      "difficulty_counts": {
+        "Hard": 8,
+        "Medium": 8
+      }
+    },
+    "Disney": {
+      "count": 14,
+      "difficulty_counts": {
+        "Medium": 14,
+        "Easy": 11
+      }
+    },
+    "Docusign": {
+      "count": 18,
+      "difficulty_counts": {
+        "Medium": 25,
+        "Hard": 6,
+        "Easy": 6
+      }
+    },
+    "DoorDash": {
+      "count": 50,
+      "difficulty_counts": {
+        "Hard": 57,
+        "Medium": 72,
+        "Easy": 13
+      }
+    },
+    "DP world": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 5,
+        "Medium": 5
+      }
+    },
+    "Dream11": {
+      "count": 9,
+      "difficulty_counts": {
+        "Medium": 12,
+        "Hard": 4,
+        "Easy": 2
+      }
+    },
+    "Dropbox": {
+      "count": 11,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Hard": 11,
+        "Easy": 4
+      }
+    },
+    "Druva": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Easy": 2
+      }
+    },
+    "DRW": {
+      "count": 6,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 8
+      }
+    },
+    "Dunzo": {
+      "count": 8,
+      "difficulty_counts": {
+        "Hard": 8,
+        "Medium": 6,
+        "Easy": 1
+      }
+    },
+    "Duolingo": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "DXC Technology": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "EarnIn": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 3,
+        "Easy": 1
+      }
+    },
+    "eBay": {
+      "count": 53,
+      "difficulty_counts": {
+        "Medium": 64,
+        "Hard": 12,
+        "Easy": 26
+      }
+    },
+    "Edelweiss Group": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Electronic Arts": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2
+      }
+    },
+    "EPAM Systems": {
+      "count": 32,
+      "difficulty_counts": {
+        "Easy": 24,
+        "Medium": 36,
+        "Hard": 3
+      }
+    },
+    "Epic Systems": {
+      "count": 9,
+      "difficulty_counts": {
+        "Medium": 13,
+        "Easy": 6
+      }
+    },
+    "Expedia": {
+      "count": 40,
+      "difficulty_counts": {
+        "Medium": 46,
+        "Easy": 22,
+        "Hard": 8
+      }
+    },
+    "EY": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 2
+      }
+    },
+    "FactSet": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 8
+      }
+    },
+    "Faire": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Fastenal": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 6,
+        "Medium": 2
+      }
+    },
+    "Fidelity": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Fiverr": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Flexera": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Flexport": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 12
+      }
+    },
+    "Flipkart": {
+      "count": 87,
+      "difficulty_counts": {
+        "Medium": 97,
+        "Easy": 21,
+        "Hard": 54
+      }
+    },
+    "Fortinet": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Easy": 1
+      }
+    },
+    "fourkites": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "FPT": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 5
+      }
+    },
+    "Freecharge": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "FreshWorks": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 8
+      }
+    },
+    "Gameskraft": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 6
+      }
+    },
+    "Garmin": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 10
+      }
+    },
+    "GE Digital": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "GE Healthcare": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "Geico": {
+      "count": 16,
+      "difficulty_counts": {
+        "Medium": 24,
+        "Hard": 4,
+        "Easy": 3
+      }
+    },
+    "General Motors": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 9,
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "Genpact": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "GoDaddy": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 1,
+        "Easy": 1
+      }
+    },
+    "Gojek": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 2
+      }
+    },
+    "Goldman Sachs": {
+      "count": 108,
+      "difficulty_counts": {
+        "Hard": 26,
+        "Medium": 138,
+        "Easy": 58
+      }
+    },
+    "Google": {
+      "count": 169,
+      "difficulty_counts": {
+        "Easy": 104,
+        "Medium": 148,
+        "Hard": 58
+      }
+    },
+    "Grab": {
+      "count": 11,
+      "difficulty_counts": {
+        "Medium": 18,
+        "Easy": 3
+      }
+    },
+    "Grammarly": {
+      "count": 15,
+      "difficulty_counts": {
+        "Medium": 16,
+        "Easy": 18,
+        "Hard": 4
+      }
+    },
+    "Graviton": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 8,
+        "Hard": 4
+      }
+    },
+    "Groupon": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 6
+      }
+    },
+    "Groww": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 3,
+        "Medium": 1
+      }
+    },
+    "Grubhub": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "GSA Capital": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "GSN Games": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Guidewire": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 1
+      }
+    },
+    "Gusto": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 3,
+        "Medium": 2
+      }
+    },
+    "Harness": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "HashedIn": {
+      "count": 14,
+      "difficulty_counts": {
+        "Medium": 14,
+        "Hard": 8,
+        "Easy": 3
+      }
+    },
+    "HCL": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 6
+      }
+    },
+    "Hertz": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Highspot": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "HiLabs": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Easy": 2
+      }
+    },
+    "Hive": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "Hiver": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "Honeywell": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 3,
+        "Medium": 2
+      }
+    },
+    "Hotstar": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 3
+      }
+    },
+    "Houzz": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 4
+      }
+    },
+    "HP": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 2
+      }
+    },
+    "HPE": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 2
+      }
+    },
+    "HSBC": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 1
+      }
+    },
+    "Huawei": {
+      "count": 11,
+      "difficulty_counts": {
+        "Easy": 6,
+        "Medium": 12,
+        "Hard": 4
+      }
+    },
+    "Hubspot": {
+      "count": 6,
+      "difficulty_counts": {
+        "Easy": 8,
+        "Medium": 8,
+        "Hard": 1
+      }
+    },
+    "Hudson River Trading": {
+      "count": 6,
+      "difficulty_counts": {
+        "Easy": 6,
+        "Hard": 6
+      }
+    },
+    "Hulu": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 6
+      }
+    },
+    "IBM": {
+      "count": 70,
+      "difficulty_counts": {
+        "Medium": 73,
+        "Easy": 53,
+        "Hard": 11
+      }
+    },
+    "IIT Bombay": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "IMC": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Medium": 6
+      }
+    },
+    "Indeed": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 2,
+        "Easy": 4
+      }
+    },
+    "INDmoney": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Info Edge": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 2,
+        "Medium": 4
+      }
+    },
+    "Informatica": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 3
+      }
+    },
+    "Infosys": {
+      "count": 66,
+      "difficulty_counts": {
+        "Easy": 46,
+        "Hard": 25,
+        "Medium": 58
+      }
+    },
+    "InMobi": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Hard": 6
+      }
+    },
+    "instabase": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "Instacart": {
+      "count": 10,
+      "difficulty_counts": {
+        "Medium": 10,
+        "Easy": 10,
+        "Hard": 4
+      }
+    },
+    "Intel": {
+      "count": 17,
+      "difficulty_counts": {
+        "Easy": 17,
+        "Medium": 15,
+        "Hard": 2
+      }
+    },
+    "Intuit": {
+      "count": 48,
+      "difficulty_counts": {
+        "Easy": 23,
+        "Medium": 60,
+        "Hard": 16
+      }
+    },
+    "IVP": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "IXL": {
+      "count": 12,
+      "difficulty_counts": {
+        "Easy": 7,
+        "Medium": 17,
+        "Hard": 2
+      }
+    },
+    "J.P. Morgan": {
+      "count": 55,
+      "difficulty_counts": {
+        "Easy": 44,
+        "Medium": 53,
+        "Hard": 10
+      }
+    },
+    "Jane Street": {
+      "count": 8,
+      "difficulty_counts": {
+        "Easy": 7,
+        "Medium": 3,
+        "Hard": 3
+      }
+    },
+    "jio": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 8,
+        "Easy": 2
+      }
+    },
+    "josh technology": {
+      "count": 14,
+      "difficulty_counts": {
+        "Medium": 20,
+        "Easy": 4,
+        "Hard": 2
+      }
+    },
+    "Jump Trading": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 6,
+        "Easy": 5
+      }
+    },
+    "Juniper Networks": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 6
+      }
+    },
+    "Juspay": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 9,
+        "Medium": 2
+      }
+    },
+    "Kakao": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "Karat": {
+      "count": 7,
+      "difficulty_counts": {
+        "Easy": 13,
+        "Medium": 5
+      }
+    },
+    "KLA": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "Komprise": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Larsen & Toubro": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Lendingkart Technologies": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 1
+      }
+    },
+    "Lenskart": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Licious": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "Liftoff": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 3,
+        "Medium": 7
+      }
+    },
+    "LINE": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 7
+      }
+    },
+    "LinkedIn": {
+      "count": 79,
+      "difficulty_counts": {
+        "Medium": 118,
+        "Hard": 29,
+        "Easy": 46
+      }
+    },
+    "LiveRamp": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 8,
+        "Easy": 4
+      }
+    },
+    "Lowe's": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Hard": 4
+      }
+    },
+    "LTI": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 2
+      }
+    },
+    "Lucid": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 4,
+        "Hard": 2
+      }
+    },
+    "Luxoft": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 5
+      }
+    },
+    "Lyft": {
+      "count": 19,
+      "difficulty_counts": {
+        "Medium": 35,
+        "Hard": 11
+      }
+    },
+    "Machine Zone": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "MakeMyTrip": {
+      "count": 19,
+      "difficulty_counts": {
+        "Hard": 14,
+        "Medium": 18,
+        "Easy": 2
+      }
+    },
+    "Mapbox": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 1
+      }
+    },
+    "MAQ Software": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Hard": 4
+      }
+    },
+    "Mastercard": {
+      "count": 9,
+      "difficulty_counts": {
+        "Easy": 7,
+        "Medium": 4,
+        "Hard": 1
+      }
+    },
+    "MathWorks": {
+      "count": 20,
+      "difficulty_counts": {
+        "Hard": 21,
+        "Medium": 16,
+        "Easy": 6
+      }
+    },
+    "McKinsey": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 2
+      }
+    },
+    "Media.net": {
+      "count": 25,
+      "difficulty_counts": {
+        "Hard": 28,
+        "Easy": 10,
+        "Medium": 12
+      }
+    },
+    "Meesho": {
+      "count": 14,
+      "difficulty_counts": {
+        "Hard": 10,
+        "Medium": 4,
+        "Easy": 1
+      }
+    },
+    "Mercari": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 6,
+        "Medium": 2
+      }
+    },
+    "Meta": {
+      "count": 137,
+      "difficulty_counts": {
+        "Medium": 172,
+        "Easy": 100,
+        "Hard": 44
+      }
+    },
+    "Microsoft": {
+      "count": 132,
+      "difficulty_counts": {
+        "Easy": 100,
+        "Medium": 153,
+        "Hard": 44
+      }
+    },
+    "Microstrategy": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 4
+      }
+    },
+    "Millennium": {
+      "count": 6,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 6,
+        "Hard": 2
+      }
+    },
+    "Mindtickle": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 6
+      }
+    },
+    "MindTree": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Miro": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Mitsogo": {
+      "count": 8,
+      "difficulty_counts": {
+        "Easy": 6,
+        "Hard": 4,
+        "Medium": 6
+      }
+    },
+    "Mixpanel": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Mobileye": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Moengage": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2
+      }
+    },
+    "Moloco": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 7
+      }
+    },
+    "MongoDB": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Easy": 5,
+        "Hard": 2
+      }
+    },
+    "Morgan Stanley": {
+      "count": 35,
+      "difficulty_counts": {
+        "Medium": 28,
+        "Easy": 22,
+        "Hard": 15
+      }
+    },
+    "Mountblue": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Moveworks": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "MSCI": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Myntra": {
+      "count": 14,
+      "difficulty_counts": {
+        "Medium": 17,
+        "Hard": 6,
+        "Easy": 6
+      }
+    },
+    "Nagarro": {
+      "count": 8,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 2,
+        "Easy": 7
+      }
+    },
+    "National Instruments": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 4
+      }
+    },
+    "National Payments Corporation of India": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Navan": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 5,
+        "Medium": 2
+      }
+    },
+    "Navi": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 1
+      }
+    },
+    "NCR": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 1
+      }
+    },
+    "NetApp": {
+      "count": 6,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 7,
+        "Hard": 2
+      }
+    },
+    "NetEase": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "Netflix": {
+      "count": 19,
+      "difficulty_counts": {
+        "Hard": 7,
+        "Medium": 25,
+        "Easy": 11
+      }
+    },
+    "Netskope": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 5
+      }
+    },
+    "Netsuite": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Nextdoor": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 5,
+        "Hard": 2
+      }
+    },
+    "Niantic": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Nielsen": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 2,
+        "Easy": 1
+      }
+    },
+    "Nike": {
+      "count": 7,
+      "difficulty_counts": {
+        "Medium": 8,
+        "Easy": 6
+      }
+    },
+    "NinjaCart": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Nokia": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Hard": 2,
+        "Medium": 1
+      }
+    },
+    "Nordstrom": {
+      "count": 8,
+      "difficulty_counts": {
+        "Medium": 13,
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Notion": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Nuro": {
+      "count": 5,
+      "difficulty_counts": {
+        "Hard": 7,
+        "Medium": 3
+      }
+    },
+    "Nutanix": {
+      "count": 41,
+      "difficulty_counts": {
+        "Medium": 58,
+        "Hard": 15,
+        "Easy": 6
+      }
+    },
+    "Nvidia": {
+      "count": 73,
+      "difficulty_counts": {
+        "Medium": 88,
+        "Easy": 45,
+        "Hard": 16
+      }
+    },
+    "Nykaa": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 7
+      }
+    },
+    "Odoo": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 3,
+        "Medium": 2
+      }
+    },
+    "Okta": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 5
+      }
+    },
+    "OKX": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 2
+      }
+    },
+    "Ola Cabs": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "OpenAI": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Opendoor": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "opentext": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 5
+      }
+    },
+    "Optiver": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Optum": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 5,
+        "Easy": 2
+      }
+    },
+    "Oracle": {
+      "count": 104,
+      "difficulty_counts": {
+        "Medium": 126,
+        "Easy": 58,
+        "Hard": 28
+      }
+    },
+    "Otter.ai": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Medium": 4
+      }
+    },
+    "oyo": {
+      "count": 7,
+      "difficulty_counts": {
+        "Medium": 10,
+        "Hard": 6
+      }
+    },
+    "Ozon": {
+      "count": 10,
+      "difficulty_counts": {
+        "Easy": 16,
+        "Medium": 2
+      }
+    },
+    "Palantir Technologies": {
+      "count": 15,
+      "difficulty_counts": {
+        "Medium": 9,
+        "Hard": 10,
+        "Easy": 10
+      }
+    },
+    "Palo Alto Networks": {
+      "count": 15,
+      "difficulty_counts": {
+        "Medium": 19,
+        "Hard": 6,
+        "Easy": 7
+      }
+    },
+    "Patreon": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 3,
+        "Hard": 2
+      }
+    },
+    "Paycom": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "PayPal": {
+      "count": 75,
+      "difficulty_counts": {
+        "Medium": 101,
+        "Easy": 35,
+        "Hard": 20
+      }
+    },
+    "PayPay": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2
+      }
+    },
+    "Paytm": {
+      "count": 19,
+      "difficulty_counts": {
+        "Medium": 22,
+        "Easy": 12,
+        "Hard": 2
+      }
+    },
+    "PayU": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "peak6": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Peloton": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "persistent systems": {
+      "count": 8,
+      "difficulty_counts": {
+        "Easy": 10,
+        "Medium": 5
+      }
+    },
+    "PhonePe": {
+      "count": 67,
+      "difficulty_counts": {
+        "Medium": 66,
+        "Hard": 57,
+        "Easy": 4
+      }
+    },
+    "Pinterest": {
+      "count": 32,
+      "difficulty_counts": {
+        "Hard": 37,
+        "Medium": 41,
+        "Easy": 2
+      }
+    },
+    "Pocket Gems": {
+      "count": 10,
+      "difficulty_counts": {
+        "Medium": 10,
+        "Hard": 8,
+        "Easy": 2
+      }
+    },
+    "Point72": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Pony.ai": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 6
+      }
+    },
+    "PornHub": {
+      "count": 7,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 5,
+        "Hard": 3
+      }
+    },
+    "Poshmark": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 1
+      }
+    },
+    "Postmates": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 2
+      }
+    },
+    "Publicis Sapient": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 2,
+        "Easy": 4
+      }
+    },
+    "PubMatic": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "Pure Storage": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 7
+      }
+    },
+    "Pwc": {
+      "count": 6,
+      "difficulty_counts": {
+        "Easy": 10,
+        "Medium": 2
+      }
+    },
+    "QBurst": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Qualcomm": {
+      "count": 33,
+      "difficulty_counts": {
+        "Easy": 36,
+        "Medium": 19,
+        "Hard": 9
+      }
+    },
+    "Qualtrics": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 3,
+        "Easy": 2
+      }
+    },
+    "Quora": {
+      "count": 13,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Easy": 12,
+        "Medium": 10
+      }
+    },
+    "Rakuten": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 2
+      }
+    },
+    "razorpay": {
+      "count": 7,
+      "difficulty_counts": {
+        "Medium": 11,
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "RBC": {
+      "count": 5,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Easy": 4
+      }
+    },
+    "redbus": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 1,
+        "Medium": 1
+      }
+    },
+    "Reddit": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "Remitly": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 5,
+        "Medium": 4
+      }
+    },
+    "Revolut": {
+      "count": 8,
+      "difficulty_counts": {
+        "Medium": 11,
+        "Easy": 8
+      }
+    },
+    "Riot Games": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Ripple": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 10,
+        "Hard": 2
+      }
+    },
+    "Rippling": {
+      "count": 6,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 3,
+        "Hard": 5
+      }
+    },
+    "Rivian": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 5,
+        "Medium": 3
+      }
+    },
+    "Robinhood": {
+      "count": 10,
+      "difficulty_counts": {
+        "Medium": 15,
+        "Easy": 6
+      }
+    },
+    "Roblox": {
+      "count": 29,
+      "difficulty_counts": {
+        "Medium": 37,
+        "Hard": 15,
+        "Easy": 11
+      }
+    },
+    "Roche": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Rokt": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Easy": 4,
+        "Medium": 2
+      }
+    },
+    "Roku": {
+      "count": 14,
+      "difficulty_counts": {
+        "Hard": 7,
+        "Easy": 6,
+        "Medium": 11
+      }
+    },
+    "Rubrik": {
+      "count": 13,
+      "difficulty_counts": {
+        "Hard": 18,
+        "Medium": 4,
+        "Easy": 4
+      }
+    },
+    "Salesforce": {
+      "count": 94,
+      "difficulty_counts": {
+        "Hard": 38,
+        "Medium": 111,
+        "Easy": 34
+      }
+    },
+    "Samsara": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Samsung": {
+      "count": 49,
+      "difficulty_counts": {
+        "Medium": 52,
+        "Hard": 29,
+        "Easy": 24
+      }
+    },
+    "SAP": {
+      "count": 29,
+      "difficulty_counts": {
+        "Easy": 26,
+        "Medium": 22,
+        "Hard": 8
+      }
+    },
+    "Scale AI": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Sentry": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "ServiceNow": {
+      "count": 53,
+      "difficulty_counts": {
+        "Medium": 74,
+        "Hard": 19,
+        "Easy": 13
+      }
+    },
+    "ShareChat": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Shopee": {
+      "count": 7,
+      "difficulty_counts": {
+        "Easy": 8,
+        "Medium": 4
+      }
+    },
+    "Shopify": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Siemens": {
+      "count": 16,
+      "difficulty_counts": {
+        "Medium": 9,
+        "Easy": 21,
+        "Hard": 4
+      }
+    },
+    "SIG": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 5,
+        "Easy": 2
+      }
+    },
+    "Sigmoid": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 7,
+        "Hard": 2
+      }
+    },
+    "Slice": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "smartnews": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Smartsheet": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Snap": {
+      "count": 67,
+      "difficulty_counts": {
+        "Medium": 86,
+        "Hard": 52,
+        "Easy": 12
+      }
+    },
+    "Snapdeal": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "Snowflake": {
+      "count": 55,
+      "difficulty_counts": {
+        "Medium": 65,
+        "Easy": 22,
+        "Hard": 46
+      }
+    },
+    "Societe Generale": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "SoFi": {
+      "count": 13,
+      "difficulty_counts": {
+        "Hard": 8,
+        "Medium": 15,
+        "Easy": 6
+      }
+    },
+    "Softwire": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 2
+      }
+    },
+    "Sony": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Easy": 2
+      }
+    },
+    "SOTI": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Easy": 3,
+        "Medium": 2
+      }
+    },
+    "SoundHound": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 2,
+        "Hard": 1
+      }
+    },
+    "Splunk": {
+      "count": 10,
+      "difficulty_counts": {
+        "Medium": 16,
+        "Hard": 2,
+        "Easy": 1
+      }
+    },
+    "Spotify": {
+      "count": 7,
+      "difficulty_counts": {
+        "Easy": 13,
+        "Medium": 6
+      }
+    },
+    "Sprinklr": {
+      "count": 28,
+      "difficulty_counts": {
+        "Hard": 30,
+        "Medium": 23,
+        "Easy": 2
+      }
+    },
+    "Squarepoint Capital": {
+      "count": 9,
+      "difficulty_counts": {
+        "Hard": 4,
+        "Medium": 5,
+        "Easy": 1
+      }
+    },
+    "Squarespace": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 1
+      }
+    },
+    "StackAdapt": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Stackline": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 3,
+        "Hard": 2
+      }
+    },
+    "Stripe": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 3,
+        "Medium": 2
+      }
+    },
+    "Sumo Logic": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 4
+      }
+    },
+    "Swiggy": {
+      "count": 22,
+      "difficulty_counts": {
+        "Medium": 23,
+        "Easy": 15,
+        "Hard": 5
+      }
+    },
+    "Synopsys": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Tanium": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 3
+      }
+    },
+    "Target": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 1
+      }
+    },
+    "tcs": {
+      "count": 97,
+      "difficulty_counts": {
+        "Easy": 100,
+        "Medium": 77,
+        "Hard": 11
+      }
+    },
+    "Tech Mahindra": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 5,
+        "Medium": 3
+      }
+    },
+    "Tejas Networks": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 1,
+        "Easy": 1
+      }
+    },
+    "Tekion": {
+      "count": 18,
+      "difficulty_counts": {
+        "Hard": 9,
+        "Medium": 18,
+        "Easy": 7
+      }
+    },
+    "Tencent": {
+      "count": 9,
+      "difficulty_counts": {
+        "Medium": 9,
+        "Hard": 6,
+        "Easy": 4
+      }
+    },
+    "Teradata": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 2,
+        "Easy": 1
+      }
+    },
+    "Tesco": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 3
+      }
+    },
+    "Tesla": {
+      "count": 29,
+      "difficulty_counts": {
+        "Medium": 29,
+        "Hard": 8,
+        "Easy": 22
+      }
+    },
+    "Texas Instruments": {
+      "count": 2,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Easy": 2
+      }
+    },
+    "The Trade Desk": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "Thomson Reuters": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 4
+      }
+    },
+    "thoughtspot": {
+      "count": 9,
+      "difficulty_counts": {
+        "Hard": 8,
+        "Medium": 10
+      }
+    },
+    "ThoughtWorks": {
+      "count": 8,
+      "difficulty_counts": {
+        "Hard": 6,
+        "Easy": 6,
+        "Medium": 4
+      }
+    },
+    "ThousandEyes": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Tiger Analytics": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 6,
+        "Medium": 2
+      }
+    },
+    "TikTok": {
+      "count": 121,
+      "difficulty_counts": {
+        "Medium": 159,
+        "Hard": 55,
+        "Easy": 35
+      }
+    },
+    "Tinder": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Tinkoff": {
+      "count": 26,
+      "difficulty_counts": {
+        "Easy": 21,
+        "Medium": 30
+      }
+    },
+    "Toast": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Toptal": {
+      "count": 1,
+      "difficulty_counts": {
+        "Hard": 2
+      }
+    },
+    "Tower Research Capital": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 2
+      }
+    },
+    "Trexquant": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 6
+      }
+    },
+    "Trilogy": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 6
+      }
+    },
+    "Tripadvisor": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 5
+      }
+    },
+    "Turing": {
+      "count": 30,
+      "difficulty_counts": {
+        "Medium": 38,
+        "Hard": 4,
+        "Easy": 21
+      }
+    },
+    "Turo": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Easy": 2
+      }
+    },
+    "Turvo": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 4
+      }
+    },
+    "TuSimple": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 4
+      }
+    },
+    "Twilio": {
+      "count": 7,
+      "difficulty_counts": {
+        "Easy": 4,
+        "Medium": 5,
+        "Hard": 3
+      }
+    },
+    "Twitch": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Two Sigma": {
+      "count": 13,
+      "difficulty_counts": {
+        "Hard": 7,
+        "Medium": 13,
+        "Easy": 6
+      }
+    },
+    "Uber": {
+      "count": 111,
+      "difficulty_counts": {
+        "Hard": 61,
+        "Easy": 45,
+        "Medium": 110
+      }
+    },
+    "UBS": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 3
+      }
+    },
+    "UiPath": {
+      "count": 8,
+      "difficulty_counts": {
+        "Medium": 12,
+        "Hard": 4
+      }
+    },
+    "UKG": {
+      "count": 6,
+      "difficulty_counts": {
+        "Hard": 7,
+        "Easy": 6,
+        "Medium": 2
+      }
+    },
+    "Unity": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Upstart": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 7
+      }
+    },
+    "Urban Company": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 3,
+        "Medium": 2
+      }
+    },
+    "USAA": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Valve": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 4
+      }
+    },
+    "Vanguard": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 4
+      }
+    },
+    "Veeva Systems": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 1
+      }
+    },
+    "Verily": {
+      "count": 8,
+      "difficulty_counts": {
+        "Medium": 14,
+        "Easy": 2
+      }
+    },
+    "Veritas": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 2
+      }
+    },
+    "Verkada": {
+      "count": 6,
+      "difficulty_counts": {
+        "Hard": 7,
+        "Medium": 7,
+        "Easy": 4
+      }
+    },
+    "Vimeo": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 3
+      }
+    },
+    "Virtu Financial": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 11,
+        "Medium": 2
+      }
+    },
+    "Virtusa": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Visa": {
+      "count": 57,
+      "difficulty_counts": {
+        "Medium": 51,
+        "Easy": 45,
+        "Hard": 21
+      }
+    },
+    "VK": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 6,
+        "Easy": 3
+      }
+    },
+    "VMware": {
+      "count": 13,
+      "difficulty_counts": {
+        "Easy": 6,
+        "Medium": 14,
+        "Hard": 4
+      }
+    },
+    "Walmart Labs": {
+      "count": 80,
+      "difficulty_counts": {
+        "Hard": 24,
+        "Medium": 98,
+        "Easy": 37
+      }
+    },
+    "Warnermedia": {
+      "count": 5,
+      "difficulty_counts": {
+        "Easy": 7,
+        "Hard": 2,
+        "Medium": 2
+      }
+    },
+    "WatchGuard": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 1
+      }
+    },
+    "Wayfair": {
+      "count": 16,
+      "difficulty_counts": {
+        "Easy": 11,
+        "Medium": 18,
+        "Hard": 3
+      }
+    },
+    "Waymo": {
+      "count": 7,
+      "difficulty_counts": {
+        "Hard": 5,
+        "Medium": 12
+      }
+    },
+    "Wealthfront": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Wells Fargo": {
+      "count": 10,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 12,
+        "Easy": 6
+      }
+    },
+    "WeRide": {
+      "count": 3,
+      "difficulty_counts": {
+        "Hard": 9
+      }
+    },
+    "Western Digital": {
+      "count": 1,
+      "difficulty_counts": {
+        "Easy": 3
+      }
+    },
+    "Whatnot": {
+      "count": 4,
+      "difficulty_counts": {
+        "Easy": 7,
+        "Medium": 1
+      }
+    },
+    "WinZO": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 6,
+        "Medium": 2
+      }
+    },
+    "Wipro": {
+      "count": 16,
+      "difficulty_counts": {
+        "Easy": 21,
+        "Medium": 12
+      }
+    },
+    "Wise": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 4
+      }
+    },
+    "Wish": {
+      "count": 2,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 2
+      }
+    },
+    "Wissen Technology": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Easy": 4
+      }
+    },
+    "Wix": {
+      "count": 33,
+      "difficulty_counts": {
+        "Hard": 14,
+        "Medium": 32,
+        "Easy": 25
+      }
+    },
+    "Workday": {
+      "count": 3,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2,
+        "Hard": 2
+      }
+    },
+    "Works Applications": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Hard": 4
+      }
+    },
+    "WorldQuant": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 4,
+        "Hard": 4
+      }
+    },
+    "X": {
+      "count": 28,
+      "difficulty_counts": {
+        "Hard": 16,
+        "Easy": 10,
+        "Medium": 29
+      }
+    },
+    "Yahoo": {
+      "count": 70,
+      "difficulty_counts": {
+        "Medium": 78,
+        "Easy": 45,
+        "Hard": 14
+      }
+    },
+    "Yandex": {
+      "count": 81,
+      "difficulty_counts": {
+        "Easy": 70,
+        "Medium": 118,
+        "Hard": 11
+      }
+    },
+    "Yelp": {
+      "count": 16,
+      "difficulty_counts": {
+        "Medium": 17,
+        "Easy": 12,
+        "Hard": 4
+      }
+    },
+    "Yext": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Hard": 2
+      }
+    },
+    "Zalando": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 3,
+        "Easy": 2
+      }
+    },
+    "Zendesk": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 4
+      }
+    },
+    "Zenefits": {
+      "count": 15,
+      "difficulty_counts": {
+        "Easy": 10,
+        "Hard": 8,
+        "Medium": 12
+      }
+    },
+    "Zepto": {
+      "count": 25,
+      "difficulty_counts": {
+        "Medium": 38,
+        "Hard": 10,
+        "Easy": 2
+      }
+    },
+    "Zeta": {
+      "count": 15,
+      "difficulty_counts": {
+        "Hard": 15,
+        "Medium": 14
+      }
+    },
+    "zeta suite": {
+      "count": 3,
+      "difficulty_counts": {
+        "Medium": 2,
+        "Easy": 4
+      }
+    },
+    "Zillow": {
+      "count": 2,
+      "difficulty_counts": {
+        "Easy": 2,
+        "Medium": 2
+      }
+    },
+    "ZipRecruiter": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Zluri": {
+      "count": 0,
+      "difficulty_counts": {}
+    },
+    "Zoho": {
+      "count": 91,
+      "difficulty_counts": {
+        "Medium": 98,
+        "Hard": 19,
+        "Easy": 73
+      }
+    },
+    "Zomato": {
+      "count": 16,
+      "difficulty_counts": {
+        "Medium": 11,
+        "Hard": 20
+      }
+    },
+    "Zoom": {
+      "count": 1,
+      "difficulty_counts": {
+        "Medium": 2
+      }
+    },
+    "Zoox": {
+      "count": 7,
+      "difficulty_counts": {
+        "Medium": 11,
+        "Easy": 4
+      }
+    },
+    "Zopsmart": {
+      "count": 14,
+      "difficulty_counts": {
+        "Hard": 7,
+        "Medium": 21,
+        "Easy": 3
+      }
+    },
+    "ZS Associates": {
+      "count": 4,
+      "difficulty_counts": {
+        "Medium": 5,
+        "Easy": 4
+      }
+    },
+    "ZScaler": {
+      "count": 18,
+      "difficulty_counts": {
+        "Medium": 12,
+        "Hard": 7,
+        "Easy": 16
+      }
+    },
+    "Zynga": {
+      "count": 4,
+      "difficulty_counts": {
+        "Hard": 2,
+        "Medium": 3,
+        "Easy": 1
+      }
+    }
+  },
+  "matched_problem_count": 1192,
+  "unmatched_count": 6580,
+  "unmatched_sample": [
+    {
+      "company": "Accenture",
+      "title": "Move Zeroes",
+      "link": "https://leetcode.com/problems/move-zeroes"
+    },
+    {
+      "company": "Accenture",
+      "title": "Number of Islands",
+      "link": "https://leetcode.com/problems/number-of-islands"
+    },
+    {
+      "company": "Accenture",
+      "title": "Rotate Array",
+      "link": "https://leetcode.com/problems/rotate-array"
+    },
+    {
+      "company": "Accenture",
+      "title": "Merge Sorted Array",
+      "link": "https://leetcode.com/problems/merge-sorted-array"
+    },
+    {
+      "company": "Accenture",
+      "title": "3Sum",
+      "link": "https://leetcode.com/problems/3sum"
+    },
+    {
+      "company": "Accenture",
+      "title": "Letter Combinations of a Phone Number",
+      "link": "https://leetcode.com/problems/letter-combinations-of-a-phone-number"
+    },
+    {
+      "company": "Accenture",
+      "title": "Pascal's Triangle",
+      "link": "https://leetcode.com/problems/pascals-triangle"
+    },
+    {
+      "company": "Accenture",
+      "title": "Rotate Image",
+      "link": "https://leetcode.com/problems/rotate-image"
+    },
+    {
+      "company": "Accenture",
+      "title": "Merge Intervals",
+      "link": "https://leetcode.com/problems/merge-intervals"
+    },
+    {
+      "company": "Accenture",
+      "title": "Group Anagrams",
+      "link": "https://leetcode.com/problems/group-anagrams"
+    },
+    {
+      "company": "Accenture",
+      "title": "Generate Parentheses",
+      "link": "https://leetcode.com/problems/generate-parentheses"
+    },
+    {
+      "company": "Accenture",
+      "title": "Create Hello World Function",
+      "link": "https://leetcode.com/problems/create-hello-world-function"
+    },
+    {
+      "company": "Accenture",
+      "title": "Pow(x, n)",
+      "link": "https://leetcode.com/problems/powx-n"
+    },
+    {
+      "company": "Accenture",
+      "title": "Median of Two Sorted Arrays",
+      "link": "https://leetcode.com/problems/median-of-two-sorted-arrays"
+    },
+    {
+      "company": "Accenture",
+      "title": "Rising Temperature",
+      "link": "https://leetcode.com/problems/rising-temperature"
+    },
+    {
+      "company": "Accenture",
+      "title": "Intersection of Two Linked Lists",
+      "link": "https://leetcode.com/problems/intersection-of-two-linked-lists"
+    },
+    {
+      "company": "Accenture",
+      "title": "Next Permutation",
+      "link": "https://leetcode.com/problems/next-permutation"
+    },
+    {
+      "company": "Accenture",
+      "title": "Move Zeroes",
+      "link": "https://leetcode.com/problems/move-zeroes"
+    },
+    {
+      "company": "Accenture",
+      "title": "Rotate Array",
+      "link": "https://leetcode.com/problems/rotate-array"
+    },
+    {
+      "company": "Accenture",
+      "title": "Merge Sorted Array",
+      "link": "https://leetcode.com/problems/merge-sorted-array"
+    },
+    {
+      "company": "Accenture",
+      "title": "3Sum",
+      "link": "https://leetcode.com/problems/3sum"
+    },
+    {
+      "company": "Accenture",
+      "title": "Merge Intervals",
+      "link": "https://leetcode.com/problems/merge-intervals"
+    },
+    {
+      "company": "Accenture",
+      "title": "Pascal's Triangle",
+      "link": "https://leetcode.com/problems/pascals-triangle"
+    },
+    {
+      "company": "Accenture",
+      "title": "Rotate Image",
+      "link": "https://leetcode.com/problems/rotate-image"
+    },
+    {
+      "company": "Accenture",
+      "title": "Next Permutation",
+      "link": "https://leetcode.com/problems/next-permutation"
+    },
+    {
+      "company": "Accenture",
+      "title": "01 Matrix",
+      "link": "https://leetcode.com/problems/01-matrix"
+    },
+    {
+      "company": "Accenture",
+      "title": "Second Highest Salary",
+      "link": "https://leetcode.com/problems/second-highest-salary"
+    },
+    {
+      "company": "Accenture",
+      "title": "Pow(x, n)",
+      "link": "https://leetcode.com/problems/powx-n"
+    },
+    {
+      "company": "Accenture",
+      "title": "Intersection of Two Linked Lists",
+      "link": "https://leetcode.com/problems/intersection-of-two-linked-lists"
+    },
+    {
+      "company": "Accenture",
+      "title": "Group Anagrams",
+      "link": "https://leetcode.com/problems/group-anagrams"
+    },
+    {
+      "company": "Accenture",
+      "title": "Median of Two Sorted Arrays",
+      "link": "https://leetcode.com/problems/median-of-two-sorted-arrays"
+    },
+    {
+      "company": "Accenture",
+      "title": "Department Top Three Salaries",
+      "link": "https://leetcode.com/problems/department-top-three-salaries"
+    },
+    {
+      "company": "Accolite",
+      "title": "Merge Operations to Turn Array Into a Palindrome",
+      "link": "https://leetcode.com/problems/merge-operations-to-turn-array-into-a-palindrome"
+    },
+    {
+      "company": "Accolite",
+      "title": "Merge Operations to Turn Array Into a Palindrome",
+      "link": "https://leetcode.com/problems/merge-operations-to-turn-array-into-a-palindrome"
+    },
+    {
+      "company": "Acko",
+      "title": "Fill Missing Data",
+      "link": "https://leetcode.com/problems/fill-missing-data"
+    },
+    {
+      "company": "Acko",
+      "title": "Invalid Tweets",
+      "link": "https://leetcode.com/problems/invalid-tweets"
+    },
+    {
+      "company": "Acko",
+      "title": "Fill Missing Data",
+      "link": "https://leetcode.com/problems/fill-missing-data"
+    },
+    {
+      "company": "Acko",
+      "title": "Invalid Tweets",
+      "link": "https://leetcode.com/problems/invalid-tweets"
+    },
+    {
+      "company": "Activision",
+      "title": "Number of Divisible Triplet Sums",
+      "link": "https://leetcode.com/problems/number-of-divisible-triplet-sums"
+    },
+    {
+      "company": "Activision",
+      "title": "Number of Divisible Triplet Sums",
+      "link": "https://leetcode.com/problems/number-of-divisible-triplet-sums"
+    },
+    {
+      "company": "Adobe",
+      "title": "Top K Frequent Words",
+      "link": "https://leetcode.com/problems/top-k-frequent-words"
+    },
+    {
+      "company": "Adobe",
+      "title": "LRU Cache",
+      "link": "https://leetcode.com/problems/lru-cache"
+    },
+    {
+      "company": "Adobe",
+      "title": "Top K Frequent Words",
+      "link": "https://leetcode.com/problems/top-k-frequent-words"
+    },
+    {
+      "company": "Adobe",
+      "title": "LRU Cache",
+      "link": "https://leetcode.com/problems/lru-cache"
+    },
+    {
+      "company": "Adobe",
+      "title": "3Sum",
+      "link": "https://leetcode.com/problems/3sum"
+    },
+    {
+      "company": "Adobe",
+      "title": "Median of Two Sorted Arrays",
+      "link": "https://leetcode.com/problems/median-of-two-sorted-arrays"
+    },
+    {
+      "company": "Adobe",
+      "title": "Merge Sorted Array",
+      "link": "https://leetcode.com/problems/merge-sorted-array"
+    },
+    {
+      "company": "Adobe",
+      "title": "Group Anagrams",
+      "link": "https://leetcode.com/problems/group-anagrams"
+    },
+    {
+      "company": "Adobe",
+      "title": "Next Permutation",
+      "link": "https://leetcode.com/problems/next-permutation"
+    },
+    {
+      "company": "Adobe",
+      "title": "Set Matrix Zeroes",
+      "link": "https://leetcode.com/problems/set-matrix-zeroes"
+    }
+  ]
+}

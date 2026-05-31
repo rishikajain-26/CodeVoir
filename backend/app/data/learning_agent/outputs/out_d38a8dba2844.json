@@ -1,0 +1,64 @@
+{
+  "output_id": "out_d38a8dba2844",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flowchart",
+  "doc_ids": [
+    "doc_f43eb085ed88"
+  ],
+  "content": "## Flowchart\n\n- # API Routers This package is reserved for gradually extracting route groups out of `backend/main.py`.\n- Recommended future routers: - `auth.py` - `dashboard.py` - `interview.py` - `reports.py` - `runtime.py` - `opportunities.py` - `learning_agent.py` Keep new features in route modules and register them from `main.py` with ",
+  "sources": [
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "backend/app/api/README.md",
+      "url": null,
+      "score": 0.1255,
+      "preview": "# API Routers  This package is reserved for gradually extracting route groups out of `backend/main.py`.  Recommended future routers:  - `auth.py` - `dashboard.py` - `interview.py` - `reports.py` - `runtime.py` - `opportu",
+      "match_count": 1
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "backend/app/server.py",
+      "url": null,
+      "score": 0.077,
+      "preview": "ioral_turn = None  try:  from app.orchestration.cs_fundamentals_graph import run_cs_fundamentals_turn except Exception:  run_cs_fundamentals_turn = None  APP_VERSION = \"1.1.0-mvp\" SESSIONS: dict[str, dict[str, Any]] = lo",
+      "match_count": 1
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "README.md",
+      "url": null,
+      "score": 0.0643,
+      "preview": "# CodeVoir \u2014 AI Career Preparation Platform  CodeVoir helps students practise technical interviews, understand their weak areas, and prepare for real opportunities. It combines company-specific interview rounds, live cod",
+      "match_count": 6
+    },
+    {
+      "doc_id": "doc_f43eb085ed88",
+      "title": "aarushijn/CodeVoir_edited",
+      "source_type": "github",
+      "source": "https://github.com/aarushijn/CodeVoir_edited",
+      "page": null,
+      "pages": [],
+      "file_path": "backend/main.py",
+      "url": null,
+      "score": 0.0,
+      "preview": "\"\"\"CodeVoir backend entrypoint.  The application implementation lives in ``app.server`` so the root entrypoint stays small and predictable for Uvicorn, tests, and deployment scripts.  Run locally with:  uvicorn main:app ",
+      "match_count": 1
+    }
+  ],
+  "created_at": "2026-05-30T17:48:55.713583+00:00"
+}

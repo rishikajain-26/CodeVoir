@@ -1,0 +1,25 @@
+{
+  "output_id": "out_10a0a5dc75b1",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flashcards",
+  "doc_ids": [
+    "doc_625c2fe7a297"
+  ],
+  "content": "Q: What is the key idea about highlight 1?\nA: HTML: HyperText Markup Language | MDN Skip to main content Skip to search HTML: HyperText Markup Language HTML (HyperText Markup Language) is the most basic building block of the Web.\n\nQ: What is the key idea about it defines the meaning and structure of web?\nA: It defines the meaning and structure of web content.\n\nQ: What is the key idea about other technologies besides html are generally used to?\nA: Other technologies besides HTML are generally used to describe a web page's appearance/presentation ( CSS ) or functionality/behavior ( JavaScript ).\n\nQ: What is the key idea about hypertext refers to links that connect web pages?\nA: \"Hypertext\" refers to links that connect web pages to one another, either within a single website or between websites.\n\nQ: What is the key idea about links are a fundamental aspect of the web?\nA: Links are a fundamental aspect of the Web.\n\nQ: What is the key idea about div span img aside audio canvas datalist details?\nA: div> , <span> , <img> , <aside> , <audio> , <canvas> , <datalist> , <details> , <embed> , <nav> , <search> , <output> , <progress> , <video> , <ul> , <ol> , <li> and many others.\n\nQ: What is the key idea about an html element is set off from other?\nA: An HTML element is set off from other text in a document by \"tags\", which consist of the element name surrounded by < and > .\n\nQ: What is the key idea about the name of an element inside a tag?\nA: The name of an element inside a tag is case-insensitive.",
+  "sources": [
+    {
+      "doc_id": "doc_625c2fe7a297",
+      "title": "HTML: HyperText Markup Language | MDN",
+      "source_type": "url",
+      "source": "HTML: HyperText Markup Language | MDN",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://share.google/Uw1pLHDSkdllVxapy",
+      "score": 0,
+      "preview": "HTML: HyperText Markup Language | MDN Skip to main content Skip to search HTML: HyperText Markup Language HTML (HyperText Markup Language) is the most basic building block of the Web.  It defines the meaning and structur",
+      "match_count": 8
+    }
+  ],
+  "created_at": "2026-05-30T16:26:50.677879+00:00"
+}

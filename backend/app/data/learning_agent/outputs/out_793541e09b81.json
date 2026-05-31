@@ -1,0 +1,25 @@
+{
+  "output_id": "out_793541e09b81",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flowchart",
+  "doc_ids": [
+    "doc_823396ff6fff"
+  ],
+  "content": "## Flowchart\n\n- Other automakers were slow to adopt the new technology, but electric starter motors would be ubiquitous within the next decade.\n- Archived from the original on 4 March 2016 .\n- ^ a b c Sperling, Daniel; Gordon, Deborah (2009).\n- Two billion cars: driving toward sustainability .\n- Plug-in Hybrids: The Cars that will Recharge America .\n\n_LLM generation is currently unavailable, so this summary uses cleaned retrieved context only._",
+  "sources": [
+    {
+      "doc_id": "doc_823396ff6fff",
+      "title": "Electric car - Wikipedia",
+      "source_type": "url",
+      "source": "Electric car - Wikipedia",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://en.wikipedia.org/wiki/Electric_car",
+      "score": 0.062,
+      "preview": "engine was running.  Other automakers were slow to adopt the new technology, but electric starter motors would be ubiquitous within the next decade.  ^ \"Elwell-Parker, Limited\" .  Archived from the original on 4 March 20",
+      "match_count": 10
+    }
+  ],
+  "created_at": "2026-05-30T10:17:51.803377+00:00"
+}

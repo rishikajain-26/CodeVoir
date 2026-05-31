@@ -1,0 +1,65 @@
+{
+  "output_id": "out_2145c4d4e7fc",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "flowchart",
+  "doc_ids": [
+    "doc_adfb09018184",
+    "doc_9c0bc2776011",
+    "doc_f366fb7716cc",
+    "doc_8c6d609a5273",
+    "doc_5e94f12125ad",
+    "doc_03646c8e5f2b",
+    "doc_61b5d27d8354"
+  ],
+  "content": "## Flowchart\n\n- UNIT-IV 7 Hours Sensors for Mobile Robots: Sensor classification, characterizing sensor performance, wheel/motor sensors, heading sensors, ground-based beacons, active ranging, motion/speed sensors, vision based sensors;\n- Nourbakhsh, Introduction to Autonomous Mobile Robots, MIT Press, Second Edition, 18 February 2011.\n- Tzafestas, Introduction to Mobile Robot Control, Elsevier, 2014.\n- Gregor Klancar, Andrej Zdesar, Saso Blazic, Igor Skrjanc, Wheeled Mobile Robotics.\n- Gregory Dudek, Michael Jenkin, Computational Principles of Mobile Robotics, Cambridge University Press, 2010.",
+  "sources": [
+    {
+      "doc_id": "doc_9c0bc2776011",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 30,
+      "pages": [
+        30,
+        20
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0746,
+      "preview": "UNIT-IV 7 Hours Sensors for Mobile Robots: Sensor classification, characterizing sensor performance, wheel/motor sensors, heading sensors, ground-based beacons, active ranging, motion/speed sensors, vision based sensors;",
+      "match_count": 5
+    },
+    {
+      "doc_id": "doc_61b5d27d8354",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 30,
+      "pages": [
+        30,
+        20
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0746,
+      "preview": "UNIT-IV 7 Hours Sensors for Mobile Robots: Sensor classification, characterizing sensor performance, wheel/motor sensors, heading sensors, ground-based beacons, active ranging, motion/speed sensors, vision based sensors;",
+      "match_count": 4
+    },
+    {
+      "doc_id": "doc_03646c8e5f2b",
+      "title": "B.Tech_MAE_3rd sem_Dec 2025.pdf",
+      "source_type": "pdf",
+      "source": "B.Tech_MAE_3rd sem_Dec 2025.pdf",
+      "page": 5,
+      "pages": [
+        5
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0708,
+      "preview": "INDIRA GANDHI DELHI TECHNICAL UNIVERSITY FOR WOMEN (Established by Govt. of Delhi vide Act 9 of 2012) Kashmere Gate, Delhi - 110006 (An ISO 9001:2015 Certified University) Consolidated Statement of Result Programme : B.T",
+      "match_count": 1
+    }
+  ],
+  "created_at": "2026-05-30T12:55:00.510697+00:00"
+}

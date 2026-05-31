@@ -1,0 +1,25 @@
+{
+  "output_id": "out_bf5e45bfc8e6",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "notes",
+  "doc_ids": [
+    "doc_5e94f12125ad"
+  ],
+  "content": "## Notes\n\n### Focus topics\n- notes\n\n### Source excerpt\nrweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub\nSkip to content\nNavigation Menu Toggle navigation\nSign in\nAppearance settings\nSearch or jump to...\nSearch code, repositories, users, issues, pull requests...\nSearch\nClear\nSearch syntax tips\nProvide feedback\nWe read every piece of feedback, and take your input very seriously.\nInclude my email address so I can be contacted\nCancel Submit feedback\nSaved searches\nUse saved searches to filter your results more quickly\nName\nQuery\nTo see all available qualifiers, see our documentation .\nCancel Create saved search\nSign in Sign up\nAppearance settings\nResetting focus\nYou signed in with another tab or window. Reload to refresh your session. You signed out in another tab or window. Reload to refresh your session. You switched accounts on another tab or window. Reload to refresh your session. Dismiss alert\n{{ message }}\nrweekly / rweek\n\nLLM generation is currently unavailable, so this fallback output uses retrieved context only.",
+  "sources": [
+    {
+      "doc_id": "doc_5e94f12125ad",
+      "title": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "source_type": "url",
+      "source": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://github.com/rweekly/rweekly.org/blob/gh-pages/random.html",
+      "score": 0.0,
+      "preview": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub Skip to content Navigation Menu Toggle navigation Sign in Appearance settings Search or jump to... Search code, repositories, users, issues, pull request",
+      "match_count": 2
+    }
+  ],
+  "created_at": "2026-05-29T17:12:02.216572+00:00"
+}

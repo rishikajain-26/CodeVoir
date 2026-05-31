@@ -1,0 +1,65 @@
+{
+  "output_id": "out_f6d34f102380",
+  "user_id": "oauth:104929696065440337815",
+  "generation_type": "mindmap",
+  "doc_ids": [],
+  "content": "## Mindmap\n\n### Focus topics\n- mindmap\n\n### Source-grounded notes\n- CO3: Optimize transportation and warehousing operations in the supply chain.\n- CO4: Explore and analyze emerging technologies and their impact on supply chains.\n- Pedagogy: Classroom teaching is supported by White board, black board, chalks, markers, projector and screen.\n- The hand-written notes, Power Point slides and assignments will be provided to the students and also mailed to them.\n- The students can also raise their issues related to the course in the class and mail.\n\n_LLM generation is currently unavailable, so these notes use cleaned retrieved context only._",
+  "sources": [
+    {
+      "doc_id": "doc_61b5d27d8354",
+      "title": "syllabus.pdf",
+      "source_type": "pdf",
+      "source": "syllabus.pdf",
+      "page": 25,
+      "pages": [
+        25,
+        23
+      ],
+      "file_path": null,
+      "url": null,
+      "score": 0.0571,
+      "preview": "ply chain decisions. CO3: Optimize transportation and warehousing operations in the supply chain. CO4: Explore and analyze emerging technologies and their impact on supply chains. Pedagogy: Classroom teaching is supporte",
+      "match_count": 2
+    },
+    {
+      "doc_id": "doc_f366fb7716cc",
+      "title": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "source_type": "url",
+      "source": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://github.com/rweekly/rweekly.org/blob/gh-pages/random.html",
+      "score": 0.0,
+      "preview": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub rweekly / rweekly.org Public Notifications You must be signed in to change notification settings Fork 406 Star 816 Expand file tree / random.html Copy pa",
+      "match_count": 1
+    },
+    {
+      "doc_id": "doc_8c6d609a5273",
+      "title": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "source_type": "url",
+      "source": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://github.com/rweekly/rweekly.org/blob/gh-pages/random.html",
+      "score": 0.0,
+      "preview": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub Skip to content Navigation Menu Toggle navigation Sign in Appearance settings Search or jump to... Search code, repositories, users, issues, pull request",
+      "match_count": 2
+    },
+    {
+      "doc_id": "doc_5e94f12125ad",
+      "title": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "source_type": "url",
+      "source": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub",
+      "page": null,
+      "pages": [],
+      "file_path": null,
+      "url": "https://github.com/rweekly/rweekly.org/blob/gh-pages/random.html",
+      "score": 0.0,
+      "preview": "rweekly.org/random.html at gh-pages \u00b7 rweekly/rweekly.org \u00b7 GitHub Skip to content Navigation Menu Toggle navigation Sign in Appearance settings Search or jump to... Search code, repositories, users, issues, pull request",
+      "match_count": 2
+    }
+  ],
+  "created_at": "2026-05-29T17:17:21.646639+00:00"
+}
